@@ -22,6 +22,7 @@ setup(
     packages = ['scimma', 'scimma.client'],
     namespace_packages = ['scimma'],
 
+    python_requires='>=3.6.*',
     install_requires = install_requires,
 
     classifiers = [
