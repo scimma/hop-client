@@ -9,12 +9,18 @@ TODO
 
 ## Installation
 
-You can install scimma-client either via pip or from source.
+You can install scimma-client either via pip, conda, or from source.
 
 To install with pip:
 
 ```
 pip install -U scimma-client
+```
+
+To install with conda, you must use the channel from the SCiMMA Anaconda organization:
+
+```
+conda install --channel scimma scimma-client
 ```
 
 To install from source:

@@ -1,0 +1,39 @@
+{% set name = "scimma-client" %}
+{% set version = "0.0.1" %}
+
+package:
+  name: "{{ name|lower }}"
+  version: "{{ version }}"
+
+source:
+  url: "https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz"
+  sha256: "c0f87a158f6ea3cd302b13fec00b81445a6edf3e4629a8744078ad120f810f69"
+
+build:
+  number: 0
+  script: python setup.py install --single-version-externally-managed --record=record.txt
+
+requirements:
+  host:
+    - pip
+    - python
+  run:
+    - python
+
+test:
+  imports:
+    - scimma
+    - scimma.client
+
+about:
+  home: "https://github.com/scimma/client_library"
+  license: "BSD"
+  license_family: "BSD"
+  license_file: ""
+  summary: "A client library for SCiMMA"
+  doc_url: ""
+  dev_url: ""
+
+extra:
+  recipe-maintainers:
+    - your-github-id-here
