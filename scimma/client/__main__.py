@@ -7,6 +7,7 @@ import logging
 import signal
 
 from . import __version__
+from . import publish
 
 
 # ------------------------------------------------
@@ -38,8 +39,13 @@ def set_up_cli():
         "--version", action="version", version=f"%(prog)s-client version {__version__}",
     )
 
+    # set up subparser
     subparser = parser.add_subparsers(title="Commands", metavar="<command>", dest="cmd")
     subparser.required = True
+
+    # register commands
+    p = append_subparser(subparser, "publish", publish.main)
+    publish._add_parser_args(p)
 
     return parser
 
