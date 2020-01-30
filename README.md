@@ -5,7 +5,11 @@ SCiMMA Client
 
 ## Quickstart
 
-TODO
+Publish a GCN to Kafka:
+
+```
+scimma publish -b kafka://hostname:port/gcn mygcn.gcn3
+```
 
 ## Installation
 
