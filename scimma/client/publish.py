@@ -5,6 +5,21 @@ __description__ = "tools to parse and publish GCN circulars"
 
 
 import argparse
+import email
+
+
+def read_parse_gcn(gcn_file):
+    """Reads and parses a GCN circular file.
+
+    """
+    with open(gcn_file, "r") as f:
+        msg = email.message_from_file(f)
+
+    # format gcn circular into header/body
+    return {
+        "header": {title.lower(): content for title, content in msg.items()},
+        "body": msg.get_payload(),
+    }
 
 
 # ------------------------------------------------
