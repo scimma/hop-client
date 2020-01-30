@@ -5,6 +5,23 @@ __description__ = "tools to parse and publish GCN circulars"
 
 
 import argparse
+import email
+
+from genesis import streaming as stream
+
+
+def read_parse_gcn(gcn_file):
+    """Reads and parses a GCN circular file.
+
+    """
+    with open(gcn_file, "r") as f:
+        msg = email.message_from_file(f)
+
+    # format gcn circular into header/body
+    return {
+        "header": {title.lower(): content for title, content in msg.items()},
+        "body": msg.get_payload(),
+    }
 
 
 # ------------------------------------------------
@@ -13,6 +30,12 @@ import argparse
 
 def _add_parser_args(parser):
     parser.add_argument("gcn", nargs="+", help="One or more GCNs to publish.")
+    parser.add_argument(
+        "-b",
+        "--broker-url",
+        required=True,
+        help="Sets the broker URL to publish GCNs to.",
+    )
 
 
 def main(args=None):
@@ -23,3 +46,8 @@ def main(args=None):
         parser = argparse.ArgumentParser()
         _parser_add_arguments(parser)
         args = parser.parse_args()
+
+    with stream.open(args.broker_url, "w", format="json") as s:
+        for gcn_file in args.gcn:
+            gcn = read_parse_gcn(gcn_file)
+            s.write(gcn)
