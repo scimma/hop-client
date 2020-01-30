@@ -10,7 +10,6 @@ install_requires = []
 
 setup(
     name = 'scimma-client',
-    version = '0.0.1',
     description = 'A client library for SCiMMA',
     long_description = long_description,
     long_description_content_type = 'text/markdown',
@@ -28,8 +27,12 @@ setup(
         ],
     },
 
-    python_requires='>=3.6.*',
+    python_requires = '>=3.6.*',
     install_requires = install_requires,
+    setup_requires = ['setuptools_scm'],
+    use_scm_version = {
+        'write_to': 'scimma/client/_version.py'
+    },
 
     classifiers = [
         'Development Status :: 2 - Pre-Alpha',
