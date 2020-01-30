@@ -2,6 +2,7 @@
 help :
 	@echo
 	@echo '  make test                  run unit tests'
+	@echo '  make doc                   make documentation'
 	@echo '  make dist                  make binary and source packages'
 	@echo '  make dist-check            verify binary and source packages'
 	@echo '  make upload                upload to PyPI'
@@ -10,6 +11,10 @@ help :
 .PHONY: test
 test :
 	python -m pytest -v
+
+.PHONY: doc
+doc :
+	cd doc && make html
 
 .PHONY: dist
 dist :
