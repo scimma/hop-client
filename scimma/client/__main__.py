@@ -10,10 +10,6 @@ from . import __version__
 from . import publish
 
 
-# ------------------------------------------------
-# -- CLI utilities
-
-
 def append_subparser(subparser, cmd, func):
     assert func.__doc__, "empty docstring: {}".format(func)
     help_ = func.__doc__.split("\n")[0].lower().strip(".")
