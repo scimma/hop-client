@@ -6,7 +6,12 @@ this_dir = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(this_dir, 'README.md'), 'rb') as f:
     long_description = f.read().decode().strip()
 
-install_requires = []
+# requirements
+install_requires = ['adc']
+extras_require = {
+    'dev': ['pytest'],
+    'docs': ['sphinx', 'sphinx_rtd_theme', 'sphinxcontrib-programoutput'],
+}
 
 setup(
     name = 'scimma-client',
@@ -29,6 +34,7 @@ setup(
 
     python_requires = '>=3.6.*',
     install_requires = install_requires,
+    extras_require = extras_require,
     setup_requires = ['setuptools_scm'],
     use_scm_version = {
         'write_to': 'scimma/client/_version.py'
