@@ -40,7 +40,7 @@ def set_up_cli():
     subparser.required = True
 
     # register commands
-    p = append_subparser(subparser, "publish", publish.main)
+    p = append_subparser(subparser, "publish", publish._main)
     publish._add_parser_args(p)
 
     return parser

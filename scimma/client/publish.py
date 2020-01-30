@@ -38,7 +38,7 @@ def _add_parser_args(parser):
     )
 
 
-def main(args=None):
+def _main(args=None):
     """Parse and publish GCN circulars.
 
     """
