@@ -34,3 +34,16 @@ tar -xzf scimma-client-x.y.z.tar.gz
 cd scimma-client-x.y.z
 python setup.py install
 ```
+
+## Development
+
+A Makefile is provided to ease in testing, deployment and generating documentation.
+
+A list of commands can be listed with `make help`.
+
+In addition, two extras are provided when installing the scimma client that installs
+the required test and documentation libraries:
+
+```
+pip install -U scimma-client[dev,docs]
+```

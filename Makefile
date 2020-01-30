@@ -1,6 +1,8 @@
 .PHONY: help
 help :
 	@echo
+	@echo 'Commands:'
+	@echo
 	@echo '  make test                  run unit tests'
 	@echo '  make doc                   make documentation'
 	@echo '  make dist                  make binary and source packages'
