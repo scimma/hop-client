@@ -13,6 +13,17 @@ from genesis import streaming as stream
 def read_parse_gcn(gcn_file):
     """Reads and parses a GCN circular file.
 
+    The parsed GCN circular is formatted as a dictionary with
+    the following schema:
+
+        {'headers': {'title': ..., 'number': ..., ...}, 'body': ...}
+
+    Args:
+      gcn_file: the path to an RFC 822 formatted GCN circular
+
+    Returns:
+        the parsed GCN circular
+
     """
     with open(gcn_file, "r") as f:
         msg = email.message_from_file(f)
@@ -38,7 +49,7 @@ def _add_parser_args(parser):
     )
 
 
-def main(args=None):
+def _main(args=None):
     """Parse and publish GCN circulars.
 
     """
