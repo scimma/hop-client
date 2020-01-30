@@ -22,6 +22,12 @@ setup(
     packages = ['scimma', 'scimma.client'],
     namespace_packages = ['scimma'],
 
+    entry_points = {
+        'console_scripts': [
+            'scimma = scimma.client.__main__:main',
+        ],
+    },
+
     python_requires='>=3.6.*',
     install_requires = install_requires,
 
