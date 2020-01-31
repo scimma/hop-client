@@ -12,7 +12,7 @@ help :
 
 .PHONY: test
 test :
-	python -m pytest -v
+	python -m pytest -v --cov=scimma.client
 
 .PHONY: doc
 doc :
