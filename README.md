@@ -1,6 +1,8 @@
 SCiMMA Client
 =============
 
+![](https://github.com/scimma/client_library/workflows/build/badge.svg)
+
 **scimma-client** is a pub-sub client library for Multimessenger Astrophysics.
 
 ## Quickstart
