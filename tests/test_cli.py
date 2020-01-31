@@ -4,10 +4,8 @@ __author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
 __description__ = "a module that tests entry points"
 
 
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import patch, mock_open
 import pytest
-
-from genesis import streaming
 
 from scimma.client import __version__
 
@@ -26,13 +24,14 @@ def test_cli_scimma(script_runner):
     assert ret.stderr == ""
 
 
-def test_cli_publish(script_runner, mocker):
+def test_cli_publish(script_runner):
     ret = script_runner.run("scimma", "publish", "--help")
     assert ret.success
 
     gcn_mock = mock_open(read_data=GCN_CIRCULAR)
-    with patch("scimma.client.publish.open", gcn_mock) as mock_file, \
-            patch("scimma.client.publish.stream.open", mock_open()) as mock_stream:
+    with patch("scimma.client.publish.open", gcn_mock) as mock_file, patch(
+        "scimma.client.publish.stream.open", mock_open()
+    ) as mock_stream:
 
         gcn_file = "example.gcn3"
         broker_url = "kafka://hostname:port/gcn"
