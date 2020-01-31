@@ -4,6 +4,7 @@ help :
 	@echo 'Commands:'
 	@echo
 	@echo '  make test                  run unit tests'
+	@echo '  make lint                  run linter'
 	@echo '  make doc                   make documentation'
 	@echo '  make dist                  make binary and source packages'
 	@echo '  make dist-check            verify binary and source packages'
@@ -12,7 +13,12 @@ help :
 
 .PHONY: test
 test :
-	python -m pytest -v
+	python -m pytest -v --cov=scimma.client
+
+.PHONY: lint
+lint :
+	flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+	flake8 . --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
 
 .PHONY: doc
 doc :
