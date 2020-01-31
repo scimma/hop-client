@@ -55,7 +55,7 @@ def _main(args=None):
     """
     if not args:
         parser = argparse.ArgumentParser()
-        _parser_add_arguments(parser)
+        _add_parser_args(parser)
         args = parser.parse_args()
 
     with stream.open(args.broker_url, "w", format="json") as s:
