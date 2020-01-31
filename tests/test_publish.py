@@ -4,7 +4,6 @@ __author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
 __description__ = "a module that tests the publish utilities"
 
 
-import pytest
 from unittest.mock import patch, mock_open
 
 from scimma.client import publish
@@ -59,6 +58,7 @@ FROM:    {GCN_FROM}
 
 {GCN_BODY}\
 """
+
 
 def test_read_parse_gcn():
     with patch("builtins.open", mock_open(read_data=GCN_CIRCULAR)) as mock_file:

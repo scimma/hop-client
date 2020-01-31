@@ -3,7 +3,6 @@
 __author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
 
 import argparse
-import logging
 import signal
 
 from . import __version__
