@@ -28,4 +28,4 @@ jobs:
         TWINE_PASSWORD: ${{ secrets.PYPI_PW_scimma }}
       run: |
         python3 setup.py sdist bdist_wheel
-        python3 -m twine upload --repository-url https://pypi.org/ dist/* -u $TWINE_USERNAME -p $TWINE_PASSWORD
+        python3 -m twine upload --repository-url https://upload.pypi.org/legacy/ dist/* -u $TWINE_USERNAME -p $TWINE_PASSWORD
