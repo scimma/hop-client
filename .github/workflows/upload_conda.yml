@@ -19,7 +19,6 @@ jobs:
         python-version: '3.6'
     - name: Install dependencies
       run: |
-	which conda
         conda install -y anaconda-client conda-build
         which anaconda
     - name: Build and upload
@@ -28,6 +27,6 @@ jobs:
         CONDA_PASSWORD: ${{ secrets.CONDA_PW }}
       run: |
         conda config --set anaconda_upload yes
-	anaconda login --username $CONDA_USERNAME --password $CONDA_PASSWORD
+        anaconda login --username $CONDA_USERNAME --password $CONDA_PASSWORD
         conda build .
         anaconda logout
