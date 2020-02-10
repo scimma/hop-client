@@ -49,3 +49,13 @@ the required test and documentation libraries:
 ```
 pip install -U scimma-client[dev,docs]
 ```
+
+## Contributing
+
+To make a version change to the package and upload it to package managers, push a commit
+with a new version using:
+
+```
+git tag v[#.#.#]
+git push --tags
+```
