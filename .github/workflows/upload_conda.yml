@@ -1,0 +1,33 @@
+name: Upload to Anaconda
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  Upload:
+    runs-on: ubuntu-latest
+    container:
+      image: continuumio/miniconda
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v1
+      with:
+        python-version: '3.6'
+    - name: Install dependencies
+      run: |
+	which conda
+        conda install -y anaconda-client conda-build
+        which anaconda
+    - name: Build and upload
+      env:
+        CONDA_USERNAME: ${{ secrets.CONDA_USER }}
+        CONDA_PASSWORD: ${{ secrets.CONDA_PW }}
+      run: |
+        conda config --set anaconda_upload yes
+	anaconda login --username $CONDA_USERNAME --password $CONDA_PASSWORD
+        conda build .
+        anaconda logout
