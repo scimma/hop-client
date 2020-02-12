@@ -1,0 +1,13 @@
+TITLE:   GCN CIRCULAR
+NUMBER:  26936
+SUBJECT: LIGO/Virgo S200129m: Not observable by Fermi-GBM
+DATE:    20/01/29 17:07:21 GMT
+FROM:    Adam Goldstein at Fermi-GBM, USRA  <adam.michael.goldstein@gmail.com>
+
+A. Goldstein (USRA) reports on behalf of the Fermi-GBM Team and the
+GBM-LIGO/Virgo group:
+
+For S200129m and using the bayestar.fits.gz,1 skymap, Fermi-GBM did not
+observe any of the localization probability at event time due to Earth
+occultation. Therefore, the GBM observations are not constraining for
+prompt gamma-ray emission.

@@ -1,1 +1,2 @@
 include LICENSE README.md MANIFEST.in
+recursive-include tests *.py *.gcn3
