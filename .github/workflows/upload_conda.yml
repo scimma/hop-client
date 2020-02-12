@@ -9,7 +9,7 @@ jobs:
   Upload:
     runs-on: ubuntu-latest
     container:
-      image: continuumio/miniconda
+      image: continuumio/miniconda3
 
     steps:
     - uses: actions/checkout@v2
@@ -21,7 +21,15 @@ jobs:
       run: |
         conda install -y anaconda-client conda-build
         which anaconda
-    - name: Build and upload
+        pip install setuptools wheel
+    - name: Build package and update conda recipe
+      run: |
+        python setup.py sdist bdist_wheel
+        wget https://github.com/mikefarah/yq/releases/download/3.1.0/yq_linux_amd64 -O yq
+        chmod +x yq
+        ./yq n source.sha256 $(openssl sha256 dist/*.tar.gz | awk '{print $2}') > update_hash.yml
+        conda render recipe/meta.yaml --append-file update_hash.yml
+    - name: Upload to Anaconda
       env:
         CONDA_USERNAME: ${{ secrets.CONDA_USER_scimma }}
         CONDA_PASSWORD: ${{ secrets.CONDA_PW_scimma }}
