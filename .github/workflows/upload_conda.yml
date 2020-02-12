@@ -20,11 +20,10 @@ jobs:
     - name: Install dependencies
       run: |
         conda install -y anaconda-client conda-build
-        which anaconda
-        pip install setuptools wheel
+        conda install -y setuptools
     - name: Build package and update conda recipe
       run: |
-        python setup.py sdist bdist_wheel
+        python3 setup.py sdist
         wget https://github.com/mikefarah/yq/releases/download/3.1.0/yq_linux_amd64 -O yq
         chmod +x yq
         ./yq n source.sha256 $(openssl sha256 dist/*.tar.gz | awk '{print $2}') > update_hash.yml
