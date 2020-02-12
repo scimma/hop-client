@@ -1,0 +1,5 @@
+genesis==0.0.0
+pytest==5.3.5
+sphinx_rtd_theme==0.4.3
+adc==0.0.1
+flake8==3.7.9
