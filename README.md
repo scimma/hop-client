@@ -13,6 +13,9 @@ Publish a GCN to Kafka:
 scimma publish -b kafka://hostname:port/gcn mygcn.gcn3
 ```
 
+An example RFC 822 formatted GCN circular (`example.gcn3`) is provided in
+`tests/data`.
+
 ## Installation
 
 You can install scimma-client either via pip, conda, or from source.
