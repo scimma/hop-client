@@ -1,14 +1,8 @@
 {% set repo_name = "scimma" %}
 {% set pack_name = "client_library" %}
 
-#{% set setup_data = load_setup_py_data() %}
-#{% from setuptools_scm import get_version %}
-{% set version = GIT_DESCRIBE_TAG %}
-
 package:
   name: "{{ pack_name|lower }}"
-  #version: {{ setup_data.get('version') }}
-  #version: {{ get_version() }}
   version: {{ version }}
 
 source:

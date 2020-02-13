@@ -23,6 +23,8 @@ jobs:
         python3 setup.py sdist
         wget https://github.com/mikefarah/yq/releases/download/3.1.0/yq_linux_amd64 -O yq
         chmod +x yq
+        ./yq n package.version $(python setup.py --version) > update.yaml
+        conda render recipe/meta.yaml --append-file update.yaml
         ./yq n source.sha256 $(openssl sha256 dist/*.tar.gz | awk '{print $2}') > update_hash.yaml
         conda render recipe/meta.yaml --append-file update_hash.yaml
     - name: Upload to Anaconda
