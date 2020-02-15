@@ -27,7 +27,7 @@ jobs:
         line_str='{% set version = "v'${v_str}'" %}'
         echo $line_str | cat - $fpath > temp && mv temp $fpath
         
-    - name: Build package and generate hash
+    - name: Generate dist and hash
       run: |
         #build the package
         python3	setup.py sdist
@@ -41,7 +41,12 @@ jobs:
         #render the recipe file with the generated hash
         conda render recipe/meta.yaml --append-file update.yaml
 
-    - name: Upload to Anaconda
+    - name: Add channels
+      run: |
+        conda config --env --add channels scimma
+        conda config --env --add channels conda-forge
+
+    - name: Build and upload to Anaconda
       env:
         CONDA_USERNAME: ${{ secrets.CONDA_USER_scimma }}
         CONDA_PASSWORD: ${{ secrets.CONDA_PW_scimma }}
