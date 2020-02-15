@@ -20,12 +20,13 @@ jobs:
         conda install -y setuptools setuptools_scm
 
     - name: Update recipe with version variable
+      env:
+        RECIPE_PATH: 'recipe/meta.yaml'
       run: |
         #prepend version environment variable before writing files (preserves version of master)
-        fpath="recipe/meta.yaml"
         v_str=$(python setup.py --version)
         line_str='{% set version = "v'${v_str}'" %}'
-        echo $line_str | cat - $fpath > temp && mv temp $fpath
+        echo $line_str | cat - $RECIPE_PATH > temp && mv temp $RECIPE_PATH
         
     - name: Generate dist and hash
       run: |
@@ -42,8 +43,11 @@ jobs:
         conda render recipe/meta.yaml --append-file update.yaml
 
     - name: Add channels
+      env:
+        PACK_NAME: 'scimma'
       run: |
-        conda config --env --add channels scimma
+        conda index ./$PACK_NAME
+        conda config --env --add channels $PACK_NAME
         conda config --env --add channels conda-forge
 
     - name: Build and upload to Anaconda
