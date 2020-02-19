@@ -62,8 +62,9 @@ jobs:
       env:
         CONDA_USERNAME: ${{ secrets.CONDA_USER_scimma }}
         CONDA_PASSWORD: ${{ secrets.CONDA_PW_scimma }}
+        CONDA_ORG_USER: 'scimma'
       run: |
         conda config --set anaconda_upload yes
         anaconda login --username $CONDA_USERNAME --password $CONDA_PASSWORD
-        conda build . --clobber-file update.yaml
+        conda build . --user $CONDA_ORG_USER --clobber-file update.yaml
         anaconda logout
