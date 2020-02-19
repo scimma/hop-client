@@ -48,7 +48,7 @@ jobs:
     - name: Apply updated hash
       run: |
         #render the recipe file with the generated hash
-        conda render recipe/meta.yaml --clobber-file update.yaml
+        #conda render recipe/meta.yaml --clobber-file update.yaml -f recipe/meta.yaml
 
     - name: Add channels 
       env:
@@ -65,5 +65,5 @@ jobs:
       run: |
         conda config --set anaconda_upload yes
         anaconda login --username $CONDA_USERNAME --password $CONDA_PASSWORD
-        conda build .
+        conda build . --clobber-file update.yaml
         anaconda logout
