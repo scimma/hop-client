@@ -21,28 +21,31 @@ jobs:
 
     - name: Update recipe with version variable
       env:
+        #can't read source url from recipe, so generate it here:
+        NAME: 'scimma-client'
         RECIPE_PATH: 'recipe/meta.yaml'
+        VERSION: $(python setup.py --version)
+        LINE_STR: '{% set version = "v'${VERSION}'" %}'
+        SOURCE_URL: "https://pypi.io/packages/source/s/${NAME}/${NAME}-${VERSION}.tar.gz"
+
       run: |
         #prepend version environment variable before writing files (preserves version of master)
-        v_str=$(python setup.py --version)
-        line_str='{% set version = "v'${v_str}'" %}'
-        echo $line_str | cat - $RECIPE_PATH > temp && mv temp $RECIPE_PATH
+        echo $LINE_STR | cat - $RECIPE_PATH > temp && mv temp $RECIPE_PATH
         
-    - name: Generate dist and hash
-      run: |
-        #build the package
-        python3	setup.py sdist
+        #download tarball from pypi for hash generation
+        pip download $SOURCE_URL --no-deps -no-binary :all:
+        
         #use openssl to generate hash and yq to write updated hash to file
         wget https://github.com/mikefarah/yq/releases/download/3.1.0/yq_linux_amd64 -O yq
         chmod +x yq
-        ./yq n source.sha256 $(openssl sha256 dist/*.tar.gz | awk '{print $2}') >> update.yaml
+        ./yq n source.sha256 $(openssl sha256 ${NAME}-${VERSION}.tar.gz | awk '{print $2}') >> update.yaml
 
     - name: Apply updated hash
       run: |
         #render the recipe file with the generated hash
         conda render recipe/meta.yaml --append-file update.yaml
 
-    - name: Add channels
+    - name: Add channels 
       env:
         PACK_NAME: 'scimma'
       run: |
