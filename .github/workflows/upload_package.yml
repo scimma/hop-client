@@ -40,7 +40,7 @@ jobs:
         conda install -y anaconda-client conda-build
         conda install -y setuptools setuptools_scm
 
-    - name: Update recipe with version variable
+    - name: Update recipe with version and generate hash from PyPI package
       env:
         #can't read source url from recipe, so generate it here:
         NAME: 'scimma-client'
@@ -64,15 +64,15 @@ jobs:
         chmod +x yq
         ./yq n source.sha256 $(openssl sha256 ${NAME}-${VERSION}.tar.gz | awk '{print $2}') >> update.yaml
 
-    - name: Add channels
+    - name: Add channels for dependencies
       env:
         PACK_NAME: 'scimma'
       run: |
         conda index ./$PACK_NAME  #for noarch support
-        conda config --env --add channels $PACK_NAME
+        conda config --env --add channels $PACK_NAME  #for adc
         conda config --env --add channels conda-forge
 
-    - name: Build and upload to Anaconda
+    - name: Update recipe, build package, and upload to Anaconda
       env:
         CONDA_USERNAME: ${{ secrets.CONDA_USER_scimma }}
         CONDA_PASSWORD: ${{ secrets.CONDA_PW_scimma }}

@@ -52,3 +52,13 @@ the required test and documentation libraries:
 ```
 pip install -U scimma-client[dev,docs]
 ```
+
+To mark a new version, use Github tags to mark your commit with a [semver](https://semver.org/) version:
+```
+git tag v0.0.1
+```
+
+To release a new version and upload to package repositories, push your tag after pushing your commit:
+```
+git push --tags
+```
