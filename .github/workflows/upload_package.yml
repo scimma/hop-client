@@ -56,6 +56,7 @@ jobs:
         echo $LINE_STR | cat - $RECIPE_PATH > temp && mv temp $RECIPE_PATH
         
         #download tarball from pypi for hash generation
+        sleep 15
         pip download $SOURCE_URL --no-deps --no-binary :all:
         
         #use openssl to generate hash and yq to write updated hash to intermediate file
