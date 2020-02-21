@@ -16,6 +16,11 @@ scimma publish -b kafka://hostname:port/gcn mygcn.gcn3
 An example RFC 822 formatted GCN circular (`example.gcn3`) is provided in
 `tests/data`.
 
+Client [configuration](https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md)
+properties can be passed to `scimma publish` via `-X property=value` or in a configuration
+file specified by `-F <config-file>`, mimicking the behavior of `kafkacat`. This can be
+used to connect to a Kafka broker with SSL authentication enabled, for example.
+
 ## Installation
 
 You can install scimma-client either via pip, conda, or from source.
