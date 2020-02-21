@@ -7,7 +7,7 @@ with open(os.path.join(this_dir, 'README.md'), 'rb') as f:
     long_description = f.read().decode().strip()
 
 # requirements
-install_requires = ['adc']
+install_requires = ['adc>=0.0.2']
 extras_require = {
     'dev': ['pytest', 'pytest-console-scripts', 'pytest-cov', 'flake8', 'flake8-black'],
     'docs': ['sphinx', 'sphinx_rtd_theme', 'sphinxcontrib-programoutput'],
