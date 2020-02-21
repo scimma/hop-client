@@ -45,7 +45,19 @@ def _add_parser_args(parser):
         "-b",
         "--broker-url",
         required=True,
-        help="Sets the broker URL to publish GCNs to.",
+        help="Sets the broker URL (kafka://host[:port]/topic) to publish GCNs to.",
+    )
+
+    # configuration options
+    config = parser.add_mutually_exclusive_group()
+    config.add_argument(
+        "-F", "--config-file", help="Set client configuration from file.",
+    )
+    config.add_argument(
+        "-X",
+        "--config",
+        action="append",
+        help="Set client configuration via prop=val. Can be specified multiple times.",
     )
 
 
@@ -58,7 +70,15 @@ def _main(args=None):
         _add_parser_args(parser)
         args = parser.parse_args()
 
-    with stream.open(args.broker_url, "w", format="json") as s:
+    # load config if specified
+    if args.config_file:
+        config = args.config_file
+    elif args.config:
+        config = {opt[0]: opt[1] for opt in (kv.split("=") for kv in args.config)}
+    else:
+        config = None
+
+    with stream.open(args.broker_url, "w", format="json", config=config) as s:
         for gcn_file in args.gcn:
             gcn = read_parse_gcn(gcn_file)
             s.write(gcn)
