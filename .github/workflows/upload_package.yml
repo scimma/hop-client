@@ -1,0 +1,84 @@
+name: Upload to Package Repositories
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  UploadPyPI:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v1
+      with:
+        python-version: '3.6'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install setuptools wheel twine
+    - name: Build and publish
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USER_scimma }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PW_scimma }}
+      run: |
+        python3 setup.py sdist bdist_wheel
+        python3 -m twine upload --repository-url https://upload.pypi.org/legacy/ dist/* -u $TWINE_USERNAME -p $TWINE_PASSWORD
+
+  UploadConda:
+    runs-on: ubuntu-latest
+    container:
+      image: continuumio/miniconda3
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: |
+        conda install -y anaconda-client conda-build
+        conda install -y setuptools setuptools_scm
+
+    - name: Update recipe with version and generate hash from PyPI package
+      env:
+        #can't read source url from recipe, so generate it here:
+        NAME: 'scimma-client'
+        RECIPE_PATH: 'recipe/meta.yaml'
+
+      run: |
+        #create env vars that cannot be created above due to syntax
+        VERSION=$(python setup.py --version)
+        LINE_STR='{% set version = "v'${VERSION}'" %}'
+        SOURCE_URL="https://pypi.io/packages/source/s/${NAME}/${NAME}-${VERSION}.tar.gz"
+
+        #prepend version environment variable before writing files (preserves version of master)
+        echo $LINE_STR | cat - $RECIPE_PATH > temp && mv temp $RECIPE_PATH
+        
+        #download tarball from pypi for hash generation
+        sleep 15
+        pip download $SOURCE_URL --no-deps --no-binary :all:
+        
+        #use openssl to generate hash and yq to write updated hash to intermediate file
+        wget https://github.com/mikefarah/yq/releases/download/3.1.0/yq_linux_amd64 -O yq
+        chmod +x yq
+        ./yq n source.sha256 $(openssl sha256 ${NAME}-${VERSION}.tar.gz | awk '{print $2}') >> update.yaml
+
+    - name: Add channels for dependencies
+      env:
+        PACK_NAME: 'scimma'
+      run: |
+        conda index ./$PACK_NAME  #for noarch support
+        conda config --env --add channels $PACK_NAME  #for adc
+        conda config --env --add channels conda-forge
+
+    - name: Update recipe, build package, and upload to Anaconda
+      env:
+        CONDA_USERNAME: ${{ secrets.CONDA_USER_scimma }}
+        CONDA_PASSWORD: ${{ secrets.CONDA_PW_scimma }}
+        CONDA_ORG_NAME: 'scimma'
+      run: |
+        conda config --set anaconda_upload yes  #uploads on build
+        anaconda login --username $CONDA_USERNAME --password $CONDA_PASSWORD
+        conda build . --user $CONDA_ORG_NAME --clobber-file update.yaml  #applies updated hash
+        anaconda logout
