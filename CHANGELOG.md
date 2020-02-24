@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.0.4] - 2020-02-24
 ### Added
 - Allow `scimma publish` to take in client configuration options via
   config file (-F /path/to/file) or config options (-X key=val).
@@ -20,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial Release.
 
-[Unreleased]: https://github.com/scimma/client_library/compare/v0.0.2...HEAD
+[Unreleased]: https://github.com/scimma/client_library/compare/v0.0.4...HEAD
+[0.0.4]: https://github.com/scimma/client_library/releases/tag/v0.0.4
 [0.0.2]: https://github.com/scimma/client_library/releases/tag/v0.0.2
 [0.0.1]: https://github.com/scimma/client_library/releases/tag/v0.0.1
