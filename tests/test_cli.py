@@ -43,4 +43,4 @@ def test_cli_publish(script_runner):
 
         # verify GCN was processed
         mock_file.assert_called_with(gcn_file, "r")
-        mock_stream.assert_called_with(broker_url, "w", format="json")
+        mock_stream.assert_called_with(broker_url, "w", format="json", config=None)
