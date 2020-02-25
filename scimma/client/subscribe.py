@@ -43,6 +43,9 @@ def _add_parser_args(parser):
         required=True,
         help="Sets the broker URL (kafka://host[:port]/topic) from which to receive GCNs.",
     )
+    parser.add_argument(
+        "-j", "--json", help="A test argument for raw json printing",
+    )
 
     # configuration options
     config = parser.add_mutually_exclusive_group()
@@ -109,4 +112,3 @@ def _main(args=None):
     with stream.open(args.broker_url, "r") as s:
         for _,gcn_dict in s(timeout=timeout):
             print_gcn(gcn_dict,json_dump)
-        
