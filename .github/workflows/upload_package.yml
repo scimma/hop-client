@@ -49,7 +49,7 @@ jobs:
       run: |
         #create env vars that cannot be created above due to syntax
         VERSION=$(python setup.py --version)
-        LINE_STR='{% set version = "v'${VERSION}'" %}'
+        LINE_STR='{% set version = "'${VERSION}'" %}'
         SOURCE_URL="https://pypi.io/packages/source/s/${NAME}/${NAME}-${VERSION}.tar.gz"
 
         #prepend version environment variable before writing files (preserves version of master)
