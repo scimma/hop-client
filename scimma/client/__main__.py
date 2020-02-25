@@ -7,6 +7,7 @@ import signal
 
 from . import __version__
 from . import publish
+from . import subscribe
 
 
 def append_subparser(subparser, cmd, func):
@@ -41,6 +42,9 @@ def set_up_cli():
     # register commands
     p = append_subparser(subparser, "publish", publish._main)
     publish._add_parser_args(p)
+
+    s = append_subparser(subparser, "subscribe", subscribe._main)
+    publish._add_parser_args(s)
 
     return parser
 
