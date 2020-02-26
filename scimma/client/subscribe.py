@@ -9,7 +9,6 @@ import email
 
 import json
 
-#from genesis import streaming as stream
 from .io import Stream
 from .models import GCNCircular
 
@@ -17,6 +16,25 @@ def print_gcn(gcn_dict,json_dump=False):
     '''
     '''
 
+    if json_dump:
+        print(json.dumps(gcn_dict))
+    else:
+        #print(json.dumps(gcn_dict['header'], indent=0))
+        #print(json.dumps(gcn_dict['body'], indent=0))
+        gcn_headers = gcn_dict['header']
+        gcn_body = gcn_dict['body']
+
+        for key in gcn_headers:
+            print(key, ': ', gcn_headers[key])
+        print('')    #newline for formatting
+
+        for line in gcn_body.splitlines():
+            print(line)
+
+#def sub_parse_gcn()
+def print_gcn(gcn_dict,json_dump=False):
+    '''
+    '''
     if json_dump:
         print(json.dumps(gcn_dict))
     else:
