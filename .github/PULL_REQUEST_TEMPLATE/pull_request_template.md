@@ -13,3 +13,5 @@
 * [ ] `make doc` runs without errors and generated docs render correctly.
 * [ ] Check that CI pipeline run on this PR passes all stages.
 * [ ] Review signoff by at least one developer.
+
+NOTE: If this PR relates to a release, use the release template instead by adding `&template=release_template.md` to the URL.
