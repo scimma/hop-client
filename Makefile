@@ -5,6 +5,7 @@ help :
 	@echo
 	@echo '  make test                  run unit tests'
 	@echo '  make lint                  run linter'
+	@echo '  make format                run code formatter, giving a diff for recommended changes'
 	@echo '  make doc                   make documentation'
 	@echo '  make changelog             update changelog based on version'
 	@echo '  make dist                  make binary and source packages'
@@ -25,6 +26,12 @@ lint :
 	flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 	# exit-zero treats all errors as warnings
 	flake8 . --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
+
+.PHONY: format
+format :
+	# show diff via black
+	black tests --diff
+	black scimma/client --diff
 
 .PHONY: doc
 doc :
