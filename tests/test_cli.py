@@ -9,8 +9,6 @@ import pytest
 
 from scimma.client import __version__
 
-from test_publish import GCN_CIRCULAR
-
 
 @pytest.mark.script_launch_mode("subprocess")
 def test_cli_scimma(script_runner):
@@ -24,13 +22,13 @@ def test_cli_scimma(script_runner):
     assert ret.stderr == ""
 
 
-def test_cli_publish(script_runner):
+def test_cli_publish(script_runner, circular_text):
     ret = script_runner.run("scimma", "publish", "--help")
     assert ret.success
 
-    gcn_mock = mock_open(read_data=GCN_CIRCULAR)
+    gcn_mock = mock_open(read_data=circular_text)
     with patch("scimma.client.publish.open", gcn_mock) as mock_file, patch(
-        "scimma.client.publish.stream.open", mock_open()
+        "scimma.client.io.Stream.open", mock_open()
     ) as mock_stream:
 
         gcn_file = "example.gcn3"
@@ -43,4 +41,4 @@ def test_cli_publish(script_runner):
 
         # verify GCN was processed
         mock_file.assert_called_with(gcn_file, "r")
-        mock_stream.assert_called_with(broker_url, "w", format="json", config=None)
+        mock_stream.assert_called_with(broker_url, "w")
