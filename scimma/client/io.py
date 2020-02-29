@@ -43,4 +43,4 @@ class Stream(object):
 
         """
         opts = {**self._options, **kwargs}
-        return streaming.open(*args, **kwargs)
+        return streaming.open(*args, **opts)
