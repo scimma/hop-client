@@ -5,7 +5,32 @@ Quickstart
 .. contents::
    :local:
 
-Publish a GCN to Kafka:
+Reading messages
+----------------
+
+.. code:: python
+
+    from scimma.client import stream
+
+    with stream.open("kafka://hostname:port/topic", "r", format="json") as s:
+        for idx, msg in stream(timeout=10):
+             print(msg)
+
+Writing messages
+----------------
+
+.. code:: python
+
+    from scimma.client import stream
+
+    with stream.open("kafka://hostname:port/topic", "w", format="json") as s:
+        s.write({"my": "message"})
+
+Using the CLI
+-------------
+
+Publish a GCN
+^^^^^^^^^^^^^
 
 .. code:: bash
 
