@@ -32,6 +32,15 @@ class Stream(object):
     def open(self, *args, **kwargs):
         """Opens a connection to an event stream.
 
+        Args:
+          broker_url: sets the broker URL to connect to
+
+        Kwargs:
+          mode: read ('r') or write ('w') from the stream
+          format: the message serialization format
+          start_at: the message offset to start at
+          config: librdkafka style options, either a `dict` or a file path
+
         """
         opts = {**self._options, **kwargs}
         return streaming.open(*args, **kwargs)
