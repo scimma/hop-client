@@ -70,10 +70,10 @@ def test_read_parse_gcn():
         mock_file.assert_called_with(gcn_file)
 
         # verify parsed GCN structure is correct
-        assert gcn["header"]["title"] == GCN_TITLE
-        assert gcn["header"]["number"] == GCN_NUMBER
-        assert gcn["header"]["subject"] == GCN_SUBJECT
-        assert gcn["header"]["date"] == GCN_DATE
-        assert gcn["header"]["from"] == GCN_FROM
+        assert gcn.header["title"] == GCN_TITLE
+        assert gcn.header["number"] == GCN_NUMBER
+        assert gcn.header["subject"] == GCN_SUBJECT
+        assert gcn.header["date"] == GCN_DATE
+        assert gcn.header["from"] == GCN_FROM
 
-        assert gcn["body"] == GCN_BODY
+        assert gcn.body == GCN_BODY
