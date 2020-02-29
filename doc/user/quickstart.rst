@@ -13,7 +13,7 @@ Reading messages
     from scimma.client import stream
 
     with stream.open("kafka://hostname:port/topic", "r", format="json") as s:
-        for idx, msg in stream(timeout=10):
+        for idx, msg in s:
              print(msg)
 
 Writing messages
