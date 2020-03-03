@@ -7,7 +7,8 @@ __description__ = "tools to parse and publish GCN circulars"
 import argparse
 import email
 
-from genesis import streaming as stream
+from .io import Stream
+from .models import GCNCircular
 
 
 def read_parse_gcn(gcn_file):
@@ -29,10 +30,10 @@ def read_parse_gcn(gcn_file):
         msg = email.message_from_file(f)
 
     # format gcn circular into header/body
-    return {
-        "header": {title.lower(): content for title, content in msg.items()},
-        "body": msg.get_payload(),
-    }
+    return GCNCircular(
+        header={title.lower(): content for title, content in msg.items()},
+        body=msg.get_payload(),
+    )
 
 
 # ------------------------------------------------
@@ -78,7 +79,8 @@ def _main(args=None):
     else:
         config = None
 
-    with stream.open(args.broker_url, "w", format="json", config=config) as s:
+    stream = Stream(format="json", config=config)
+    with stream.open(args.broker_url, "w") as s:
         for gcn_file in args.gcn:
             gcn = read_parse_gcn(gcn_file)
-            s.write(gcn)
+            s.write(gcn.asdict())
