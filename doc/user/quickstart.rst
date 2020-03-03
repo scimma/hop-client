@@ -8,6 +8,8 @@ Quickstart
 Reading messages
 ----------------
 
+The scimma client supports a python-based API for reading messages from a stream, as follows:
+
 .. code:: python
 
     from scimma.client import stream
@@ -16,8 +18,21 @@ Reading messages
         for idx, msg in s:
              print(msg)
 
+This block will hang forever, listening to new messages and processing them as they arrive.
+By default, this will only process new messages since the connection was opened. The :code:`start_at`
+option lets you control where in the stream you can start listening from. For example,
+if you'd like to listen to all messages stored in a topic, you can do:
+
+.. code:: python
+
+    with stream.open("kafka://hostname:port/topic", "r", format="json", start_at="latest") as s:
+        for idx, msg in s:
+             print(msg)
+
 Writing messages
 ----------------
+
+We can also publish messages to a topic, as follows:
 
 .. code:: python
 
