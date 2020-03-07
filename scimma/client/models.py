@@ -6,6 +6,8 @@ __description__ = "a module to define common message types"
 
 from dataclasses import asdict, dataclass, field
 
+import xmltodict
+
 
 @dataclass
 class VOEvent(object):
@@ -37,6 +39,22 @@ class VOEvent(object):
 
         """
         return asdict(self)
+
+    @classmethod
+    def from_xml(cls, xml_input):
+        """Create a new VOEvent from an XML-formatted VOEvent.
+
+        Args:
+            xml_input: a file object, string, or generator
+
+        Returns:
+            The VOEvent.
+
+        """
+        vo = xmltodict.parse(xml_input, attr_prefix="")
+
+        # enter root and remove XML-specific namespaces
+        return cls(**{k: v for k, v in vo["voe:VOEvent"].items() if ":" not in k})
 
 
 @dataclass
