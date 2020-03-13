@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 
 __author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
-__description__ = "tools to parse and publish GCN circulars"
+__description__ = "tools to parse and publish GCNs"
 
 
 import argparse
 import email
+import os
 
 from .io import Stream
-from .models import GCNCircular
+from .models import GCNCircular, VOEvent
 
 
 def read_parse_gcn(gcn_file):
@@ -41,12 +42,13 @@ def read_parse_gcn(gcn_file):
 
 
 def _add_parser_args(parser):
-    parser.add_argument("gcn", nargs="+", help="One or more GCNs to publish.")
     parser.add_argument(
-        "-b",
-        "--broker-url",
-        required=True,
-        help="Sets the broker URL (kafka://host[:port]/topic) to publish GCNs to.",
+        "uri",
+        metavar="URI",
+        help="Sets the URI (kafka://host[:port]/topic) to publish GCNs to.",
+    )
+    parser.add_argument(
+        "gcn", metavar="GCN", nargs="+", help="One or more GCNs to publish.",
     )
 
     # configuration options
@@ -63,7 +65,7 @@ def _add_parser_args(parser):
 
 
 def _main(args=None):
-    """Parse and publish GCN circulars.
+    """Parse and publish GCNs.
 
     """
     if not args:
@@ -80,7 +82,18 @@ def _main(args=None):
         config = None
 
     stream = Stream(format="json", config=config)
-    with stream.open(args.broker_url, "w") as s:
-        for gcn_file in args.gcn:
-            gcn = read_parse_gcn(gcn_file)
+    with stream.open(args.uri, "w") as s:
+        for gcn in args.gcn:
+            extension = os.path.splitext(gcn)[1]
+
+            # parse based on GCN type
+            if extension == ".gcn3":
+                gcn = read_parse_gcn(gcn)
+            elif extension == ".xml":
+                with open(gcn, "rb") as f:
+                    gcn = VOEvent.from_xml(f)
+            else:
+                raise ValueError(f"File extension {extension} not recognized")
+
+            # publish GCN
             s.write(gcn.asdict())
