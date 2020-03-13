@@ -5,6 +5,8 @@ __description__ = "a module that tests entry points"
 
 
 from unittest.mock import patch, mock_open
+import sys
+
 import pytest
 
 from scimma.client import __version__
@@ -22,7 +24,7 @@ def test_cli_scimma(script_runner):
     assert ret.stderr == ""
 
 
-def test_cli_publish(script_runner, circular_text, voevent_text):
+def test_cli_publish_circular(script_runner, circular_text):
     ret = script_runner.run("scimma", "publish", "--help")
     assert ret.success
 
@@ -44,6 +46,8 @@ def test_cli_publish(script_runner, circular_text, voevent_text):
         mock_file.assert_called_with(gcn_file, "r")
         mock_stream.assert_called_with(broker_url, "w")
 
+@pytest.mark.skipif(sys.version_info < (3, 7), reason="requires python3.7 or higher")
+def test_cli_publish_notice(script_runner, voevent_text):
     # test GCN notice
     gcn_mock = mock_open(read_data=voevent_text.encode())
     with patch("scimma.client.publish.open", gcn_mock) as mock_file, patch(
