@@ -13,8 +13,18 @@ install_requires = [
     "xmltodict >= 0.9.0"
 ]
 extras_require = {
-    'dev': ['pytest', 'pytest-console-scripts', 'pytest-cov', 'flake8', 'flake8-black'],
-    'docs': ['sphinx', 'sphinx_rtd_theme', 'sphinxcontrib-programoutput'],
+    'dev': [
+        'pytest >= 5.0, < 5.4',
+        'pytest-console-scripts',
+        'pytest-cov',
+        'flake8',
+        'flake8-black',
+    ],
+    'docs': [
+        'sphinx',
+        'sphinx_rtd_theme',
+        'sphinxcontrib-programoutput',
+    ],
 }
 
 setup(
