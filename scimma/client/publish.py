@@ -43,9 +43,9 @@ def read_parse_gcn(gcn_file):
 
 def _add_parser_args(parser):
     parser.add_argument(
-        "uri",
-        metavar="URI",
-        help="Sets the URI (kafka://host[:port]/topic) to publish GCNs to.",
+        "url",
+        metavar="URL",
+        help="Sets the URL (kafka://host[:port]/topic) to publish GCNs to.",
     )
     parser.add_argument(
         "gcn", metavar="GCN", nargs="+", help="One or more GCNs to publish.",
@@ -82,7 +82,7 @@ def _main(args=None):
         config = None
 
     stream = Stream(format="json", config=config)
-    with stream.open(args.uri, "w") as s:
+    with stream.open(args.url, "w") as s:
         for gcn in args.gcn:
             extension = os.path.splitext(gcn)[1]
 
