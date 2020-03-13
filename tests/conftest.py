@@ -188,3 +188,8 @@ def circular_msg():
 @pytest.fixture(scope="session")
 def voevent_fileobj():
     return io.BytesIO(VOEVENT_XML.encode())
+
+
+@pytest.fixture(scope="session")
+def voevent_text():
+    return VOEVENT_XML
