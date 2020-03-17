@@ -1,52 +1,52 @@
-SCiMMA Client
+Hop
 =============
 
-![](https://github.com/scimma/client_library/workflows/build/badge.svg)
+![](https://github.com/scimma/hop/workflows/build/badge.svg)
 
-**scimma-client** is a pub-sub client library for Multimessenger Astrophysics.
+**hop** is a pub-sub client library for Multimessenger Astrophysics.
 
 ## Quickstart
 
 Publish a GCN to Kafka:
 
 ```
-scimma publish kafka://hostname:port/gcn mygcn.gcn3
+hop publish kafka://hostname:port/gcn mygcn.gcn3
 ```
 
 Subscribe to the earliest offset of a Kafka topic and print to stdout:
 ```
-scimma subscribe kafka://hostname:port/gcn -e
+hop subscribe kafka://hostname:port/gcn -e
 ```
 
 An example RFC 822 formatted GCN circular (`example.gcn3`) is provided in
 `tests/data`.
 
 Client [configuration](https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md)
-properties can be passed to `scimma publish` via `-X property=value` or in a configuration
+properties can be passed to `hop publish` via `-X property=value` or in a configuration
 file specified by `-F <config-file>`, mimicking the behavior of `kafkacat`. This can be
 used to connect to a Kafka broker with SSL authentication enabled, for example.
 
 ## Installation
 
-You can install scimma-client either via pip, conda, or from source.
+You can install hop either via pip, conda, or from source.
 
 To install with pip:
 
 ```
-pip install -U scimma-client
+pip install -U hop-client
 ```
 
 To install with conda, you must use the channel from the SCiMMA Anaconda organization:
 
 ```
-conda install --channel scimma scimma-client
+conda install --channel scimma hop-client
 ```
 
 To install from source:
 
 ```
-tar -xzf scimma-client-x.y.z.tar.gz
-cd scimma-client-x.y.z
+tar -xzf hop-client-x.y.z.tar.gz
+cd hop-client-x.y.z
 python setup.py install
 ```
 
@@ -60,7 +60,7 @@ In addition, two extras are provided when installing the scimma client that inst
 the required test and documentation libraries:
 
 ```
-pip install -U scimma-client[dev,docs]
+pip install -U hop-client[dev,docs]
 ```
 
 To mark a new version, use Github tags to mark your commit with a [semver](https://semver.org/) version:

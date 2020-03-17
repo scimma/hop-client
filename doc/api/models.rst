@@ -1,7 +1,7 @@
 .. _models:
 
-scimma.client.models
+hop.models
 #####################
 
-.. automodule:: scimma.client.models
+.. automodule:: hop.models
     :members:

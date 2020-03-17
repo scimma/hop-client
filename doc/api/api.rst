@@ -1,6 +1,6 @@
 .. _api:
 
-scimma-client API
+hop API
 #################
 
 .. toctree::

@@ -1,7 +1,7 @@
 .. _publish:
 
-scimma.client.publish
+hop.publish
 #####################
 
-.. automodule:: scimma.client.publish
+.. automodule:: hop.publish
     :members:

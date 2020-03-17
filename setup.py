@@ -8,7 +8,7 @@ with open(os.path.join(this_dir, 'README.md'), 'rb') as f:
 
 # requirements
 install_requires = [
-    "adc >= 0.0.3",
+    "adc-streaming >= 0.1.0",
     "dataclasses ; python_version < '3.7'",
     "xmltodict >= 0.9.0"
 ]
@@ -28,21 +28,20 @@ extras_require = {
 }
 
 setup(
-    name = 'scimma-client',
-    description = 'A client library for SCiMMA',
+    name = 'hop-client',
+    description = 'A pub-sub client library for Multi-messenger Astrophysics',
     long_description = long_description,
     long_description_content_type = 'text/markdown',
-    url = 'https://github.com/scimma/client_library',
+    url = 'https://github.com/scimma/hop-client',
     author = 'Patrick Godwin',
     author_email = 'patrick.godwin@psu.edu',
     license = 'BSD 3-Clause',
 
-    packages = ['scimma', 'scimma.client'],
-    namespace_packages = ['scimma'],
+    packages = ['hop'],
 
     entry_points = {
         'console_scripts': [
-            'scimma = scimma.client.__main__:main',
+            'hop = hop.__main__:main',
         ],
     },
 
@@ -51,7 +50,7 @@ setup(
     extras_require = extras_require,
     setup_requires = ['setuptools_scm'],
     use_scm_version = {
-        'write_to': 'scimma/client/_version.py'
+        'write_to': 'hop/_version.py'
     },
 
     classifiers = [

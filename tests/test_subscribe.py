@@ -10,7 +10,7 @@ from pathlib import Path
 
 from unittest.mock import patch, mock_open
 
-from scimma.client import subscribe
+from hop import subscribe
 
 
 def test_print_gcn(circular_text, circular_msg):
