@@ -31,10 +31,10 @@ def print_gcn(gcn_dict,json_dump=False):
         for line in gcn_body.splitlines():
             print(line)
 
-#def sub_parse_gcn()
 def print_gcn(gcn_dict,json_dump=False):
     '''
     '''
+
     if json_dump:
         print(json.dumps(gcn_dict))
     else:
