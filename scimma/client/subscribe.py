@@ -9,12 +9,14 @@ import email
 
 import json
 
-from genesis import streaming as stream
+#from genesis import streaming as stream
+from .io import Stream
+from .models import GCNCircular
 
-#def sub_parse_gcn()
 def print_gcn(gcn_dict,json_dump=False):
     '''
     '''
+
     if json_dump:
         print(json.dumps(gcn_dict))
     else:
@@ -102,9 +104,9 @@ def _main(args=None):
 
     # assume json format for the gcn
     gcn_format = 'json'
-
-    with stream.open(args.broker_url, "r", format=gcn_format, config=config, start_at=start_offset) as s:
-        #gcn_list = [ gcn for _,gcn in s(timeout=timeout, progress=True)]
+    
+    stream = Stream(format=gcn_format, config=config, start_at=start_offset)
+    with stream.open(args.broker_url, "r") as s:
         for _,gcn_dict in s(timeout=timeout):
             print_gcn(gcn_dict,json_dump)
         
