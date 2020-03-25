@@ -47,9 +47,6 @@ def _add_parser_args(parser):
         required=True,
         help="Sets the broker URL (kafka://host[:port]/topic) from which to receive GCNs.",
     )
-    parser.add_argument(
-        "-j", "--json", help="A test argument for raw json printing",
-    )
 
     # configuration options
     config = parser.add_mutually_exclusive_group()
