@@ -5,7 +5,6 @@ __description__ = "tools to receive and parse GCN circulars"
 
 
 import argparse
-
 import json
 
 from .io import Stream
@@ -71,6 +70,7 @@ def _add_parser_args(parser):
     parser.add_argument(
         "-t",
         "--timeout",
+        type=float,
         help="Specifies the time (in seconds) to wait for new messages.",
     )
 
@@ -104,7 +104,7 @@ def _main(args=None):
     if args.earliest:
         start_offset = "earliest"
     if args.timeout:
-        timeout = int(args.timeout)
+        timeout = args.timeout
 
     # read from topic
 
