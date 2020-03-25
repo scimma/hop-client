@@ -1,4 +1,6 @@
 build/
+.eggs/
+tests/.eggs/
 *.egg-info/
 dist/
 __pycache__/
