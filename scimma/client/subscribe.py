@@ -113,5 +113,5 @@ def _main(args=None):
 
     stream = Stream(format=gcn_format, config=config, start_at=start_offset)
     with stream.open(args.url, "r") as s:
-        for _, gcn_dict in s(timeout=timeout):
+        for gcn_dict in s(timeout=timeout):
             print_gcn(gcn_dict, json_dump)
