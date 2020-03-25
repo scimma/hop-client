@@ -8,7 +8,7 @@ with open(os.path.join(this_dir, 'README.md'), 'rb') as f:
 
 # requirements
 install_requires = [
-    "adc >= 0.0.2",
+    "adc >= 0.0.3",
     "dataclasses ; python_version < '3.7'",
     "xmltodict >= 0.9.0"
 ]
