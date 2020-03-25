@@ -58,4 +58,3 @@ def test_cli_subscribe(script_runner):
 
         # verify broker url was processed
         mock_stream.assert_called_with(broker_url, "r")
-
