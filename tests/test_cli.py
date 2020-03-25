@@ -46,6 +46,7 @@ def test_cli_publish_circular(script_runner, circular_text):
         mock_file.assert_called_with(gcn_file, "r")
         mock_stream.assert_called_with(broker_url, "w")
 
+
 @pytest.mark.skipif(sys.version_info < (3, 7), reason="requires python3.7 or higher")
 def test_cli_publish_notice(script_runner, voevent_text):
     # test GCN notice
@@ -65,3 +66,21 @@ def test_cli_publish_notice(script_runner, voevent_text):
         # verify GCN was processed
         mock_file.assert_called_with(gcn_file, "rb")
         mock_stream.assert_called_with(broker_url, "w")
+
+
+def test_cli_subscribe(script_runner):
+    ret = script_runner.run("scimma", "subscribe", "--help")
+    assert ret.success
+
+    with patch("scimma.client.io.Stream.open", mock_open()) as mock_stream:
+
+        broker_url = "kafka://hostname:port/gcn"
+        ret = script_runner.run("scimma", "subscribe", broker_url)
+
+        # verify CLI output
+        assert ret.success
+        print(ret.stderr)
+        assert ret.stderr == ""
+
+        # verify broker url was processed
+        mock_stream.assert_called_with(broker_url, "r")
