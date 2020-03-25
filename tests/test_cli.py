@@ -75,10 +75,11 @@ def test_cli_subscribe(script_runner):
     with patch("scimma.client.io.Stream.open", mock_open()) as mock_stream:
 
         broker_url = "kafka://hostname:port/gcn"
-        ret = script_runner.run("scimma", "subscribe", "-b", broker_url)
+        ret = script_runner.run("scimma", "subscribe", broker_url)
 
         # verify CLI output
         assert ret.success
+        print(ret.stderr)
         assert ret.stderr == ""
 
         # verify broker url was processed

@@ -41,9 +41,8 @@ def print_gcn(gcn_dict, json_dump=False):
 
 def _add_parser_args(parser):
     parser.add_argument(
-        "-b",
-        "--broker-url",
-        required=True,
+        "url",
+        metavar="URL",
         help="Sets the broker URL (kafka://host[:port]/topic) from which to receive GCNs.",
     )
 
@@ -113,6 +112,6 @@ def _main(args=None):
     gcn_format = "json"
 
     stream = Stream(format=gcn_format, config=config, start_at=start_offset)
-    with stream.open(args.broker_url, "r") as s:
+    with stream.open(args.url, "r") as s:
         for _, gcn_dict in s(timeout=timeout):
             print_gcn(gcn_dict, json_dump)

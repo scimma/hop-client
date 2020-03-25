@@ -15,7 +15,7 @@ scimma publish kafka://hostname:port/gcn mygcn.gcn3
 
 Subscribe to the earliest offset of a Kafka topic and print to stdout:
 ```
-scimma subscribe -b kafka://hostname:port/gcn -e
+scimma subscribe kafka://hostname:port/gcn -e
 ```
 
 An example RFC 822 formatted GCN circular (`example.gcn3`) is provided in
