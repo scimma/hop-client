@@ -58,3 +58,15 @@ Client `configuration <https://github.com/edenhill/librdkafka/blob/master/CONFIG
 properties can be passed to :code:`scimma publish` via :code:`-X property=value` or in a configuration
 file specified by :code:`-F <config-file>`, mimicking the behavior of :code:`kafkacat`. This can be
 used to connect to a Kafka broker with SSL authentication enabled, for example.
+
+Consume a GCN
+^^^^^^^^^^^^^
+
+.. code:: bash
+
+    scimma subscribe -b kafka://hostname:port/gcn mygcn.gcn3 -e
+
+Client `configuration <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>`_
+properties can be passed to :code:`scimma subscribe` via :code:`-X property=value` or in a configuration
+file specified by :code:`-F <config-file>`, mimicking the behavior of :code:`kafkacat`. This can be
+used to connect to a Kafka broker with SSL authentication enabled, for example.
