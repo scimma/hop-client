@@ -5,31 +5,30 @@ __description__ = "tools to receive and parse GCN circulars"
 
 
 import argparse
-import email
 
 import json
 
 from .io import Stream
-from .models import GCNCircular
 
-def print_gcn(gcn_dict,json_dump=False):
-    '''Parse a gcn dictionary and print to stdout.
+
+def print_gcn(gcn_dict, json_dump=False):
+    """Parse a gcn dictionary and print to stdout.
 
     Args:
       gcn_dict:  the dictionary object containing a GCN-formatted message
-    
+
     Returns:
       None
 
-    '''
+    """
     if json_dump:
         print(json.dumps(gcn_dict))
     else:
-        gcn_headers = gcn_dict['header']
-        gcn_body = gcn_dict['body']
+        gcn_headers = gcn_dict["header"]
+        gcn_body = gcn_dict["body"]
 
         for key in gcn_headers:
-            line = key.upper() + ':\t' + gcn_headers[key]
+            line = key.upper() + ":\t" + gcn_headers[key]
             print(line)
 
         for line in gcn_body.splitlines():
@@ -62,16 +61,20 @@ def _add_parser_args(parser):
 
     # consumer options
     parser.add_argument(
-        "-j", "--json", help="Request gcn output as raw json",
-        action='store_true',
+        "-j", "--json", help="Request gcn output as raw json", action="store_true",
     )
     parser.add_argument(
-        "-e", "--earliest", help="Request to stream from the earliest available Kafka offset",
-        action='store_true',
+        "-e",
+        "--earliest",
+        help="Request to stream from the earliest available Kafka offset",
+        action="store_true",
     )
     parser.add_argument(
-        "-t", "--timeout", help="Specifies the time (in seconds) to wait for new messages.",
+        "-t",
+        "--timeout",
+        help="Specifies the time (in seconds) to wait for new messages.",
     )
+
 
 def _main(args=None):
     """Receive and parse GCN circulars.
@@ -93,23 +96,23 @@ def _main(args=None):
     # load consumer options
 
     # defaults:
-    start_offset = 'latest'
+    start_offset = "latest"
     timeout = 10
     json_dump = False
 
     if args.json:
         json_dump = True
     if args.earliest:
-        start_offset = 'earliest'
+        start_offset = "earliest"
     if args.timeout:
         timeout = int(args.timeout)
 
     # read from topic
 
     # assume json format for the gcn
-    gcn_format = 'json'
-    
+    gcn_format = "json"
+
     stream = Stream(format=gcn_format, config=config, start_at=start_offset)
     with stream.open(args.broker_url, "r") as s:
-        for _,gcn_dict in s(timeout=timeout):
-            print_gcn(gcn_dict,json_dump)
+        for _, gcn_dict in s(timeout=timeout):
+            print_gcn(gcn_dict, json_dump)

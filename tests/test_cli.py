@@ -46,6 +46,7 @@ def test_cli_publish_circular(script_runner, circular_text):
         mock_file.assert_called_with(gcn_file, "r")
         mock_stream.assert_called_with(broker_url, "w")
 
+
 @pytest.mark.skipif(sys.version_info < (3, 7), reason="requires python3.7 or higher")
 def test_cli_publish_notice(script_runner, voevent_text):
     # test GCN notice
@@ -65,6 +66,7 @@ def test_cli_publish_notice(script_runner, voevent_text):
         # verify GCN was processed
         mock_file.assert_called_with(gcn_file, "rb")
         mock_stream.assert_called_with(broker_url, "w")
+
 
 def test_cli_subscribe(script_runner):
     ret = script_runner.run("scimma", "subscribe", "--help")
