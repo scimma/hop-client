@@ -1,4 +1,3 @@
-{% set version = "0.0.4a2.dev0+g97b7966.d20200325" %}
 {% set repo_name = "scimma" %}
 {% set pack_name = "client_library" %}
 
