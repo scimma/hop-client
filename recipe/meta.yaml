@@ -1,9 +1,7 @@
 {% set repo_name = "scimma" %}
-{% set pack_name = "client_library" %}
-
 {% set name = "scimma-client" %}
+
 package:
-  #name: "{{ pack_name|lower }}"
   name: "{{ name|lower }}"
   version: {{ version }}
 
@@ -12,6 +10,7 @@ source:
   sha256: "c0f87a158f6ea3cd302b13fec00b81445a6edf3e4629a8744078ad120f810f69"
 
 build:
+  skip: True    # [not py>=36]
   noarch: python
   number: 0
   script: python setup.py install --single-version-externally-managed --record=record.txt
@@ -28,7 +27,7 @@ requirements:
     - python
     - adc >=0.0.3
     - xmltodict >=0.9.0
-    - dataclasses
+    - dataclasses    # [py==36]
 
 test:
   imports:
