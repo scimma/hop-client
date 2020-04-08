@@ -5,6 +5,7 @@ __description__ = "a module to define common message types"
 
 
 from dataclasses import asdict, dataclass, field
+import email
 
 import xmltodict
 
@@ -61,6 +62,11 @@ class VOEvent(object):
 class GCNCircular(object):
     """Defines a GCN Circular structure.
 
+    The parsed GCN circular is formatted as a dictionary with
+    the following schema:
+
+        {'headers': {'title': ..., 'number': ..., ...}, 'body': ...}
+
     """
 
     header: dict
@@ -74,3 +80,25 @@ class GCNCircular(object):
 
         """
         return asdict(self)
+
+    @classmethod
+    def from_email(cls, email_input):
+        """Create a new GCNCircular from an RFC 822 formatted circular.
+
+        Args:
+            email_input: a file object or string
+
+        Returns:
+            The GCNCircular.
+
+        """
+        if hasattr(email_input, 'read'):
+            msg = email.message_from_file(email_input)
+        else:
+            msg = email.message_from_string(email_input)
+
+        # format gcn circular into header/body
+        return cls(
+            header={title.lower(): content for title, content in msg.items()},
+            body=msg.get_payload(),
+        )
