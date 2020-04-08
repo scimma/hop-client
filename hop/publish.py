@@ -12,31 +12,6 @@ from .io import Stream
 from .models import GCNCircular, VOEvent
 
 
-def read_parse_gcn(gcn_file):
-    """Reads and parses a GCN circular file.
-
-    The parsed GCN circular is formatted as a dictionary with
-    the following schema:
-
-        {'headers': {'title': ..., 'number': ..., ...}, 'body': ...}
-
-    Args:
-      gcn_file: the path to an RFC 822 formatted GCN circular
-
-    Returns:
-        the parsed GCN circular
-
-    """
-    with open(gcn_file, "r") as f:
-        msg = email.message_from_file(f)
-
-    # format gcn circular into header/body
-    return GCNCircular(
-        header={title.lower(): content for title, content in msg.items()},
-        body=msg.get_payload(),
-    )
-
-
 # ------------------------------------------------
 # -- main
 
@@ -88,7 +63,8 @@ def _main(args=None):
 
             # parse based on GCN type
             if extension == ".gcn3":
-                gcn = read_parse_gcn(gcn)
+                with open(gcn, "r") as f:
+                    gcn = GCNCircular.from_email(f)
             elif extension == ".xml":
                 with open(gcn, "rb") as f:
                     gcn = VOEvent.from_xml(f)
