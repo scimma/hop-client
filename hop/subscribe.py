@@ -8,6 +8,7 @@ import argparse
 import json
 
 from .io import Stream
+from .models import GCNCircular
 
 
 def print_gcn(gcn_dict, json_dump=False):
@@ -23,15 +24,9 @@ def print_gcn(gcn_dict, json_dump=False):
     if json_dump:
         print(json.dumps(gcn_dict))
     else:
-        gcn_headers = gcn_dict["header"]
-        gcn_body = gcn_dict["body"]
-
-        for key in gcn_headers:
-            line = key.upper() + ":\t" + gcn_headers[key]
-            print(line)
-
-        for line in gcn_body.splitlines():
-            print(line)
+        gcn = GCNCircular(**gcn_dict)
+        for line in str(gcn).splitlines():
+             print(line)
 
 
 # ------------------------------------------------
