@@ -96,7 +96,7 @@ class GCNCircular(object):
             The GCNCircular.
 
         """
-        if hasattr(email_input, 'read'):
+        if hasattr(email_input, "read"):
             msg = email.message_from_file(email_input)
         else:
             msg = email.message_from_string(email_input)

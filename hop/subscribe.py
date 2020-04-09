@@ -26,7 +26,7 @@ def print_gcn(gcn_dict, json_dump=False):
     else:
         gcn = GCNCircular(**gcn_dict)
         for line in str(gcn).splitlines():
-             print(line)
+            print(line)
 
 
 # ------------------------------------------------
