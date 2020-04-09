@@ -25,6 +25,7 @@ def test_voevent(voevent_fileobj):
         == "LIGO Virgo"
     )
 
+
 def test_gcn_circular(circular_text, circular_msg):
     with patch("builtins.open", mock_open(read_data=circular_text)) as mock_file:
         gcn_file = "example.gcn3"
