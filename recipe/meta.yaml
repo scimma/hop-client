@@ -33,9 +33,10 @@ test:
   imports:
     - hop
     - hop.publish
+    - hop.subscribe
 
 about:
-  home: "https://github.com/scimma/hop"
+  home: "https://github.com/scimma/hop-client"
   license: "BSD"
   license_family: "BSD"
   license_file: ""

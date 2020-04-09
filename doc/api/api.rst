@@ -1,6 +1,6 @@
 .. _api:
 
-hop API
+hop-client API
 #################
 
 .. toctree::

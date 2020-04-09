@@ -6,7 +6,7 @@ Commands
    :local:
 
 
-**hop** provides a command line interface for various tasks:
+**hop-client** provides a command line interface for various tasks:
 
 :code:`hop publish`: parse and publish GCN circulars
 

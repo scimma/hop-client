@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial Release.
 
-[Unreleased]: https://github.com/scimma/hop/compare/v0.0.4...HEAD
-[0.0.4]: https://github.com/scimma/hop/releases/tag/v0.0.4
-[0.0.2]: https://github.com/scimma/hop/releases/tag/v0.0.2
-[0.0.1]: https://github.com/scimma/hop/releases/tag/v0.0.1
+[Unreleased]: https://github.com/scimma/hop-client/compare/v0.0.4...HEAD
+[0.0.4]: https://github.com/scimma/hop-client/releases/tag/v0.0.4
+[0.0.2]: https://github.com/scimma/hop-client/releases/tag/v0.0.2
+[0.0.1]: https://github.com/scimma/hop-client/releases/tag/v0.0.1

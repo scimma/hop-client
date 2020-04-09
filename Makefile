@@ -14,7 +14,7 @@ help :
 	@echo
 
 VERSION ?= $(shell python setup.py --version)
-REPO_URL = https://github.com/scimma/hop
+REPO_URL = https://github.com/scimma/hop-client
 
 .PHONY: test
 test :

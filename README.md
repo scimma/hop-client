@@ -1,9 +1,9 @@
-Hop
+Hop Client
 =============
 
-![](https://github.com/scimma/hop/workflows/build/badge.svg)
+![](https://github.com/scimma/hop-client/workflows/build/badge.svg)
 
-**hop** is a pub-sub client library for Multimessenger Astrophysics.
+**hop-client** is a pub-sub client library for Multimessenger Astrophysics.
 
 ## Quickstart
 

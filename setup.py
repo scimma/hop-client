@@ -17,6 +17,7 @@ extras_require = {
         'pytest >= 5.0, < 5.4',
         'pytest-console-scripts',
         'pytest-cov',
+        'pytest-runner',
         'flake8',
         'flake8-black',
     ],

@@ -5,7 +5,7 @@ Installation
 .. contents::
    :local:
 
-You can install hop either via pip, conda, or from source.
+You can install hop-client either via pip, conda, or from source.
 
 To install with pip:
 

@@ -8,7 +8,7 @@ Quickstart
 Reading messages
 ----------------
 
-**hop** supports a python-based API for reading messages from a stream, as follows:
+The hop client supports a python-based API for reading messages from a stream, as follows:
 
 .. code:: python
 
