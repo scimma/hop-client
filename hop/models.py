@@ -82,8 +82,8 @@ class GCNCircular(object):
         return asdict(self)
 
     def __str__(self):
-        headers = [name.upper() + ":\t" + val for name, val in self.header.items()]
-        return "\n".join(headers + [self.body])
+        headers = [(name.upper() + ":").ljust(9) + val for name, val in self.header.items()]
+        return "\n".join(headers + ["", self.body])
 
     @classmethod
     def from_email(cls, email_input):
