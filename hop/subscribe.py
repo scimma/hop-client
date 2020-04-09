@@ -52,7 +52,8 @@ def _add_parser_args(parser):
         "-t",
         "--timeout",
         type=float,
-        help="Specifies the time (in seconds) to wait for new messages.",
+        default=10,
+        help="Specifies the time (in seconds) to wait for new messages. Default: 10s",
     )
 
 
@@ -68,19 +69,8 @@ def _main(args=None):
     # load config if specified
     config = cli.load_config(args)
 
-    # load consumer options
-
-    # defaults:
-    start_offset = "latest"
-    timeout = 10
-    json_dump = False
-
-    if args.json:
-        json_dump = True
-    if args.earliest:
-        start_offset = "earliest"
-    if args.timeout:
-        timeout = args.timeout
+    # set offset
+    start_offset = "earliest" if args.earliest else "latest"
 
     # read from topic
 
@@ -89,5 +79,5 @@ def _main(args=None):
 
     stream = Stream(format=gcn_format, config=config, start_at=start_offset)
     with stream.open(args.url, "r") as s:
-        for gcn_dict in s(timeout=timeout):
-            print_gcn(gcn_dict, json_dump)
+        for gcn_dict in s(timeout=args.timeout):
+            print_gcn(gcn_dict, args.json)
