@@ -51,13 +51,13 @@ def test_cli_publish_circular(script_runner, circular_text):
 def test_cli_publish_notice(script_runner, voevent_text):
     # test GCN notice
     gcn_mock = mock_open(read_data=voevent_text.encode())
-    with patch("scimma.client.publish.open", gcn_mock) as mock_file, patch(
-        "scimma.client.io.Stream.open", mock_open()
+    with patch("hop.publish.open", gcn_mock) as mock_file, patch(
+        "hop.io.Stream.open", mock_open()
     ) as mock_stream:
 
         gcn_file = "voevent.xml"
         broker_url = "kafka://hostname:port/gcn"
-        ret = script_runner.run("scimma", "publish", broker_url, gcn_file)
+        ret = script_runner.run("hop", "publish", broker_url, gcn_file)
 
         # verify CLI output
         assert ret.success
@@ -69,13 +69,13 @@ def test_cli_publish_notice(script_runner, voevent_text):
 
 
 def test_cli_subscribe(script_runner):
-    ret = script_runner.run("scimma", "subscribe", "--help")
+    ret = script_runner.run("hop", "subscribe", "--help")
     assert ret.success
 
-    with patch("scimma.client.io.Stream.open", mock_open()) as mock_stream:
+    with patch("hop.io.Stream.open", mock_open()) as mock_stream:
 
         broker_url = "kafka://hostname:port/gcn"
-        ret = script_runner.run("scimma", "subscribe", broker_url)
+        ret = script_runner.run("hop", "subscribe", broker_url)
 
         # verify CLI output
         assert ret.success
