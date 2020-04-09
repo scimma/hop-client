@@ -5,9 +5,9 @@ __description__ = "tools to parse and publish GCNs"
 
 
 import argparse
-import email
 import os
 
+from . import cli
 from .io import Stream
 from .models import GCNCircular, VOEvent
 
@@ -17,26 +17,11 @@ from .models import GCNCircular, VOEvent
 
 
 def _add_parser_args(parser):
-    parser.add_argument(
-        "url",
-        metavar="URL",
-        help="Sets the URL (kafka://host[:port]/topic) to publish GCNs to.",
-    )
+    cli.add_url_opts(parser)
     parser.add_argument(
         "gcn", metavar="GCN", nargs="+", help="One or more GCNs to publish.",
     )
-
-    # configuration options
-    config = parser.add_mutually_exclusive_group()
-    config.add_argument(
-        "-F", "--config-file", help="Set client configuration from file.",
-    )
-    config.add_argument(
-        "-X",
-        "--config",
-        action="append",
-        help="Set client configuration via prop=val. Can be specified multiple times.",
-    )
+    cli.add_config_opts(parser)
 
 
 def _main(args=None):
@@ -49,12 +34,7 @@ def _main(args=None):
         args = parser.parse_args()
 
     # load config if specified
-    if args.config_file:
-        config = args.config_file
-    elif args.config:
-        config = {opt[0]: opt[1] for opt in (kv.split("=") for kv in args.config)}
-    else:
-        config = None
+    config = cli.load_config(args)
 
     stream = Stream(format="json", config=config)
     with stream.open(args.url, "w") as s:

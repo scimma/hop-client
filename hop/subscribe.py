@@ -7,6 +7,7 @@ __description__ = "tools to receive and parse GCN circulars"
 import argparse
 import json
 
+from . import cli
 from .io import Stream
 from .models import GCNCircular
 
@@ -34,23 +35,8 @@ def print_gcn(gcn_dict, json_dump=False):
 
 
 def _add_parser_args(parser):
-    parser.add_argument(
-        "url",
-        metavar="URL",
-        help="Sets the broker URL (kafka://host[:port]/topic) from which to receive GCNs.",
-    )
-
-    # configuration options
-    config = parser.add_mutually_exclusive_group()
-    config.add_argument(
-        "-F", "--config-file", help="Set client configuration from file.",
-    )
-    config.add_argument(
-        "-X",
-        "--config",
-        action="append",
-        help="Set client configuration via prop=val. Can be specified multiple times.",
-    )
+    cli.add_url_opts(parser)
+    cli.add_config_opts(parser)
 
     # consumer options
     parser.add_argument(
@@ -80,12 +66,7 @@ def _main(args=None):
         args = parser.parse_args()
 
     # load config if specified
-    if args.config_file:
-        config = args.config_file
-    elif args.config:
-        config = {opt[0]: opt[1] for opt in (kv.split("=") for kv in args.config)}
-    else:
-        config = None
+    config = cli.load_config(args)
 
     # load consumer options
 
