@@ -18,7 +18,7 @@ REPO_URL = https://github.com/scimma/hop
 
 .PHONY: test
 test :
-	python -m pytest -v --cov=hop
+	python setup.py test
 
 .PHONY: lint
 lint :
