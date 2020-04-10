@@ -66,10 +66,11 @@ jobs:
 
     - name: Add channels for dependencies
       env:
-        PACK_NAME: 'scimma'
+        REPO: 'hop'
+        CHANNEL: 'scimma'
       run: |
-        conda index ./$PACK_NAME  #for noarch support
-        conda config --env --add channels $PACK_NAME  #for adc
+        conda index ./$REPO  #for noarch support
+        conda config --env --add channels $CHANNEL  #for adc
         conda config --env --add channels conda-forge
 
     - name: Update recipe, build package, and upload to Anaconda
