@@ -1,7 +1,7 @@
 .. _io:
 
-scimma.client.io
+hop.io
 ################
 
-.. automodule:: scimma.client.io
+.. automodule:: hop.io
     :members:

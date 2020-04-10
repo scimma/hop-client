@@ -6,7 +6,7 @@ __description__ = "a module that tests the publish utilities"
 
 from unittest.mock import patch, mock_open
 
-from scimma.client import publish
+from hop import publish
 
 
 def test_read_parse_gcn(circular_text, circular_msg):

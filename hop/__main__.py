@@ -27,12 +27,12 @@ def append_subparser(subparser, cmd, func):
 
 
 def set_up_cli():
-    """Set up CLI commands for scimma entry point.
+    """Set up CLI commands for hop entry point.
 
     """
-    parser = argparse.ArgumentParser(prog="scimma")
+    parser = argparse.ArgumentParser(prog="hop")
     parser.add_argument(
-        "--version", action="version", version=f"%(prog)s-client version {__version__}",
+        "--version", action="version", version=f"%(prog)s version {__version__}",
     )
 
     # set up subparser

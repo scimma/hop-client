@@ -14,11 +14,11 @@ help :
 	@echo
 
 VERSION ?= $(shell python setup.py --version)
-REPO_URL = https://github.com/scimma/client_library
+REPO_URL = https://github.com/scimma/hop-client
 
 .PHONY: test
 test :
-	python -m pytest -v --cov=scimma.client
+	python setup.py test
 
 .PHONY: lint
 lint :
@@ -31,7 +31,7 @@ lint :
 format :
 	# show diff via black
 	black tests --diff
-	black scimma/client --diff
+	black hop --diff
 
 .PHONY: doc
 doc :

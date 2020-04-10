@@ -43,14 +43,14 @@ jobs:
     - name: Update recipe with version and generate hash from PyPI package
       env:
         #can't read source url from recipe, so generate it here:
-        NAME: 'scimma-client'
+        NAME: 'hop-client'
         RECIPE_PATH: 'recipe/meta.yaml'
 
       run: |
         #create env vars that cannot be created above due to syntax
         VERSION=$(python setup.py --version)
         LINE_STR='{% set version = "'${VERSION}'" %}'
-        SOURCE_URL="https://pypi.io/packages/source/s/${NAME}/${NAME}-${VERSION}.tar.gz"
+        SOURCE_URL="https://pypi.io/packages/source/h/${NAME}/${NAME}-${VERSION}.tar.gz"
 
         #prepend version environment variable before writing files (preserves version of master)
         echo $LINE_STR | cat - $RECIPE_PATH > temp && mv temp $RECIPE_PATH

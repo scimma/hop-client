@@ -6,11 +6,11 @@ __description__ = "a module that tests the io utilities"
 
 from unittest.mock import patch, mock_open
 
-from scimma.client import Stream
+from hop import Stream
 
 
 def test_stream(circular_msg, circular_text):
-    with patch("scimma.client.io.streaming.open", mock_open()) as mock_stream:
+    with patch("hop.io.streaming.open", mock_open()) as mock_stream:
         broker_url = "kafka://hostname:port/gcn"
         format = "json"
         start_at = "beginning"

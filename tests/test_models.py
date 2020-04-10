@@ -4,7 +4,7 @@ __author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
 __description__ = "a module that tests models"
 
 
-from scimma.client import models
+from hop import models
 
 
 def test_voevent(voevent_fileobj):

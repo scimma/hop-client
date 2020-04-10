@@ -4,7 +4,7 @@ __author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
 __description__ = "a module for i/o utilities"
 
 
-from genesis import streaming
+from adc import streaming
 
 
 class Stream(object):

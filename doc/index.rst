@@ -1,4 +1,4 @@
-scimma-client documentation
+hop documentation
 ===========================
 
 User's Guide
