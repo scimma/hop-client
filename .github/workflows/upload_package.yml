@@ -40,18 +40,13 @@ jobs:
         conda install -y anaconda-client conda-build
         conda install -y setuptools setuptools_scm
 
-    - name: Update recipe with version and generate hash from PyPI package
-      env:
-        #can't read source url from recipe, so generate it here:
-        NAME: 'hop-client'
-        RECIPE_PATH: 'recipe/meta.yaml'
-
+    - name: Update recipe with version variable
       run: |
-        #create env vars that cannot be created above due to syntax
         VERSION=$(python setup.py --version)
         LINE_STR='{% set version = "'${VERSION}'" %}'
+        RECIPE_PATH='recipe/meta.yaml'
 
-        #prepend version environment variable before writing files (preserves version of master)
+        #prepend version string before writing files (which would change local version from HEAD version)
         echo $LINE_STR | cat - $RECIPE_PATH > temp && mv temp $RECIPE_PATH
         
     - name: Add channels for dependencies
@@ -63,7 +58,7 @@ jobs:
         conda config --env --add channels $CHANNEL  #for adc
         conda config --env --add channels conda-forge
 
-    - name: Update recipe, build package, and upload to Anaconda
+    - name: Build package and upload to Anaconda
       env:
         CONDA_USERNAME: ${{ secrets.CONDA_USER_scimma }}
         CONDA_PASSWORD: ${{ secrets.CONDA_PW_scimma }}
