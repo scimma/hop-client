@@ -3,6 +3,8 @@ Hop Client
 
 ![](https://github.com/scimma/hop-client/workflows/build/badge.svg)
 
+[![codecov](https://codecov.io/gh/scimma/hop-client/branch/master/graph/badge.svg)](https://codecov.io/gh/scimma/hop-client)
+
 **hop-client** is a pub-sub client library for Multimessenger Astrophysics.
 
 ## Quickstart
