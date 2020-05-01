@@ -16,7 +16,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install coverage codecov pytest
-        python3 setup.py install
+        pip install .
     - name: Generate coverage file
       run: |
         coverage run -m pytest || true  # "|| true" ensures that a failed pytest doesn't halt the CI
