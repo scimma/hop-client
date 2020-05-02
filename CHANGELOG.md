@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Change package name from `scimma-client` to `hop-client` with
   entrypoint change from `scimma` to `hop`.
 
+### Added
+- Allow subscribing of GCN circulars via Kafka via `scimma subscribe`.
+- Add `Stream` API to publish/subscribe to Kafka topics.
+- Define `VOEvent` and `GCNCircular` models to store, parse and
+  serialize messages of their respective types.
+
 ## [0.0.4] - 2020-02-24
 ### Added
 - Allow `scimma publish` to take in client configuration options via
