@@ -7,7 +7,6 @@ __description__ = "a module that tests models"
 from unittest.mock import patch, mock_open
 
 from hop import models
-from hop import publish
 
 
 def test_voevent(voevent_fileobj):
