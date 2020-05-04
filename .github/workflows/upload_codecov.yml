@@ -15,12 +15,15 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install coverage codecov pytest
-        pip install .
+        pip install coverage codecov pytest pytest-cov pytest-mock pytest-console-scripts
+        pip install .[dev]
     - name: Generate coverage file
+      env:
+        PACK_NAME: 'hop'
       run: |
-        coverage run -m pytest || true  # "|| true" ensures that a failed pytest doesn't halt the CI
-        coverage xml
+        #coverage run -m pytest || true  # "|| true" ensures that a failed pytest doesn't halt the CI
+        #coverage xml
+        python -m pytest --cov-report term --cov-report xml:coverage.xml --cov $PACK_NAME
     - name: Upload results to Codecov
       uses: codecov/codecov-action@v1
       with:
