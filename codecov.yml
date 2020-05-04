@@ -1,3 +1,9 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 70%
+        base: auto
 comment:
   layout: "reach, diff, flags, files"
   behavior: default
