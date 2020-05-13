@@ -6,28 +6,61 @@ __description__ = "tools to receive and parse GCN circulars"
 
 import argparse
 import json
+import warnings
 
 from . import cli
 from .io import Stream
-from .models import GCNCircular
+from .models import GCNCircular, VOEvent
 
 
-def print_gcn(gcn_dict, json_dump=False):
-    """Parse a gcn dictionary and print to stdout.
+def print_msg(msg, json_dump=False):
+    """Check the format of a message obtained from an ADC stream, use it to instantiate
+    a data model corresponding to that format, and print the message.
 
     Args:
-      gcn_dict:  the dictionary object containing a GCN-formatted message
+      msg:       the raw message from an ADC stream
+      json_dump: boolean indicating whether to print msg as raw json
 
     Returns:
       None
-
     """
-    if json_dump:
-        print(json.dumps(gcn_dict))
+
+    # check for msg format using standard-specific flags
+    voevent_flag = 'ivorn'
+    gcncir_flag = 'GCN CIRCULAR'
+
+    # VOEvent:
+    if voevent_flag in msg:
+        gcn = VOEvent(**msg)
+        status_str = ("##################################################\n"
+                      "######## Hop-client: parsing a VOEvent  ##########\n"
+                      "##################################################")
+    # GCN circular:
+    elif gcncir_flag in msg:
+        gcn = GCNCircular(**msg)
+        status_str = ("##################################################\n"
+                      "####### Hop-client: parsing a GCN Circular #######\n"
+                      "##################################################")
     else:
-        gcn = GCNCircular(**gcn_dict)
-        for line in str(gcn).splitlines():
-            print(line)
+        try:
+            gcn = GCNCircular(**msg)
+            status_str = ("##################################################\n"
+                          "## Hop-client: parsing a hop-published message ###\n"
+                          "##################################################")
+        except:
+            warnings.warn('#### Warning: message format not recognized; dumping as json ####')
+            gcn = msg
+            status_str = ("##################################################\n"
+                          "## Hop-client: dumping unknown message as json ###\n"
+                          "##################################################")
+            json_dump = True
+
+    print(status_str)
+    
+    if json_dump:
+        print(json.dumps(msg))
+    else:
+        print(str(gcn))
 
 
 # ------------------------------------------------
@@ -79,5 +112,5 @@ def _main(args=None):
 
     stream = Stream(format=gcn_format, config=config, start_at=start_offset)
     with stream.open(args.url, "r") as s:
-        for gcn_dict in s(timeout=args.timeout):
-            print_gcn(gcn_dict, args.json)
+        for msg in s(timeout=args.timeout):
+            print_msg(msg, args.json)

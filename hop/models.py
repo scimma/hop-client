@@ -6,6 +6,7 @@ __description__ = "a module to define common message types"
 
 from dataclasses import asdict, dataclass, field
 import email
+import json
 
 import xmltodict
 
@@ -41,6 +42,9 @@ class VOEvent(object):
         """
         return asdict(self)
 
+    def __str__(self):
+        return json.dumps(self.asdict(), indent=2)
+        
     @classmethod
     def from_xml(cls, xml_input):
         """Create a new VOEvent from an XML-formatted VOEvent.
