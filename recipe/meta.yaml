@@ -25,7 +25,7 @@ requirements:
     - setuptools_scm
   run:
     - python
-    - adc-streaming >=0.3.0
+    - adc-streaming >=0.3.1
     - xmltodict >=0.9.0
     - dataclasses    # [py==36]
 
