@@ -8,7 +8,7 @@ with open(os.path.join(this_dir, 'README.md'), 'rb') as f:
 
 # requirements
 install_requires = [
-    "adc-streaming >= 0.1.0",
+    "adc-streaming >= 0.3.1",
     "dataclasses ; python_version < '3.7'",
     "xmltodict >= 0.9.0"
 ]
