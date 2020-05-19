@@ -31,32 +31,26 @@ def classify_msg(msg):
     # VOEvent:
     if voevent_flag in msg:
         gcn = VOEvent(**msg)
-        status_str = ("##################################################\n"
-                      "######## Hop-client: parsing a VOEvent  ##########\n"
-                      "##################################################")
+        status_str = "## Parsing a VOEvent"
     # GCN circular:
     elif gcncir_flag in msg:
         gcn = GCNCircular(**msg)
-        status_str = ("##################################################\n"
-                      "####### Hop-client: parsing a GCN Circular #######\n"
-                      "##################################################")
+        status_str = "## Parsing a GCN Circular"
     else:
         try:
             gcn = GCNCircular(**msg)
-            status_str = ("##################################################\n"
-                          "## Hop-client: parsing a hop-published message ###\n"
-                          "##################################################")
+            status_str = "## Parsing a hop-published message"
         except:
-            warnings.warn('#### Warning: message format not recognized; dumping as json ####')
+            warnings.warn("## Warning: message format not recognized; dumping as json")
             gcn = msg
-            status_str = ("##################################################\n"
-                          "## Hop-client: dumping unknown message as json ###\n"
-                          "##################################################")
+            status_str = "## Dumping unknown message as json"
+
             print(status_str)
             print_gcn(gcn, json_dump=True)
             return None
 
     print(status_str)
+
     return gcn
     
 
