@@ -100,7 +100,7 @@ def _add_parser_args(parser):
         "--timeout",
         default=10,
         help="Specifies the time (in seconds) to wait for messages before timing out; "
-        "specify 'None' to wait indefinitely.  Default: 10 seconds",
+        "specify -1 to wait indefinitely.  Default: 10 seconds",
     )
 
 
@@ -121,7 +121,7 @@ def _main(args=None):
 
     # set timeout
     t = args.timeout
-    timeout = None if (t is None or t == 'None') else float(t)
+    timeout = None if t == "-1" else float(t)
 
     # read from topic
 
