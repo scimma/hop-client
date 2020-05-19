@@ -8,38 +8,52 @@ import codecs
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from unittest.mock import patch, mock_open
+from unittest.mock import patch, MagicMock
+import pytest
 
 from hop import subscribe
 
 
-def test_print_gcn(circular_text, circular_msg):
-    with patch("builtins.open", mock_open(read_data=circular_text)) as mock_file:
+# test the subscribe printer for each message type: voevent, circular
+@pytest.mark.parametrize("msg_type", ['voevent', 'circular'])
+def test_print_gcn(msg_type):
+    if msg_type == 'voevent':
+        model_type = 'VOEvent'
+        test_file = "example_voevent.xml"
+    elif msg_type == 'circular':
+        model_type = 'GCNCircular'
+        test_file = "example_gcn.gcn3"
+    
+    shared_datadir = Path("tests/data")
+    
+    test_content = (
+        shared_datadir / "test_data" / test_file
+    ).read_text()
 
-        # parse the sample GCN from stdout
+    # control the output of the hop.model's print method with mocking
+    with patch(f"hop.models.{model_type}", MagicMock()) as mock_model:
+        mock_model.__str__.return_value = test_content
+        
         f = io.StringIO()
         with redirect_stdout(f):
-            subscribe.print_gcn(circular_msg, json_dump=False)
-
-        # verify circular_msg was read in
-        assert open(circular_msg).read() == circular_text
-        mock_file.assert_called_with(circular_msg)
+            subscribe.print_gcn(mock_model, json_dump=False)
 
         # read stdout from beginning
         f.seek(0)
 
         # extract GCN string from stdout
-        gcn_stdout_list = f.readlines()
-        gcn_stdout_str = "".join(gcn_stdout_list)
+        test_gcn_stdout_list = f.readlines()
+        test_gcn_stdout_str = "".join(test_gcn_stdout_list)
 
-        # read in expected data txt
-        shared_datadir = Path("tests/data")
-        expected_raw = (
-            shared_datadir / "expected_data" / "gcn_circular_stdout.txt"
+        # read in expected stdout text
+        expected_gcn_raw = (
+            shared_datadir / "expected_data" / (test_file + ".stdout")
         ).read_text()
 
         # use codec to decode the expected output to leave newline/tab characters intact
-        expected = codecs.unicode_escape_decode(expected_raw)[0][:-1]  # remove ending newline char
+        expected_gcn_stdout = codecs.unicode_escape_decode(expected_gcn_raw)[0]
 
         # verify printed GCN structure is correct
-        assert gcn_stdout_str == expected
+        print(test_gcn_stdout_str)
+
+        assert test_gcn_stdout_str == expected_gcn_stdout
