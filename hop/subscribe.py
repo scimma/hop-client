@@ -13,18 +13,17 @@ from .io import Stream
 from .models import GCNCircular, VOEvent
 
 
-def print_msg(msg, json_dump=False):
-    """Check the format of a message obtained from an ADC stream, use it to instantiate
-    a data model corresponding to that format, and print the message.
+def classify_msg(msg):
+    """Check and classify the format of a message obtained from an ADC
+    stream, use it to instantiate a data model corresponding to that format.
 
     Args:
-      msg:       the raw message from an ADC stream
-      json_dump: boolean indicating whether to print msg as raw json
+      msg:       raw message from an ADC stream
 
     Returns:
-      None
-    """
+      gcn:       dataclass model object for the raw message
 
+    """
     # check for msg format using standard-specific flags
     voevent_flag = 'ivorn'
     gcncir_flag = 'GCN CIRCULAR'
@@ -53,12 +52,27 @@ def print_msg(msg, json_dump=False):
             status_str = ("##################################################\n"
                           "## Hop-client: dumping unknown message as json ###\n"
                           "##################################################")
-            json_dump = True
+            print(status_str)
+            print_gcn(gcn, json_dump=True)
+            return None
 
     print(status_str)
+    return gcn
+    
+
+def print_gcn(gcn, json_dump=False):
+    """Print the content of a gcn message.
+
+    Args:
+      gcn:       dataclass model object for a message
+      json_dump: boolean indicating whether to print as raw json
+
+    Returns:
+      None
+    """
     
     if json_dump:
-        print(json.dumps(msg))
+        print(json.dumps(gcn))
     else:
         print(str(gcn))
 
@@ -117,4 +131,7 @@ def _main(args=None):
     stream = Stream(format=gcn_format, config=config, start_at=start_offset)
     with stream.open(args.url, "r") as s:
         for msg in s(timeout=timeout):
-            print_msg(msg, args.json)
+            gcn = classify_msg(msg)
+            if gcn is not None:
+                print_gcn(gcn, args.json)
+            else: continue
