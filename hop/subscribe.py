@@ -6,7 +6,6 @@ __description__ = "tools to receive and parse GCN circulars"
 
 import argparse
 import json
-import warnings
 
 from . import cli
 from .io import Stream
@@ -21,7 +20,7 @@ def classify_msg(msg):
       msg:       raw message from an ADC stream
 
     Returns:
-      gcn:       dataclass model object for the raw message
+      msg_model: dataclass model object for the raw message
 
     """
     # check for msg format using standard-specific flags
@@ -30,35 +29,26 @@ def classify_msg(msg):
 
     # VOEvent:
     if voevent_flag in msg:
-        gcn = VOEvent(**msg)
+        msg_model = VOEvent(**msg)
         status_str = "## Parsing a VOEvent"
     # GCN circular:
     elif gcncir_flag in msg:
-        gcn = GCNCircular(**msg)
+        msg_model = GCNCircular(**msg)
         status_str = "## Parsing a GCN Circular"
     else:
-        try:
-            gcn = GCNCircular(**msg)
-            status_str = "## Parsing a hop-published message"
-        except:
-            warnings.warn("## Warning: message format not recognized; dumping as json")
-            gcn = msg
-            status_str = "## Dumping unknown message as json"
-
-            print(status_str)
-            print_gcn(gcn, json_dump=True)
-            return None
+        msg_model = GCNCircular(**msg)
+        status_str = "## Parsing a hop-published message"
 
     print(status_str)
 
-    return gcn
+    return msg_model
 
 
-def print_gcn(gcn, json_dump=False):
+def print_gcn(msg_model, json_dump=False):
     """Print the content of a gcn message.
 
     Args:
-      gcn:       dataclass model object for a message
+      msg_model:       dataclass model object for a message
       json_dump: boolean indicating whether to print as raw json
 
     Returns:
@@ -66,9 +56,9 @@ def print_gcn(gcn, json_dump=False):
     """
 
     if json_dump:
-        print(json.dumps(gcn))
+        print(json.dumps(msg_model))
     else:
-        print(str(gcn))
+        print(str(msg_model))
 
 
 # ------------------------------------------------
@@ -92,6 +82,7 @@ def _add_parser_args(parser):
     parser.add_argument(
         "-t",
         "--timeout",
+        type=float,
         default=10,
         help="Specifies the time (in seconds) to wait for messages before timing out; "
         "specify -1 to wait indefinitely.  Default: 10 seconds",
@@ -114,8 +105,7 @@ def _main(args=None):
     start_offset = "earliest" if args.earliest else "latest"
 
     # set timeout
-    t = args.timeout
-    timeout = None if t == "-1" else float(t)
+    timeout = None if args.timeout == -1 else args.timeout
 
     # read from topic
 
@@ -125,8 +115,5 @@ def _main(args=None):
     stream = Stream(format=gcn_format, config=config, start_at=start_offset)
     with stream.open(args.url, "r") as s:
         for msg in s(timeout=timeout):
-            gcn = classify_msg(msg)
-            if gcn is not None:
-                print_gcn(gcn, args.json)
-            else:
-                continue
+            msg_model = classify_msg(msg)
+            print_gcn(msg_model, args.json)
