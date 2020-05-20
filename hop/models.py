@@ -44,7 +44,7 @@ class VOEvent(object):
 
     def __str__(self):
         return json.dumps(self.asdict(), indent=2)
-        
+
     @classmethod
     def from_xml(cls, xml_input):
         """Create a new VOEvent from an XML-formatted VOEvent.
@@ -86,7 +86,9 @@ class GCNCircular(object):
         return asdict(self)
 
     def __str__(self):
-        headers = [(name.upper() + ":").ljust(9) + val for name, val in self.header.items()]
+        headers = [
+            (name.upper() + ":").ljust(9) + val for name, val in self.header.items()
+        ]
         return "\n".join(headers + ["", self.body])
 
     @classmethod

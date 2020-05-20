@@ -25,8 +25,8 @@ def classify_msg(msg):
 
     """
     # check for msg format using standard-specific flags
-    voevent_flag = 'ivorn'
-    gcncir_flag = 'GCN CIRCULAR'
+    voevent_flag = "ivorn"
+    gcncir_flag = "GCN CIRCULAR"
 
     # VOEvent:
     if voevent_flag in msg:
@@ -52,7 +52,7 @@ def classify_msg(msg):
     print(status_str)
 
     return gcn
-    
+
 
 def print_gcn(gcn, json_dump=False):
     """Print the content of a gcn message.
@@ -64,7 +64,7 @@ def print_gcn(gcn, json_dump=False):
     Returns:
       None
     """
-    
+
     if json_dump:
         print(json.dumps(gcn))
     else:
@@ -128,4 +128,5 @@ def _main(args=None):
             gcn = classify_msg(msg)
             if gcn is not None:
                 print_gcn(gcn, args.json)
-            else: continue
+            else:
+                continue
