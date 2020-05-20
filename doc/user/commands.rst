@@ -14,7 +14,7 @@ Commands
 :code:`hop publish`
 ~~~~~~~~~~~~~~~~~~~~~~
 
-This command allows a user to parse an `RFC 833 formatted GCN circular <https://gcn.gsfc.nasa.gov/gcn3_circulars.html>`_
+This command allows a user to parse an `RFC 822 formatted GCN circular <https://gcn.gsfc.nasa.gov/gcn3_circulars.html>`_
 or an XML formatted `GCN/VOEvent notice <https://gcn.gsfc.nasa.gov/tech_describe.html>`_
 and publish it as a JSON-formatted GCN via Kafka.
 
