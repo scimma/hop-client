@@ -31,10 +31,6 @@ def test_gcn_circular(circular_text, circular_msg):
         with open(gcn_file, "r") as f:
             gcn = models.GCNCircular.from_email(f)
 
-        # verify GCN was read in
-        assert open(gcn_file).read() == circular_text
-        mock_file.assert_called_with(gcn_file)
-
         # verify parsed GCN structure is correct
         assert gcn.header["title"] == circular_msg["header"]["title"]
         assert gcn.header["number"] == circular_msg["header"]["number"]
