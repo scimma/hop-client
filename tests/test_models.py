@@ -19,10 +19,7 @@ def test_voevent(voevent_fileobj):
 
     assert voevent.Who["Date"] == "2020-03-02T02:00:09"
     assert voevent.Description == "Report of a candidate gravitational wave event"
-    assert (
-        voevent.WhereWhen["ObsDataLocation"]["ObservatoryLocation"]["id"]
-        == "LIGO Virgo"
-    )
+    assert voevent.WhereWhen["ObsDataLocation"]["ObservatoryLocation"]["id"] == "LIGO Virgo"
 
 
 def test_gcn_circular(circular_text, circular_msg):
