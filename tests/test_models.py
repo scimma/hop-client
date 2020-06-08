@@ -23,7 +23,7 @@ def test_voevent(voevent_fileobj):
 
 
 def test_gcn_circular(circular_text, circular_msg):
-    with patch("builtins.open", mock_open(read_data=circular_text)) as mock_file:
+    with patch("builtins.open", mock_open(read_data=circular_text)):
         gcn_file = "example.gcn3"
         with open(gcn_file, "r") as f:
             gcn = models.GCNCircular.from_email(f)
