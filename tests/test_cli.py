@@ -79,7 +79,6 @@ def test_cli_subscribe(script_runner):
 
         # verify CLI output
         assert ret.success
-        print(ret.stderr)
         assert ret.stderr == ""
 
         # verify broker url was processed
