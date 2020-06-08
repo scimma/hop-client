@@ -5,12 +5,12 @@ help :
 	@echo
 	@echo '  make test                  run unit tests'
 	@echo '  make lint                  run linter'
-	@echo '  make format                run code formatter, giving a diff for recommended changes'
+	@echo '  make format                run code formatter'
 	@echo '  make doc                   make documentation'
 	@echo '  make changelog             update changelog based on version'
-	@echo '  make dist                  make binary and source packages'
-	@echo '  make dist-check            verify binary and source packages'
-	@echo '  make upload                upload to PyPI'
+	@echo '  make pypi-dist             make binary and source packages for PyPI'
+	@echo '  make pypi-dist-check       verify binary and source packages for PyPI'
+	@echo '  make conda-build           make binary and source packages for conda-forge'
 	@echo
 
 VERSION ?= $(shell python setup.py --version)
@@ -18,7 +18,7 @@ REPO_URL = https://github.com/scimma/hop-client
 
 .PHONY: test
 test :
-	python setup.py test
+	python -m pytest -v --cov=hop
 
 .PHONY: lint
 lint :
@@ -29,9 +29,7 @@ lint :
 
 .PHONY: format
 format :
-	# show diff via black
-	black tests --diff
-	black hop --diff
+	autopep8 --recursive --in-place .
 
 .PHONY: doc
 doc :
@@ -42,14 +40,14 @@ changelog :
 	sed -i 's@## \[Unreleased]@## \[Unreleased]\n\n## \[$(VERSION)] - $(shell date +'%Y-%m-%d')@' CHANGELOG.md
 	sed -i 's@.*\[Unreleased]:.*@\[Unreleased]: $(REPO_URL)/compare/v$(VERSION)...HEAD\n[$(VERSION)]: $(REPO_URL)/releases/tag/v$(VERSION)@' CHANGELOG.md
 
-.PHONY: dist
-dist :
-	python setup.py sdist bdist_wheel	
+.PHONY: pypi-dist
+pypi-dist :
+	python setup.py sdist bdist_wheel
 
-.PHONY: dist-check
-dist-check:
+.PHONY: pypi-dist-check
+pypi-dist-check:
 	twine check dist/*
 
-.PHONY: upload
-upload:
-	twine upload dist/*
+.PHONY: conda-build
+conda-build:
+	conda build -c defaults -c conda-forge ./recipe
