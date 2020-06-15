@@ -14,12 +14,13 @@ install_requires = [
 ]
 extras_require = {
     'dev': [
+        'autopep8',
+        'flake8',
         'pytest >= 5.0, < 5.4',
         'pytest-console-scripts',
         'pytest-cov',
         'pytest-runner',
-        'flake8',
-        'flake8-black',
+        'twine',
     ],
     'docs': [
         'sphinx',
@@ -50,6 +51,7 @@ setup(
     install_requires = install_requires,
     extras_require = extras_require,
     setup_requires = ['setuptools_scm'],
+    zip_safe=False,
     use_scm_version = {
         'write_to': 'hop/_version.py'
     },
