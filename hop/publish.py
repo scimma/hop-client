@@ -27,7 +27,7 @@ def _add_parser_args(parser):
         action="append",
         nargs=2,
         metavar=("format", "content"),
-        help="The format (gcn, voevent, blob) and content of a message to publish",
+        help="Specify the format (circular, voevent, blob) and content of a message to publish",
     )
 
 
@@ -35,11 +35,15 @@ def _main(args=None):
     """Parse and publish GCNs.
 
     """
+
     if not args:
         parser = argparse.ArgumentParser()
         _add_parser_args(parser)
         args = parser.parse_args()
 
+    if not args.message:
+        raise NameError("Error: no message specified. Specify one or more messages to publish.")
+        
     # load config if specified
     config = cli.load_config(args)
 
@@ -50,7 +54,7 @@ def _main(args=None):
             msg_format = message[0].lower()
             msg_content = message[1]
 
-            if msg_format == "gcn":
+            if msg_format == "circular":
                 with open(msg_content, "r") as f:
                     gcn = GCNCircular.from_email(f)
             elif msg_format == "voevent":

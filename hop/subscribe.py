@@ -31,7 +31,7 @@ def classify_msg(msg):
         raise ValueError("Message is not wrapped with format/content keys")
 
     # generate the dataclass model appropriate for the message format
-    if fmt == "gcn":
+    if fmt == "circular":
         msg_model = GCNCircular(**content)
     elif fmt == "voevent":
         msg_model = VOEvent(**content)
