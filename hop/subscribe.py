@@ -9,37 +9,36 @@ import json
 
 from . import cli
 from .io import Stream
-from .models import GCNCircular, VOEvent
+from .models import GCNCircular, VOEvent, message_blob
 
 
 def classify_msg(msg):
-    """Check and classify the format of a message obtained from an ADC
-    stream, use it to instantiate a data model corresponding to that format.
+    """Check the format of a message obtained from an ADC stream and
+    use it to instantiate a data model corresponding to that format.
 
     Args:
-      msg:       raw message from an ADC stream
+      msg:       wrapped message from an ADC stream
 
     Returns:
       msg_model: dataclass model object for the raw message
 
     """
-    # check for msg format using standard-specific flags
-    voevent_flag = "ivorn"
-    gcncir_flag = "GCN CIRCULAR"
 
-    # VOEvent:
-    if voevent_flag in msg:
-        msg_model = VOEvent(**msg)
-        status_str = "## Parsing a VOEvent"
-    # GCN circular:
-    elif gcncir_flag in msg:
-        msg_model = GCNCircular(**msg)
-        status_str = "## Parsing a GCN Circular"
+    try:
+        fmt = msg["type"]
+        content = msg["content"]
+    except TypeError:
+        raise ValueError("Message is not wrapped with type/content keys")
+
+    # generate the dataclass model appropriate for the message format
+    if fmt == "gcn":
+        msg_model = GCNCircular(**content)
+    elif fmt == "voevent":
+        msg_model = VOEvent(**content)
+    elif fmt == "blob":
+        msg_model = message_blob(**content)
     else:
-        msg_model = GCNCircular(**msg)
-        status_str = "## Parsing a hop-published message"
-
-    print(status_str)
+        raise ValueError(f"Message format {fmt} not recognized")
 
     return msg_model
 
@@ -48,15 +47,16 @@ def print_gcn(msg_model, json_dump=False):
     """Print the content of a gcn message.
 
     Args:
-      msg_model:       dataclass model object for a message
+      msg_model: dataclass model object for a message
       json_dump: boolean indicating whether to print as raw json
 
     Returns:
       None
     """
 
+    # print the message content
     if json_dump:
-        print(json.dumps(msg_model))
+        print(json.dumps(msg_model.asdict()))
     else:
         print(str(msg_model))
 
