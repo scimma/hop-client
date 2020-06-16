@@ -13,4 +13,4 @@ def test_version():
 
     versions = process.stdout
     packages = version.get_packages()
-    assert any(package in versions for package in packages)
+    assert all(package in versions for package in packages)
