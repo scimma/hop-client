@@ -30,3 +30,11 @@ topic and display it on stdout via a pretty-print or JSON dump.
 
 .. program-output:: hop subscribe --help
    :nostderr:
+
+:code:`hop version`
+~~~~~~~~~~~~~~~~~~~~~~
+
+This command prints all the versions of the dependencies
+
+.. program-output:: hop version --help
+   :nostderr:
