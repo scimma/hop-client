@@ -25,10 +25,10 @@ def classify_msg(msg):
     """
 
     try:
-        fmt = msg["type"]
+        fmt = msg["format"]
         content = msg["content"]
     except TypeError:
-        raise ValueError("Message is not wrapped with type/content keys")
+        raise ValueError("Message is not wrapped with format/content keys")
 
     # generate the dataclass model appropriate for the message format
     if fmt == "gcn":

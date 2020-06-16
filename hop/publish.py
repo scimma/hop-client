@@ -19,9 +19,6 @@ from .models import GCNCircular, VOEvent, message_blob
 
 def _add_parser_args(parser):
     cli.add_url_opts(parser)
-    # parser.add_argument(
-    #     "gcn", metavar="GCN", nargs="+", help="One or more GCNs to publish.",
-    # )
     cli.add_config_opts(parser)
 
     parser.add_argument(
@@ -32,15 +29,6 @@ def _add_parser_args(parser):
         metavar=("format", "content"),
         help="The format (gcn, voevent, blob) and content of a message to publish",
     )
-
-    # parser.add_argument(
-    #     "-f",
-    #     "--format",
-    #     type=str,
-    #     default="blob",
-    #     nargs="+",
-    #     help="Specifies the format of the message, such as gcn or voevent. Default: 'blob'.",
-    # )
 
 
 def _main(args=None):

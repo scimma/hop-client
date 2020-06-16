@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 __author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
-__description__ = "a module to define common message types"
+__description__ = "a module to define common message formats"
 
 
 from dataclasses import asdict, dataclass, field
@@ -43,14 +43,14 @@ class VOEvent(object):
         return asdict(self)
 
     def wrap_msg(self):
-        """Wrap the message with its type and content.
+        """Wrap the message with its format and content.
 
         Returns:
-           A dictionary with "type" and "content" key-value pairs
+           A dictionary with "format" and "content" key-value pairs
 
         """
 
-        wrapped_msg = { "type": "voevent", "content": self.asdict() }
+        wrapped_msg = { "format": "voevent", "content": self.asdict() }
         return wrapped_msg
 
     def __str__(self):
@@ -97,14 +97,14 @@ class GCNCircular(object):
         return asdict(self)
 
     def wrap_msg(self):
-        """Wrap the message with its type and content.
+        """Wrap the message with its format and content.
 
         Returns:
-           A dictionary with "type" and "content" key-value pairs
+           A dictionary with "format" and "content" key-value pairs
 
         """
 
-        wrapped_msg = { "type": "gcn", "content": self.asdict() }
+        wrapped_msg = { "format": "gcn", "content": self.asdict() }
         return wrapped_msg
 
     def __str__(self):
@@ -138,7 +138,7 @@ class GCNCircular(object):
 class message_blob(object):
     """Defines an unformatted message structure.
 
-    This is included as a dataclass to mirror the implementation of actual formats.
+    This is included as a dataclass to mirror the implementation of structured formats.
     
     """
 
@@ -154,14 +154,14 @@ class message_blob(object):
         return asdict(self)
 
     def wrap_msg(self):
-        """Wrap the message with its type and content.
+        """Wrap the message with its format and content.
 
         Returns:
-           A dictionary with "type" and "content" key-value pairs
+           A dictionary with "format" and "content" key-value pairs
 
         """
 
-        wrapped_msg = { "type": "blob", "content": self.asdict() }
+        wrapped_msg = { "format": "blob", "content": self.asdict() }
         return wrapped_msg
 
     def __str__(self):
