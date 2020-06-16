@@ -42,6 +42,17 @@ class VOEvent(object):
         """
         return asdict(self)
 
+    def wrap_msg(self):
+        """Wrap the message with its type and content.
+
+        Returns:
+           A dictionary with "type" and "content" key-value pairs
+
+        """
+
+        wrapped_msg = { "type": "voevent", "content": self.asdict() }
+        return wrapped_msg
+
     def __str__(self):
         return json.dumps(self.asdict(), indent=2)
 
@@ -85,6 +96,17 @@ class GCNCircular(object):
         """
         return asdict(self)
 
+    def wrap_msg(self):
+        """Wrap the message with its type and content.
+
+        Returns:
+           A dictionary with "type" and "content" key-value pairs
+
+        """
+
+        wrapped_msg = { "type": "gcn", "content": self.asdict() }
+        return wrapped_msg
+
     def __str__(self):
         headers = [(name.upper() + ":").ljust(9) + val for name, val in self.header.items()]
         return "\n".join(headers + ["", self.body])
@@ -110,3 +132,41 @@ class GCNCircular(object):
             header={title.lower(): content for title, content in msg.items()},
             body=msg.get_payload(),
         )
+
+
+@dataclass
+class message_blob(object):
+    """Defines an unformatted message structure.
+
+    This is included as a dataclass to mirror the implementation of actual formats.
+    
+    """
+
+    content: str
+
+    def asdict(self):
+        """Represents the message as a dictionary.
+
+        Returns:
+            dict: the dict representation of the message
+
+        """
+        return asdict(self)
+
+    def wrap_msg(self):
+        """Wrap the message with its type and content.
+
+        Returns:
+           A dictionary with "type" and "content" key-value pairs
+
+        """
+
+        wrapped_msg = { "type": "blob", "content": self.asdict() }
+        return wrapped_msg
+
+    def __str__(self):
+        return self.content
+
+    @classmethod
+    def from_file(cls, f):
+        return cls(f.read())
