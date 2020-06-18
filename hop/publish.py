@@ -19,20 +19,22 @@ from .models import GCNCircular, VOEvent, message_blob
 
 def _add_parser_args(parser):
     cli.add_url_opts(parser)
+    parser.add_argument(
+        "message", metavar="MESSAGE", nargs="+", help="One or more messages to publish.",
+    )
     cli.add_config_opts(parser)
 
     parser.add_argument(
-        "-m",
-        "--message",
-        action="append",
-        nargs=2,
-        metavar=("format", "content"),
-        help="Specify the format (circular, voevent, blob) and content of a message to publish",
+        "-f",
+        "--format",
+        type=str,
+        default="blob",
+        help="Specifies the format of the message, such as 'circular' or 'voevent'. "
+        "Specify 'blob' if sending an unstructured message. Default: 'blob'.",
     )
 
-
 def _main(args=None):
-    """Parse and publish GCNs.
+    """Parse and publish messages.
 
     """
 
@@ -41,31 +43,31 @@ def _main(args=None):
         _add_parser_args(parser)
         args = parser.parse_args()
 
-    if not args.message:
-        raise NameError("Error: no message specified. Specify one or more messages to publish.")
+    # if not args.message:
+    #     raise NameError("Error: no message specified. Specify one or more messages to publish.")
         
     # load config if specified
     config = cli.load_config(args)
 
+    # get format of the message(s) if specified
+    message_format = "blob" if not args.format else args.format
+
     stream = Stream(format="json", config=config)
     with stream.open(args.url, "w") as s:
-        for message in args.message:
+        for message_file in args.message:
 
-            msg_format = message[0].lower()
-            msg_content = message[1]
-
-            if msg_format == "circular":
-                with open(msg_content, "r") as f:
-                    gcn = GCNCircular.from_email(f)
-            elif msg_format == "voevent":
-                with open(msg_content, "rb") as f:
-                    gcn = VOEvent.from_xml(f)
-            elif msg_format == "blob":
-                with open(msg_content, "r") as f:
-                    gcn = message_blob.from_file(f)
+            if message_format == "circular":
+                with open(message_file, "r") as f:
+                    message_model = GCNCircular.from_email(f)
+            elif message_format == "voevent":
+                with open(message_file, "rb") as f:
+                    message_model = VOEvent.from_xml(f)
+            elif message_format == "blob":
+                with open(message_file, "r") as f:
+                    message_model = message_blob.from_file(f)
             else:
-                warnings.warn("Warning: format not recognized. Sending as blob")
-                with open(msg_content, "r") as f:
-                    gcn = message_blob.from_file(f)
+                warnings.warn("Warning: format not recognized. Sending as unstructured blob")
+                with open(message_file, "r") as f:
+                    message_model = message_blob.from_file(f)
 
-            s.write(gcn.wrap_msg())
+            s.write(message_model.wrap_message())

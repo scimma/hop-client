@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 __author__ = "Bryce Cousins (bfc5288@psu.edu)"
-__description__ = "tools to receive and parse GCN circulars"
+__description__ = "tools to receive and parse messages"
 
 
 import argparse
@@ -12,42 +12,42 @@ from .io import Stream
 from .models import GCNCircular, VOEvent, message_blob
 
 
-def classify_msg(msg):
+def classify_message(message):
     """Check the format of a message obtained from an ADC stream and
     use it to instantiate a data model corresponding to that format.
 
     Args:
-      msg:       wrapped message from an ADC stream
+      message:       wrapped message from an ADC stream
 
     Returns:
-      msg_model: dataclass model object for the raw message
+      message_model: dataclass model object for the message
 
     """
 
     try:
-        fmt = msg["format"]
-        content = msg["content"]
+        fmt = message["format"]
+        content = message["content"]
     except TypeError:
         raise ValueError("Message is not wrapped with format/content keys")
 
     # generate the dataclass model appropriate for the message format
     if fmt == "circular":
-        msg_model = GCNCircular(**content)
+        message_model = GCNCircular(**content)
     elif fmt == "voevent":
-        msg_model = VOEvent(**content)
+        message_model = VOEvent(**content)
     elif fmt == "blob":
-        msg_model = message_blob(**content)
+        message_model = message_blob(**content)
     else:
         raise ValueError(f"Message format {fmt} not recognized")
 
-    return msg_model
+    return message_model
 
 
-def print_gcn(msg_model, json_dump=False):
-    """Print the content of a gcn message.
+def print_message(message_model, json_dump=False):
+    """Print the content of a message.
 
     Args:
-      msg_model: dataclass model object for a message
+      message_model: dataclass model object for a message
       json_dump: boolean indicating whether to print as raw json
 
     Returns:
@@ -56,9 +56,9 @@ def print_gcn(msg_model, json_dump=False):
 
     # print the message content
     if json_dump:
-        print(json.dumps(msg_model.asdict()))
+        print(json.dumps(message_model.asdict()))
     else:
-        print(str(msg_model))
+        print(str(message_model))
 
 
 # ------------------------------------------------
@@ -71,7 +71,7 @@ def _add_parser_args(parser):
 
     # consumer options
     parser.add_argument(
-        "-j", "--json", help="Request gcn output as raw json", action="store_true",
+        "-j", "--json", help="Request message output as raw json", action="store_true",
     )
     parser.add_argument(
         "-e",
@@ -90,7 +90,7 @@ def _add_parser_args(parser):
 
 
 def _main(args=None):
-    """Receive and parse GCN circulars.
+    """Receive and parse messages.
 
     """
     if not args:
@@ -109,11 +109,11 @@ def _main(args=None):
 
     # read from topic
 
-    # assume json format for the gcn
-    gcn_format = "json"
+    # assume json format for the message stream
+    stream_format = "json"
 
-    stream = Stream(format=gcn_format, config=config, start_at=start_offset)
+    stream = Stream(format=stream_format, config=config, start_at=start_offset)
     with stream.open(args.url, "r") as s:
-        for msg in s(timeout=timeout):
-            msg_model = classify_msg(msg)
-            print_gcn(msg_model, args.json)
+        for message in s(timeout=timeout):
+            message_model = classify_message(message)
+            print_message(message_model, args.json)
