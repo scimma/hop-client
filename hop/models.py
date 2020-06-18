@@ -42,7 +42,7 @@ class VOEvent(object):
         """
         return asdict(self)
 
-    def wrap_msg(self):
+    def wrap_message(self):
         """Wrap the message with its format and content.
 
         Returns:
@@ -50,8 +50,8 @@ class VOEvent(object):
 
         """
 
-        wrapped_msg = { "format": "voevent", "content": self.asdict() }
-        return wrapped_msg
+        wrapped_message = { "format": "voevent", "content": self.asdict() }
+        return wrapped_message
 
     def __str__(self):
         return json.dumps(self.asdict(), indent=2)
@@ -96,7 +96,7 @@ class GCNCircular(object):
         """
         return asdict(self)
 
-    def wrap_msg(self):
+    def wrap_message(self):
         """Wrap the message with its format and content.
 
         Returns:
@@ -104,8 +104,8 @@ class GCNCircular(object):
 
         """
 
-        wrapped_msg = { "format": "gcn", "content": self.asdict() }
-        return wrapped_msg
+        wrapped_message = { "format": "circular", "content": self.asdict() }
+        return wrapped_message
 
     def __str__(self):
         headers = [
@@ -125,14 +125,14 @@ class GCNCircular(object):
 
         """
         if hasattr(email_input, "read"):
-            msg = email.message_from_file(email_input)
+            message = email.message_from_file(email_input)
         else:
-            msg = email.message_from_string(email_input)
+            message = email.message_from_string(email_input)
 
         # format gcn circular into header/body
         return cls(
-            header={title.lower(): content for title, content in msg.items()},
-            body=msg.get_payload(),
+            header={title.lower(): content for title, content in message.items()},
+            body=message.get_payload(),
         )
 
 
@@ -155,7 +155,7 @@ class message_blob(object):
         """
         return asdict(self)
 
-    def wrap_msg(self):
+    def wrap_message(self):
         """Wrap the message with its format and content.
 
         Returns:
@@ -163,8 +163,8 @@ class message_blob(object):
 
         """
 
-        wrapped_msg = { "format": "blob", "content": self.asdict() }
-        return wrapped_msg
+        wrapped_message = { "format": "blob", "content": self.asdict() }
+        return wrapped_message
 
     def __str__(self):
         return self.content
