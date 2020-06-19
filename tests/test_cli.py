@@ -35,8 +35,8 @@ def test_cli_publish_circular(script_runner, circular_text):
     ) as mock_stream:
 
         gcn_file = "example.gcn3"
-        broker_url = "kafka://hostname:port/gcn"
-        ret = script_runner.run("hop", "publish", broker_url, gcn_file)
+        broker_url = "kafka://hostname:port/message"
+        ret = script_runner.run("hop", "publish", broker_url, "-f", "circular", gcn_file)
 
         # verify CLI output
         assert ret.success
@@ -56,8 +56,8 @@ def test_cli_publish_notice(script_runner, voevent_text):
     ) as mock_stream:
 
         gcn_file = "voevent.xml"
-        broker_url = "kafka://hostname:port/gcn"
-        ret = script_runner.run("hop", "publish", broker_url, gcn_file)
+        broker_url = "kafka://hostname:port/message"
+        ret = script_runner.run("hop", "publish", broker_url, "-f", "voevent", gcn_file)
 
         # verify CLI output
         assert ret.success
@@ -68,13 +68,33 @@ def test_cli_publish_notice(script_runner, voevent_text):
         mock_stream.assert_called_with(broker_url, "w")
 
 
+def test_cli_publish_blob(script_runner, blob_text):
+    # test blob message
+    blob_mock = mock_open(read_data=blob_text)
+    with patch("hop.publish.open", blob_mock) as mock_file, patch(
+        "hop.io.Stream.open", mock_open()
+    ) as mock_stream:
+
+        blob_file = "example_blob.gcn3"
+        broker_url = "kafka://hostname:port/message"
+        ret = script_runner.run("hop", "publish", broker_url, "-f", "blob", blob_file)
+
+        # verify CLI output
+        assert ret.success
+        assert ret.stderr == ""
+
+        # verify blob was processed
+        mock_file.assert_called_with(blob_file, "r")
+        mock_stream.assert_called_with(broker_url, "w")
+
+
 def test_cli_subscribe(script_runner):
     ret = script_runner.run("hop", "subscribe", "--help")
     assert ret.success
 
     with patch("hop.io.Stream.open", mock_open()) as mock_stream:
 
-        broker_url = "kafka://hostname:port/gcn"
+        broker_url = "kafka://hostname:port/message"
         ret = script_runner.run("hop", "subscribe", broker_url)
 
         # verify CLI output

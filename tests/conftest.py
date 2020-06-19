@@ -165,6 +165,8 @@ VOEVENT_XML = """\
 </voe:VOEvent>\
 """
 
+MESSAGE_BLOB = "This is a sample blob message. It is unstructured and does not require special parsing."
+
 
 @pytest.fixture(scope="session")
 def circular_text():
@@ -193,3 +195,13 @@ def voevent_fileobj():
 @pytest.fixture(scope="session")
 def voevent_text():
     return VOEVENT_XML
+
+
+@pytest.fixture(scope="session")
+def blob_text():
+    return MESSAGE_BLOB
+
+
+@pytest.fixture(scope="session")
+def blob_msg():
+    return {"content": MESSAGE_BLOB}
