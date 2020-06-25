@@ -26,6 +26,10 @@ def test_cli_hop(script_runner):
 
 @pytest.mark.parametrize("message_format", ["voevent", "circular", "blob"])
 def test_cli_publish(script_runner, message_format, message_parameters_dict):
+    if (sys.version_info < (3, 7)):
+        if message_format == "voevent":
+            pytest.skip("requires python3.7 or higher")
+
     ret = script_runner.run("hop", "publish", "--help")
     assert ret.success
 
