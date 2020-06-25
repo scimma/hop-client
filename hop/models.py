@@ -72,6 +72,19 @@ class VOEvent(object):
         # enter root and remove XML-specific namespaces
         return cls(**{k: v for k, v in vo["voe:VOEvent"].items() if ":" not in k})
 
+    @classmethod
+    def from_xml_file(cls, filename):
+        """Create a new VOEvent from an XML-formatted VOEvent file.
+        
+        Args:
+            filename: name of the VOEvent file
+
+        Returns:
+            The VOEvent
+
+        """
+        with open(filename, "rb") as f:
+            return cls.from_xml(f)
 
 @dataclass
 class GCNCircular(object):
@@ -134,8 +147,24 @@ class GCNCircular(object):
         )
 
 
+    @classmethod
+    def from_email_file(cls, filename):
+        """Create a new GCNCircular from an RFC 822 formatted circular file.
+
+        Args:
+            filename: the GCN filename
+
+        Returns:
+            The GCNCircular.
+
+        """
+
+        with open(filename, "r") as f:
+            return cls.from_email(f)
+
+
 @dataclass
-class message_blob(object):
+class MessageBlob(object):
     """Defines an unformatted message structure.
 
     This is included as a dataclass to mirror the implementation of structured formats.
@@ -168,5 +197,18 @@ class message_blob(object):
         return self.content
 
     @classmethod
-    def from_file(cls, f):
-        return cls(f.read())
+    def from_text(cls, blob_input):
+        """Create a blob message from input text or file
+
+        Args:
+            blob_input: a file or string
+
+        Returns:
+            The Blob.
+
+        """
+        try:
+            with open(blob_input, "r") as f:
+                return cls(f.read())
+        except FileNotFoundError:
+            return cls(blob_input)
