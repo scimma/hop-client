@@ -24,67 +24,36 @@ def test_cli_hop(script_runner):
     assert ret.stderr == ""
 
 
-def test_cli_publish_circular(script_runner, circular_text):
+@pytest.mark.parametrize("message_format", ["voevent", "circular", "blob"])
+def test_cli_publish(script_runner, message_format, message_parameters_dict):
     ret = script_runner.run("hop", "publish", "--help")
     assert ret.success
 
-    # test GCN circular
-    gcn_mock = mock_open(read_data=circular_text)
-    with patch("hop.publish.open", gcn_mock) as mock_file, patch(
+    # load parameters from conftest
+    message_parameters = message_parameters_dict[message_format]
+
+    test_file = message_parameters["test_file"]
+    model_text = message_parameters["model_text"]
+
+    # test publishing files
+    message_mock = mock_open(read_data=model_text)
+    with patch("hop.models.open", message_mock) as mock_file, patch(
         "hop.io.Stream.open", mock_open()
     ) as mock_stream:
 
-        gcn_file = "example.gcn3"
         broker_url = "kafka://hostname:port/message"
-        ret = script_runner.run("hop", "publish", broker_url, "-f", "circular", gcn_file)
+        ret = script_runner.run("hop", "publish", broker_url, "-f", message_format, test_file)
 
         # verify CLI output
         assert ret.success
         assert ret.stderr == ""
 
-        # verify circular was processed
-        mock_file.assert_called_with(gcn_file, "r")
-        mock_stream.assert_called_with(broker_url, "w")
+        # verify message was processed
+        if message_format is "voevent":
+            mock_file.assert_called_with(test_file, "rb")
+        else:
+            mock_file.assert_called_with(test_file, "r")
 
-
-@pytest.mark.skipif(sys.version_info < (3, 7), reason="requires python3.7 or higher")
-def test_cli_publish_notice(script_runner, voevent_text):
-    # test GCN notice
-    gcn_mock = mock_open(read_data=voevent_text.encode())
-    with patch("hop.publish.open", gcn_mock) as mock_file, patch(
-        "hop.io.Stream.open", mock_open()
-    ) as mock_stream:
-
-        gcn_file = "voevent.xml"
-        broker_url = "kafka://hostname:port/message"
-        ret = script_runner.run("hop", "publish", broker_url, "-f", "voevent", gcn_file)
-
-        # verify CLI output
-        assert ret.success
-        assert ret.stderr == ""
-
-        # verify GCN was processed
-        mock_file.assert_called_with(gcn_file, "rb")
-        mock_stream.assert_called_with(broker_url, "w")
-
-
-def test_cli_publish_blob(script_runner, blob_text):
-    # test blob message
-    blob_mock = mock_open(read_data=blob_text)
-    with patch("hop.publish.open", blob_mock) as mock_file, patch(
-        "hop.io.Stream.open", mock_open()
-    ) as mock_stream:
-
-        blob_file = "example_blob.gcn3"
-        broker_url = "kafka://hostname:port/message"
-        ret = script_runner.run("hop", "publish", broker_url, "-f", "blob", blob_file)
-
-        # verify CLI output
-        assert ret.success
-        assert ret.stderr == ""
-
-        # verify blob was processed
-        mock_file.assert_called_with(blob_file, "r")
         mock_stream.assert_called_with(broker_url, "w")
 
 

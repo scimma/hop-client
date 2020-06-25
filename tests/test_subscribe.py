@@ -13,7 +13,7 @@ from dataclasses import fields
 import pytest
 
 from hop import subscribe, models
-from hop.models import GCNCircular, VOEvent, message_blob
+from hop.models import GCNCircular, VOEvent, MessageBlob
 
 # test the subscribe classifier for each message format
 
@@ -29,63 +29,61 @@ def content_mock(message_model):
 @pytest.mark.parametrize("message", [
     {"format":"voevent", "content": content_mock(VOEvent)},
     {"format":"circular", "content": content_mock(GCNCircular)},
-    {"format":"blob", "content": content_mock(message_blob)},
+    {"format":"blob", "content": content_mock(MessageBlob)},
     {"format":"other", "content": "other"},
+    ["wrong_datatype"],
+    {"wrong_key":"value"},
     ])
-def test_classify_message(message):
+def test_classify_message(message, message_parameters_dict):
+
+    # test a non-dict message
+    if not isinstance(message, dict):
+        with pytest.raises(ValueError):
+            test_model = subscribe.classify_message(message)
+        return
+    # test a dict message with wrong key values
+    elif not (("format" in message) and ("content" in message)):
+        with pytest.raises(KeyError):
+            test_model = subscribe.classify_message(message)
+        return
+
     message_format = message["format"]
     message_content = message["content"]
 
-    if message_format == "voevent":
-        expected_model = models.VOEvent
-        model_name = "VOEvent"
-    elif message_format == "circular":
-        expected_model = models.GCNCircular
-        model_name = "GCNCircular"
-    elif message_format == "blob":
-        expected_model = models.message_blob
-        model_name = "message_blob"
-    else:
+    # test an invalid format
+    if not message_format in message_parameters_dict:
         with pytest.raises(ValueError):
             test_model = subscribe.classify_message(message)
         return
 
-    # with patch(f"hop.models.{model_name}", Mock()) as mock_model:
-#    m = MagicMock()
-#    m = content_mock(expected_model)
-#    m.return_value = expected_model
-#    m.__init__ = MagicMock(return_value=expected_model)
-#    with patch(f"hop.models.{model_name}", return_value=m) as patch_model:
+    # load parameters from conftest for valid formats
+    message_parameters = message_parameters_dict[message_format]
+    model_name = message_parameters["model_name"]
+    expected_model = message_parameters["expected_model"]
+
+    # test valid formats
     with patch(f"hop.models.{model_name}", MagicMock()) as patch_model:
-#    with patch.object(f"hop.models.{model_name}", "__init__") as patch_model:
-#        patch_model.__init__.return_value = expected_model
-#        patch_model.return_value = expected_model
-
         test_model = subscribe.classify_message(message)
-        #patch_model.assert_called_with(message_content)
 
+    # verify the message is classified properly
     assert isinstance(test_model, expected_model)
 
 
 # test the subscribe printer for each message format
 @pytest.mark.parametrize("message_format", ["voevent", "circular", "blob"])
-def test_print_message(message_format):
-    if message_format == "voevent":
-        model_type = "VOEvent"
-        test_file = "example_voevent.xml"
-    elif message_format == "circular":
-        model_type = "GCNCircular"
-        test_file = "example_gcn.gcn3"
-    elif message_format == "blob":
-        model_type = "message_blob"
-        test_file = "example_blob.txt"
+def test_print_message(message_format, message_parameters_dict):
+
+    # load parameters from conftest
+    message_parameters = message_parameters_dict[message_format]
+    model_name = message_parameters["model_name"]
+    test_file = message_parameters["test_file"]
 
     shared_datadir = Path("tests/data")
 
     test_content = (shared_datadir / "test_data" / test_file).read_text()
 
     # control the output of the hop.model's print method with mocking
-    with patch(f"hop.models.{model_type}", MagicMock()) as mock_model:
+    with patch(f"hop.models.{model_name}", MagicMock()) as mock_model:
         mock_model.__str__.return_value = test_content
 
         f = io.StringIO()
