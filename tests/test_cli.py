@@ -49,7 +49,7 @@ def test_cli_publish(script_runner, message_format, message_parameters_dict):
         assert ret.stderr == ""
 
         # verify message was processed
-        if message_format is "voevent":
+        if message_format == "voevent":
             mock_file.assert_called_with(test_file, "rb")
         else:
             mock_file.assert_called_with(test_file, "r")
