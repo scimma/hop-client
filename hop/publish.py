@@ -10,7 +10,7 @@ import warnings
 
 from . import cli
 from .io import Stream
-from .models import GCNCircular, VOEvent, message_blob
+from .models import GCNCircular, VOEvent, MessageBlob
 
 
 # ------------------------------------------------
@@ -43,31 +43,23 @@ def _main(args=None):
         _add_parser_args(parser)
         args = parser.parse_args()
 
-    # if not args.message:
-    #     raise NameError("Error: no message specified. Specify one or more messages to publish.")
-        
     # load config if specified
     config = cli.load_config(args)
 
-    # get format of the message(s) if specified
-    message_format = "blob" if not args.format else args.format
-
     stream = Stream(format="json", config=config)
     with stream.open(args.url, "w") as s:
+
+        model_loader = { "circular": GCNCircular.from_email_file,
+                         "voevent": VOEvent.from_xml_file,
+                         "blob": MessageBlob.from_text,
+                         }
+
+        if args.format in model_loader:
+            loader = model_loader[args.format]
+        else:
+            warnings.warn("Warning: format not recognized. Sending as unstructured blob")
+            loader = model_loader["blob"]
+
         for message_file in args.message:
-
-            if message_format == "circular":
-                with open(message_file, "r") as f:
-                    message_model = GCNCircular.from_email(f)
-            elif message_format == "voevent":
-                with open(message_file, "rb") as f:
-                    message_model = VOEvent.from_xml(f)
-            elif message_format == "blob":
-                with open(message_file, "r") as f:
-                    message_model = message_blob.from_file(f)
-            else:
-                warnings.warn("Warning: format not recognized. Sending as unstructured blob")
-                with open(message_file, "r") as f:
-                    message_model = message_blob.from_file(f)
-
+            message_model = loader(message_file)            
             s.write(message_model.wrap_message())

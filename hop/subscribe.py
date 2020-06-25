@@ -9,7 +9,7 @@ import json
 
 from . import cli
 from .io import Stream
-from .models import GCNCircular, VOEvent, message_blob
+from .models import GCNCircular, VOEvent, MessageBlob
 
 
 def classify_message(message):
@@ -29,14 +29,17 @@ def classify_message(message):
         content = message["content"]
     except TypeError:
         raise ValueError("Message is not wrapped with format/content keys")
+    except KeyError:
+        raise KeyError("Message does not contain format/content keys")
 
-    # generate the dataclass model appropriate for the message format
-    if fmt == "circular":
-        message_model = GCNCircular(**content)
-    elif fmt == "voevent":
-        message_model = VOEvent(**content)
-    elif fmt == "blob":
-        message_model = message_blob(**content)
+    # create the dataclass model appropriate for the message format
+    model_creator = { "circular": GCNCircular,
+                     "voevent": VOEvent,
+                     "blob": MessageBlob,
+                     }
+    if fmt in model_creator:
+        creator = model_creator[fmt]
+        message_model = creator(**content)
     else:
         raise ValueError(f"Message format {fmt} not recognized")
 
