@@ -145,8 +145,7 @@ class GCNCircular(object):
 
         # format gcn circular into header/body
         return cls(
-            header={title.lower(): content for title,
-                    content in message.items()},
+            header={title.lower(): content for title, content in message.items()},
             body=message.get_payload(),
         )
 

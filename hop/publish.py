@@ -46,14 +46,15 @@ def _main(args=None):
     # load config if specified
     config = cli.load_config(args)
 
+    # create map of possible message formats and their model loader
+    model_loader = {
+        "circular": GCNCircular.from_email_file,
+        "voevent": VOEvent.from_xml_file,
+        "blob": MessageBlob.from_text,
+    }
+
     stream = Stream(format="json", config=config)
     with stream.open(args.url, "w") as s:
-
-        model_loader = {"circular": GCNCircular.from_email_file,
-                        "voevent": VOEvent.from_xml_file,
-                        "blob": MessageBlob.from_text,
-                        }
-
         if args.format in model_loader:
             loader = model_loader[args.format]
         else:
