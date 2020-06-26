@@ -113,12 +113,8 @@ def _main(args=None):
     timeout = None if args.timeout == -1 else args.timeout
 
     # read from topic
-
-    # assume json format for the message stream
-    stream_format = "json"
-
-    stream = Stream(format=stream_format, config=config, start_at=start_offset)
+    stream = Stream(persist=False)
     with stream.open(args.url, "r") as s:
-        for message in s(timeout=timeout):
+        for message in s:
             message_model = classify_message(message)
             print_message(message_model, args.json)
