@@ -9,33 +9,33 @@ Quickstart
 Using the CLI
 -------------
 
-Publish a GCN
-^^^^^^^^^^^^^
+Publish a message
+^^^^^^^^^^^^^^^^^
 
 .. code:: bash
 
-    hop publish kafka://hostname:port/gcn mygcn.gcn3
+    hop publish kafka://hostname:port/gcn -f circular example.gcn3
 
-
-An example RFC 822 formatted GCN circular (:code:`example.gcn3`) is provided in :code:`tests/data`.
+Two example messages (an RFC 822 formatted GCN circular (:code:`example.gcn3`) and a VOEvent 2.0
+schema xml (:code: `example_voevent.xml`)) are provided in :code:`tests/data`.
 
 Client `configuration <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>`_
 properties can be passed to :code:`hop publish` via :code:`-X property=value` or in a configuration
 file specified by :code:`-F <config-file>`, mimicking the behavior of :code:`kafkacat`. This can be
 used to connect to a Kafka broker with SSL authentication enabled, for example.
 
-Consume a GCN
-^^^^^^^^^^^^^
+Consume a message
+^^^^^^^^^^^^^^^^^
 
 .. code:: bash
 
-    hop subscribe kafka://hostname:port/gcn mygcn.gcn3 -e
+    hop subscribe kafka://hostname:port/gcn -e
 
 Configuration properties can be passed in a manner identical to :code:`hop publish` above.
 
 
-Reading messages
-----------------
+Reading messages from stream
+----------------------------
 
 The hop client supports a python-based API for reading messages from a stream, as follows:
 
@@ -58,8 +58,8 @@ if you'd like to listen to all messages stored in a topic, you can do:
         for idx, msg in s:
              print(msg)
 
-Writing messages
-----------------
+Writing messages to stream
+--------------------------
 
 We can also publish messages to a topic, as follows:
 

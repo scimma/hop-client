@@ -9,10 +9,10 @@ Hop Client
 
 ## Quickstart
 
-Publish a GCN to Kafka:
+publish a message to kafka:
 
 ```
-hop publish kafka://hostname:port/gcn mygcn.gcn3
+hop publish kafka://hostname:port/gcn -f circular example.gcn3
 ```
 
 Subscribe to the earliest offset of a Kafka topic and print to stdout:
@@ -20,8 +20,8 @@ Subscribe to the earliest offset of a Kafka topic and print to stdout:
 hop subscribe kafka://hostname:port/gcn -e
 ```
 
-An example RFC 822 formatted GCN circular (`example.gcn3`) is provided in
-`tests/data`.
+Two example messages (an RFC 822 formatted GCN circular `example.gcn3` and a VOEvent 2.0
+schema xml `example_voevent.xml` are provided in `tests/data`.
 
 Client [configuration](https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md)
 properties can be passed to `hop publish` via `-X property=value` or in a configuration
