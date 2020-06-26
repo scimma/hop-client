@@ -11,7 +11,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v1
       with:
-        python-version: '3.7'
+        python-version: '3.6'
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -21,6 +21,8 @@ jobs:
       env:
         PACK_NAME: 'hop'
       run: |
+        #coverage run -m pytest || true  # "|| true" ensures that a failed pytest doesn't halt the CI
+        #coverage xml
         python -m pytest --cov-report term --cov-report xml:coverage.xml --cov $PACK_NAME
     - name: Upload results to Codecov
       uses: codecov/codecov-action@v1
