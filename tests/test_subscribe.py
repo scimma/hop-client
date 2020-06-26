@@ -26,14 +26,17 @@ def content_mock(message_model):
     return content
 
 
-@pytest.mark.parametrize("message", [
-    {"format": "voevent", "content": content_mock(VOEvent)},
-    {"format": "circular", "content": content_mock(GCNCircular)},
-    {"format": "blob", "content": content_mock(MessageBlob)},
-    {"format": "other", "content": "other"},
-    ["wrong_datatype"],
-    {"wrong_key": "value"},
-])
+@pytest.mark.parametrize(
+    "message",
+    [
+        {"format": "voevent", "content": content_mock(VOEvent)},
+        {"format": "circular", "content": content_mock(GCNCircular)},
+        {"format": "blob", "content": content_mock(MessageBlob)},
+        {"format": "other", "content": "other"},
+        ["wrong_datatype"],
+        {"wrong_key": "value"},
+    ],
+)
 def test_classify_message(message, message_parameters_dict):
 
     # test a non-dict message

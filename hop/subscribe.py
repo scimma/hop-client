@@ -38,7 +38,7 @@ def classify_message(message):
         "voevent": VOEvent,
         "blob": MessageBlob,
     }
-    
+
     if fmt in model_creator:
         creator = model_creator[fmt]
         message_model = creator(**content)
