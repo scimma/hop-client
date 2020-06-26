@@ -9,13 +9,13 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 from unittest.mock import patch, MagicMock
-from dataclasses import fields
 import pytest
 
 from hop import subscribe
-from hop.models import GCNCircular, VOEvent, MessageBlob
 
 # test the subscribe printer for each message format
+
+
 @pytest.mark.parametrize("message_format", ["voevent", "circular", "blob"])
 def test_print_message(message_format, message_parameters_dict):
 

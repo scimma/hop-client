@@ -5,11 +5,9 @@ __description__ = "tools to parse and publish messages"
 
 
 import argparse
-import warnings
 
 from . import cli
 from . import io
-from .models import GCNCircular, VOEvent, MessageBlob
 
 
 # ------------------------------------------------
