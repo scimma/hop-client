@@ -42,7 +42,7 @@ class VOEvent(object):
         """
         return asdict(self)
 
-    def wrap_message(self):
+    def serialize(self):
         """Wrap the message with its format and content.
 
         Returns:
@@ -57,7 +57,7 @@ class VOEvent(object):
         return json.dumps(self.asdict(), indent=2)
 
     @classmethod
-    def from_xml(cls, xml_input):
+    def load(cls, xml_input):
         """Create a new VOEvent from an XML-formatted VOEvent.
 
         Args:
@@ -73,7 +73,7 @@ class VOEvent(object):
         return cls(**{k: v for k, v in vo["voe:VOEvent"].items() if ":" not in k})
 
     @classmethod
-    def from_xml_file(cls, filename):
+    def load_file(cls, filename):
         """Create a new VOEvent from an XML-formatted VOEvent file.
 
         Args:
@@ -84,7 +84,7 @@ class VOEvent(object):
 
         """
         with open(filename, "rb") as f:
-            return cls.from_xml(f)
+            return cls.load(f)
 
 
 @dataclass
@@ -110,7 +110,7 @@ class GCNCircular(object):
         """
         return asdict(self)
 
-    def wrap_message(self):
+    def serialize(self):
         """Wrap the message with its format and content.
 
         Returns:
@@ -126,7 +126,7 @@ class GCNCircular(object):
         return "\n".join(headers + ["", self.body])
 
     @classmethod
-    def from_email(cls, email_input):
+    def load(cls, email_input):
         """Create a new GCNCircular from an RFC 822 formatted circular.
 
         Args:
@@ -148,7 +148,7 @@ class GCNCircular(object):
         )
 
     @classmethod
-    def from_email_file(cls, filename):
+    def load_file(cls, filename):
         """Create a new GCNCircular from an RFC 822 formatted circular file.
 
         Args:
@@ -158,9 +158,8 @@ class GCNCircular(object):
             The GCNCircular.
 
         """
-
         with open(filename, "r") as f:
-            return cls.from_email(f)
+            return cls.load(f)
 
 
 @dataclass
@@ -182,7 +181,7 @@ class MessageBlob(object):
         """
         return asdict(self)
 
-    def wrap_message(self):
+    def serialize(self):
         """Wrap the message with its format and content.
 
         Returns:
@@ -197,18 +196,31 @@ class MessageBlob(object):
         return self.content
 
     @classmethod
-    def from_text(cls, blob_input):
-        """Create a blob message from input text or file
+    def load(cls, blob_input):
+        """Create a blob message from input text.
 
         Args:
-            blob_input: a file or string
+            blob_input: the unstructured message text or fileobj
 
         Returns:
             The Blob.
 
         """
-        try:
-            with open(blob_input, "r") as f:
-                return cls(f.read())
-        except FileNotFoundError:
+        if hasattr(blob_input, "read"):
+            return cls(blob_input.read())
+        else:
             return cls(blob_input)
+
+    @classmethod
+    def load_file(cls, filename):
+        """Create a blob message from an input file.
+
+        Args:
+            filename: a file
+
+        Returns:
+            The Blob.
+
+        """
+        with open(filename, "r") as f:
+            return cls(f.read())

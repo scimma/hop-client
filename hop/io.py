@@ -92,6 +92,7 @@ class Stream(object):
 class Deserializer(Enum):
     CIRCULAR = models.GCNCircular
     VOEVENT = models.VOEvent
+    BLOB = models.MessageBlob
 
     @classmethod
     def deserialize(cls, message):
@@ -101,10 +102,13 @@ class Deserializer(Enum):
         except (KeyError, TypeError):
             return message
         else:
-            if format == "blob":
-                return content
-            else:
-                return cls[format.upper()].value(**content)
+            return cls[format.upper()].value(**content)
+
+    def load(self, input_):
+        return self.value.load(input_)
+
+    def load_file(self, input_file):
+        return self.value.load_file(input_file)
 
 
 _Metadata = namedtuple("Metadata", "topic partition offset timestamp key")
@@ -133,7 +137,7 @@ class _Consumer(consumer.Consumer):
 class _Producer(producer.Producer):
     def write(self, message):
         try:
-            payload = message.wrap_message()
+            payload = message.serialize()
         except AttributeError:
             payload = {"format": "blob", "content": message}
         super().write(json.dumps(payload).encode("utf-8"))

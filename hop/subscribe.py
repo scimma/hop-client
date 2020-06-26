@@ -116,5 +116,4 @@ def _main(args=None):
     stream = Stream(persist=False)
     with stream.open(args.url, "r") as s:
         for message in s:
-            message_model = classify_message(message)
-            print_message(message_model, args.json)
+            print_message(message, args.json)
