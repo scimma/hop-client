@@ -8,7 +8,7 @@ import argparse
 import warnings
 
 from . import cli
-from .io import Stream
+from . import io
 from .models import GCNCircular, VOEvent, MessageBlob
 
 
@@ -46,15 +46,11 @@ def _main(args=None):
     # load config if specified
     config = cli.load_config(args)
 
-    stream = Stream()
-    with stream.open(args.url, "w") as s:
-        if args.format in model_loader:
-            loader = model_loader[args.format]
-        else:
-            warnings.warn(
-                "Warning: format not recognized. Sending as unstructured blob")
-            loader = model_loader["blob"]
+    # set up stream and message loader
+    stream = io.Stream()
+    loader = io.Deserializer[args.format.upper()]
 
+    with stream.open(args.url, "w") as s:
         for message_file in args.message:
-            message_model = loader(message_file)
-            s.write(message_model.wrap_message())
+            message = loader.load_file(message_file)
+            s.write(message)

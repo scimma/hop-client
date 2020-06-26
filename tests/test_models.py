@@ -10,7 +10,7 @@ from hop import models
 
 
 def test_voevent(voevent_fileobj):
-    voevent = models.VOEvent.from_xml(voevent_fileobj)
+    voevent = models.VOEvent.load(voevent_fileobj)
 
     # check a few attributes
     assert voevent.ivorn == "ivo://gwnet/LVC#S200302c-1-Preliminary"
@@ -22,14 +22,14 @@ def test_voevent(voevent_fileobj):
     assert voevent.WhereWhen["ObsDataLocation"]["ObservatoryLocation"]["id"] == "LIGO Virgo"
 
     # verify wrapper format is correct
-    assert voevent.wrap_message()["format"] == "voevent"
+    assert voevent.serialize()["format"] == "voevent"
 
 
 def test_gcn_circular(circular_text, circular_msg):
     with patch("builtins.open", mock_open(read_data=circular_text)):
         gcn_file = "example.gcn3"
         with open(gcn_file, "r") as f:
-            gcn = models.GCNCircular.from_email(f)
+            gcn = models.GCNCircular.load(f)
 
         # verify parsed GCN structure is correct
         assert gcn.header["title"] == circular_msg["header"]["title"]
@@ -41,17 +41,17 @@ def test_gcn_circular(circular_text, circular_msg):
         assert gcn.body == circular_msg["body"]
 
         # verify wrapper format is correct
-        assert gcn.wrap_message()["format"] == "circular"
+        assert gcn.serialize()["format"] == "circular"
 
 
 def test_blob(blob_text, blob_msg):
     with patch("builtins.open", mock_open(read_data=blob_text)):
         blob_file = "example_blob.txt"
         with open(blob_file, "r") as f:
-            blob = models.MessageBlob.from_text(f)
+            blob = models.MessageBlob.load(f)
 
         # verify blob text is correct
         assert blob.content == blob_msg["content"]
 
         # verify wrapper format is correct
-        assert blob.wrap_message()["format"] == "blob"
+        assert blob.serialize()["format"] == "blob"
