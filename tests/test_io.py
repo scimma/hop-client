@@ -5,8 +5,7 @@ __description__ = "a module that tests the io utilities"
 
 
 from dataclasses import fields
-from unittest.mock import patch, mock_open
-from unittest.mock import patch, MagicMock, Mock, create_autospec
+from unittest.mock import mock_open, patch, MagicMock
 
 import pytest
 
@@ -15,7 +14,7 @@ from hop.models import GCNCircular, VOEvent, MessageBlob
 
 
 def content_mock(message_model):
-    """Mock content to pass during the message_model creation since MagicMock() 
+    """Mock content to pass during the message_model creation since MagicMock()
     is unable to mock __init__ of the model dataclass in tests.
     """
     content = {}
@@ -24,14 +23,16 @@ def content_mock(message_model):
     return content
 
 # test the subscribe classifier for each message format
+
+
 @pytest.mark.parametrize("message", [
-    {"format":"voevent", "content": content_mock(VOEvent)},
-    {"format":"circular", "content": content_mock(GCNCircular)},
-    {"format":"blob", "content": content_mock(MessageBlob)},
-    {"format":"other", "content": "other"},
+    {"format": "voevent", "content": content_mock(VOEvent)},
+    {"format": "circular", "content": content_mock(GCNCircular)},
+    {"format": "blob", "content": content_mock(MessageBlob)},
+    {"format": "other", "content": "other"},
     ["wrong_datatype"],
-    {"wrong_key":"value"},
-    ])
+    {"wrong_key": "value"},
+])
 def test_deserialize(message, message_parameters_dict):
 
     # test a non-dict message
@@ -49,7 +50,7 @@ def test_deserialize(message, message_parameters_dict):
     message_content = message["content"]
 
     # test an invalid format
-    if not message_format in message_parameters_dict:
+    if message_format not in message_parameters_dict:
         with pytest.raises(ValueError):
             test_model = io.Deserializer.deserialize(message)
         return
@@ -60,7 +61,7 @@ def test_deserialize(message, message_parameters_dict):
     expected_model = message_parameters["expected_model"]
 
     # test valid formats
-    with patch(f"hop.models.{model_name}", MagicMock()) as patch_model:
+    with patch(f"hop.models.{model_name}", MagicMock()):
         test_model = io.Deserializer.deserialize(message)
 
     # verify the message is classified properly
