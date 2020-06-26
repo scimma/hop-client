@@ -8,7 +8,7 @@ def add_url_opts(parser):
     parser.add_argument(
         "url",
         metavar="URL",
-        help="Sets the URL (kafka://host[:port]/topic) to publish GCNs to.",
+        help="Sets the URL (kafka://host[:port]/topic) to publish messages to.",
     )
 
 

@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 
 __author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
-__description__ = "tools to parse and publish GCNs"
+__description__ = "tools to parse and publish messages"
 
 
 import argparse
-import os
 import warnings
 
 from . import cli
@@ -29,9 +28,10 @@ def _add_parser_args(parser):
         "--format",
         type=str,
         default="blob",
-        help="Specifies the format of the message, such as 'circular' or 'voevent'. "
+        help="Specifies the format of the message(s), such as 'circular' or 'voevent'. "
         "Specify 'blob' if sending an unstructured message. Default: 'blob'.",
     )
+
 
 def _main(args=None):
     """Parse and publish messages.
@@ -49,17 +49,18 @@ def _main(args=None):
     stream = Stream(format="json", config=config)
     with stream.open(args.url, "w") as s:
 
-        model_loader = { "circular": GCNCircular.from_email_file,
-                         "voevent": VOEvent.from_xml_file,
-                         "blob": MessageBlob.from_text,
-                         }
+        model_loader = {"circular": GCNCircular.from_email_file,
+                        "voevent": VOEvent.from_xml_file,
+                        "blob": MessageBlob.from_text,
+                        }
 
         if args.format in model_loader:
             loader = model_loader[args.format]
         else:
-            warnings.warn("Warning: format not recognized. Sending as unstructured blob")
+            warnings.warn(
+                "Warning: format not recognized. Sending as unstructured blob")
             loader = model_loader["blob"]
 
         for message_file in args.message:
-            message_model = loader(message_file)            
+            message_model = loader(message_file)
             s.write(message_model.wrap_message())
