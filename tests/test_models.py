@@ -27,8 +27,9 @@ def test_voevent(voevent_fileobj):
     # verify wrapper format is correct
     assert voevent.wrap_message()["format"] == "voevent"
 
+
 def test_gcn_circular(circular_text, circular_msg):
-    with patch("builtins.open", mock_open(read_data=circular_text)) as mock_file:
+    with patch("builtins.open", mock_open(read_data=circular_text)):
         gcn_file = "example.gcn3"
         with open(gcn_file, "r") as f:
             gcn = models.GCNCircular.from_email(f)
@@ -45,8 +46,9 @@ def test_gcn_circular(circular_text, circular_msg):
         # verify wrapper format is correct
         assert gcn.wrap_message()["format"] == "circular"
 
+
 def test_blob(blob_text, blob_msg):
-    with patch("builtins.open", mock_open(read_data=blob_text)) as mock_file:
+    with patch("builtins.open", mock_open(read_data=blob_text)):
         blob_file = "example_blob.txt"
         with open(blob_file, "r") as f:
             blob = models.MessageBlob.from_text(f)

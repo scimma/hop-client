@@ -33,7 +33,7 @@ def classify_message(message):
         raise KeyError("Message does not contain format/content keys")
 
     # create the dataclass model appropriate for the message format
-    model_creator = { "circular": GCNCircular,
+    model_creator = {"circular": GCNCircular,
                      "voevent": VOEvent,
                      "blob": MessageBlob,
                      }

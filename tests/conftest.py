@@ -211,27 +211,28 @@ def blob_msg():
 @pytest.fixture(scope="session")
 def message_parameters():
     # generalize model_name, expected_model, and test_file
-    return { "circular": ["GCNCircular", models.GCNCircular, "example_gcn.gcn3",GCN_CIRCULAR],
-             "voevent": ["VOEvent", models.VOEvent, "example_voevent.xml",VOEVENT_XML],
-             "blob": ["MessageBlob", models.MessageBlob, "example_blob.txt",MESSAGE_BLOB],
-               }
+    return {"circular": ["GCNCircular", models.GCNCircular, "example_gcn.gcn3", GCN_CIRCULAR],
+            "voevent": ["VOEvent", models.VOEvent, "example_voevent.xml", VOEVENT_XML],
+            "blob": ["MessageBlob", models.MessageBlob, "example_blob.txt", MESSAGE_BLOB],
+            }
+
 
 @pytest.fixture(scope="session")
 def message_parameters_dict():
     # generalize model_name, expected_model, and test_file
-    return { "circular": {"model_name": "GCNCircular",
-                          "expected_model": models.GCNCircular,
-                          "test_file": "example_gcn.gcn3",
-                          "model_text": GCN_CIRCULAR,
-                          },
-             "voevent" : {"model_name": "VOEvent",
-                          "expected_model": models.VOEvent,
-                          "test_file": "example_voevent.xml",
-                          "model_text": VOEVENT_XML.encode(),
-                          },
-             "blob":     {"model_name": "MessageBlob",
-                          "expected_model": models.MessageBlob,
-                          "test_file": "example_blob.txt",
-                          "model_text": MESSAGE_BLOB,
-                          },
-             }
+    return {"circular": {"model_name": "GCNCircular",
+                         "expected_model": models.GCNCircular,
+                         "test_file": "example_gcn.gcn3",
+                         "model_text": GCN_CIRCULAR,
+                         },
+            "voevent": {"model_name": "VOEvent",
+                        "expected_model": models.VOEvent,
+                        "test_file": "example_voevent.xml",
+                        "model_text": VOEVENT_XML.encode(),
+                        },
+            "blob":     {"model_name": "MessageBlob",
+                         "expected_model": models.MessageBlob,
+                         "test_file": "example_blob.txt",
+                         "model_text": MESSAGE_BLOB,
+                         },
+            }

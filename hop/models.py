@@ -50,7 +50,7 @@ class VOEvent(object):
 
         """
 
-        wrapped_message = { "format": "voevent", "content": self.asdict() }
+        wrapped_message = {"format": "voevent", "content": self.asdict()}
         return wrapped_message
 
     def __str__(self):
@@ -75,7 +75,7 @@ class VOEvent(object):
     @classmethod
     def from_xml_file(cls, filename):
         """Create a new VOEvent from an XML-formatted VOEvent file.
-        
+
         Args:
             filename: name of the VOEvent file
 
@@ -85,6 +85,7 @@ class VOEvent(object):
         """
         with open(filename, "rb") as f:
             return cls.from_xml(f)
+
 
 @dataclass
 class GCNCircular(object):
@@ -117,7 +118,7 @@ class GCNCircular(object):
 
         """
 
-        wrapped_message = { "format": "circular", "content": self.asdict() }
+        wrapped_message = {"format": "circular", "content": self.asdict()}
         return wrapped_message
 
     def __str__(self):
@@ -144,10 +145,10 @@ class GCNCircular(object):
 
         # format gcn circular into header/body
         return cls(
-            header={title.lower(): content for title, content in message.items()},
+            header={title.lower(): content for title,
+                    content in message.items()},
             body=message.get_payload(),
         )
-
 
     @classmethod
     def from_email_file(cls, filename):
@@ -170,7 +171,7 @@ class MessageBlob(object):
     """Defines an unformatted message structure.
 
     This is included as a dataclass to mirror the implementation of structured formats.
-    
+
     """
 
     content: str
@@ -192,7 +193,7 @@ class MessageBlob(object):
 
         """
 
-        wrapped_message = { "format": "blob", "content": self.asdict() }
+        wrapped_message = {"format": "blob", "content": self.asdict()}
         return wrapped_message
 
     def __str__(self):
