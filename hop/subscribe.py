@@ -8,7 +8,7 @@ import argparse
 import json
 
 from . import cli
-from .io import Stream
+from . import io
 from .models import GCNCircular, VOEvent, MessageBlob
 
 
@@ -72,25 +72,24 @@ def print_message(message_model, json_dump=False):
 
 def _add_parser_args(parser):
     cli.add_url_opts(parser)
-    cli.add_config_opts(parser)
 
     # consumer options
     parser.add_argument(
-        "-j", "--json", help="Request message output as raw json", action="store_true",
+        "-s",
+        "--start-at",
+        choices=io.StartPosition.__members__,
+        default=str(io.StartPosition.LATEST),
+        help="Set the message offset offset to start at. Default: LATEST.",
     )
     parser.add_argument(
-        "-e",
-        "--earliest",
-        help="Request to stream from the earliest available Kafka offset",
+        "-p",
+        "--persist",
         action="store_true",
+        help="If set, persist or listen to messages indefinitely. "
+             "Otherwise, will stop listening when EOS is received.",
     )
     parser.add_argument(
-        "-t",
-        "--timeout",
-        type=float,
-        default=10,
-        help="Specifies the time (in seconds) to wait for messages before timing out; "
-        "specify -1 to wait indefinitely.  Default: 10 seconds",
+        "-j", "--json", help="Request message output as raw json", action="store_true",
     )
 
 
@@ -103,17 +102,8 @@ def _main(args=None):
         _add_parser_args(parser)
         args = parser.parse_args()
 
-    # load config if specified
-    config = cli.load_config(args)
-
-    # set offset
-    start_offset = "earliest" if args.earliest else "latest"
-
-    # set timeout
-    timeout = None if args.timeout == -1 else args.timeout
-
     # read from topic
-    stream = Stream(persist=False)
+    stream = io.Stream(start_at=args.start_at, persist=args.persist)
     with stream.open(args.url, "r") as s:
         for message in s:
             print_message(message, args.json)
