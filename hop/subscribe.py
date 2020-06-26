@@ -9,43 +9,6 @@ import json
 
 from . import cli
 from . import io
-from .models import GCNCircular, VOEvent, MessageBlob
-
-
-def classify_message(message):
-    """Check the format of a message obtained from an ADC stream and
-    use it to instantiate a data model corresponding to that format.
-
-    Args:
-      message:       wrapped message from an ADC stream
-
-    Returns:
-      message_model: dataclass model object for the message
-
-    """
-
-    try:
-        fmt = message["format"]
-        content = message["content"]
-    except TypeError:
-        raise ValueError("Message is not wrapped with format/content keys")
-    except KeyError:
-        raise KeyError("Message does not contain format/content keys")
-
-    # create map of message formats and dataclass models for parsing
-    model_creator = {
-        "circular": GCNCircular,
-        "voevent": VOEvent,
-        "blob": MessageBlob,
-    }
-
-    if fmt in model_creator:
-        creator = model_creator[fmt]
-        message_model = creator(**content)
-    else:
-        raise ValueError(f"Message format {fmt} not recognized")
-
-    return message_model
 
 
 def print_message(message_model, json_dump=False):
