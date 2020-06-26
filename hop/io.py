@@ -5,11 +5,14 @@ __description__ = "a module for i/o utilities"
 
 from collections import namedtuple
 from contextlib import contextmanager
+from enum import Enum
 import json
 import logging
 import warnings
 
 from adc import consumer, errors, kafka, producer
+
+from . import models
 
 logger = logging.getLogger("adc-streaming")
 
@@ -86,22 +89,41 @@ class Stream(object):
             raise ValueError("mode must be either 'w' or 'r'")
 
 
+class Deserializer(Enum):
+    CIRCULAR = models.GCNCircular
+    VOEVENT = models.VOEvent
+
+    @classmethod
+    def deserialize(cls, message):
+        try:
+            format = message["format"]
+            content = message["content"]
+        except (KeyError, TypeError):
+            return message
+        else:
+            if format == "blob":
+                return content
+            else:
+                return cls[format.upper()].value(**content)
+
+
 _Metadata = namedtuple("Metadata", "topic partition offset timestamp key")
 
 
 class _Consumer(consumer.Consumer):
     def stream(self, metadata=False, **kwargs):
-        for msg in super().stream(**kwargs):
-            payload = json.loads(msg.value().decode("utf-8"))
+        for message in super().stream(**kwargs):
+            payload = json.loads(message.value().decode("utf-8"))
+            payload = Deserializer.deserialize(payload)
             if metadata:
                 yield (
                     payload,
                     _Metadata(
-                        msg.topic(),
-                        msg.partition(),
-                        msg.offset(),
-                        msg.timestamp()[1],
-                        msg.key(),
+                        message.topic(),
+                        message.partition(),
+                        message.offset(),
+                        message.timestamp()[1],
+                        message.key(),
                     )
                 )
             else:
@@ -109,11 +131,11 @@ class _Consumer(consumer.Consumer):
 
 
 class _Producer(producer.Producer):
-    def write(self, msg):
+    def write(self, message):
         try:
-            payload = msg.asdict()
+            payload = message.wrap_message()
         except AttributeError:
-            payload = {"type": "blob", "content": msg}
+            payload = {"format": "blob", "content": message}
         super().write(json.dumps(payload).encode("utf-8"))
 
 
