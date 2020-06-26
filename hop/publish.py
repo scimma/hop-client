@@ -21,15 +21,12 @@ def _add_parser_args(parser):
     parser.add_argument(
         "message", metavar="MESSAGE", nargs="+", help="One or more messages to publish.",
     )
-    cli.add_config_opts(parser)
-
     parser.add_argument(
         "-f",
         "--format",
-        type=str,
-        default="blob",
-        help="Specifies the format of the message(s), such as 'circular' or 'voevent'. "
-        "Specify 'blob' if sending an unstructured message. Default: 'blob'.",
+        choices=io.Deserializer.__members__,
+        default=str(io.Deserializer.BLOB),
+        help="Specify the message format. Defaults to BLOB for an unstructured message.",
     )
 
 
@@ -43,12 +40,9 @@ def _main(args=None):
         _add_parser_args(parser)
         args = parser.parse_args()
 
-    # load config if specified
-    config = cli.load_config(args)
-
     # set up stream and message loader
     stream = io.Stream()
-    loader = io.Deserializer[args.format.upper()]
+    loader = io.Deserializer[args.format]
 
     with stream.open(args.url, "w") as s:
         for message_file in args.message:

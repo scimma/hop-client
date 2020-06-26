@@ -47,7 +47,8 @@ def test_cli_publish(script_runner, message_format, message_parameters_dict):
 
         broker_url = "kafka://hostname:port/message"
         ret = script_runner.run(
-            "hop", "publish", broker_url, "-f", message_format, test_file)
+            "hop", "publish", broker_url, "-f", message_format.upper(), test_file
+        )
 
         # verify CLI output
         assert ret.success

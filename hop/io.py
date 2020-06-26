@@ -29,7 +29,7 @@ class Stream(object):
       auth: authentication options
       start_at: the message offset to start at
       persist: whether to listen to new messages forever or stop
-               when EOS is received
+           when EOS is received
 
     """
 
@@ -47,10 +47,11 @@ class Stream(object):
         Kwargs:
           mode: read ('r') or write ('w') from the stream
           auth: authentication options
-          start_at: the message offset to start at
-          persist: whether to listen to new messages forever or stop
-                   when EOS is received
-          metadata: whether to receive message metadata along with payload
+          start_at: the message offset to start at (read only)
+          persist: whether to listen to new messages forever or
+              stop when EOS is received (read only)
+          metadata: whether to receive message metadata along
+              with payload (read only)
 
         """
         group_id, broker_addresses, topics = kafka.parse_kafka_url(url)
@@ -96,13 +97,25 @@ class Deserializer(Enum):
 
     @classmethod
     def deserialize(cls, message):
+        """Deserialize a stream message and instantiate a model.
+
+        Args:
+          message: a serialized message
+
+        Returns:
+          model: a data container corresponding to the format
+
+        """
         try:
-            format = message["format"]
+            format = message["format"].upper()
             content = message["content"]
         except (KeyError, TypeError):
-            return message
+            raise ValueError("Message is incorrectly formatted")
         else:
-            return cls[format.upper()].value(**content)
+            if format in cls.__members__:
+                return cls[format.upper()].value(**content)
+            else:
+                raise ValueError(f"Message format {format} not recognized")
 
     def load(self, input_):
         return self.value.load(input_)
