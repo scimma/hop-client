@@ -14,7 +14,7 @@ from adc import consumer, errors, kafka, producer
 
 from . import models
 
-logger = logging.getLogger("adc-streaming")
+logger = logging.getLogger("hop")
 
 StartPosition = consumer.ConsumerStartPosition
 
@@ -130,30 +130,38 @@ _Metadata = namedtuple("Metadata", "topic partition offset timestamp key")
 class _Consumer(consumer.Consumer):
     def stream(self, metadata=False, **kwargs):
         for message in super().stream(**kwargs):
-            payload = json.loads(message.value().decode("utf-8"))
-            payload = Deserializer.deserialize(payload)
-            if metadata:
-                yield (
-                    payload,
-                    _Metadata(
-                        message.topic(),
-                        message.partition(),
-                        message.offset(),
-                        message.timestamp()[1],
-                        message.key(),
-                    )
+            yield self.unpack(message)
+
+    @staticmethod
+    def unpack(message, metadata=False):
+        payload = json.loads(message.value().decode("utf-8"))
+        payload = Deserializer.deserialize(payload)
+        if metadata:
+            return (
+                payload,
+                _Metadata(
+                    message.topic(),
+                    message.partition(),
+                    message.offset(),
+                    message.timestamp()[1],
+                    message.key(),
                 )
-            else:
-                yield payload
+            )
+        else:
+            return payload
 
 
 class _Producer(producer.Producer):
     def write(self, message):
+        super().write(self.pack(message))
+
+    @staticmethod
+    def pack(message):
         try:
             payload = message.serialize()
         except AttributeError:
             payload = {"format": "blob", "content": message}
-        super().write(json.dumps(payload).encode("utf-8"))
+        return json.dumps(payload).encode("utf-8")
 
 
 @contextmanager

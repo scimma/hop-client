@@ -5,7 +5,8 @@ __description__ = "a module that tests the io utilities"
 
 
 from dataclasses import fields
-from unittest.mock import mock_open, patch, MagicMock
+import json
+from unittest.mock import patch, MagicMock, Mock
 
 import pytest
 
@@ -68,18 +69,73 @@ def test_deserialize(message, message_parameters_dict):
     assert isinstance(test_model, expected_model)
 
 
-def test_stream(circular_msg, circular_text):
-    with patch("hop.io.Stream.open", mock_open()) as mock_stream:
-        broker_url = "kafka://hostname:port/gcn"
+def test_stream_read(circular_msg, circular_text):
+    with patch("hop.io._Consumer", MagicMock()) as mock_consumer:
+        mock_consumer.stream.return_value = [{'hey', 'you'}]
+
+        broker_url = "kafka://hey@hostname:port/gcn"
+        start_at = io.StartPosition.EARLIEST
         persist = False
 
         stream = io.Stream(persist=persist)
 
-        # verify defaults are stored correctly
-        assert stream.persist == persist
+        # verify groupid needs to be set in read-mode
+        with pytest.raises(ValueError):
+            stream.open("kafka://localhost:9092/topic1", "r")
+
+        with stream.open(broker_url, "r", start_at=start_at) as s:
+            for msg in s:
+                continue
+
+
+def test_stream_write(circular_msg, circular_text):
+    with patch("hop.io._Producer", MagicMock()) as mock_producer:
+        mock_producer.write = Mock()
+
+        broker_url = "kafka://localhost:port/gcn"
+        start_at = io.StartPosition.EARLIEST
+        persist = False
+
+        stream = io.Stream()
+
+        # verify only 1 topic is allowed in write-mode
+        with pytest.raises(ValueError):
+            stream.open("kafka://localhost:9092/topic1,topic2", "w")
+
+        # check various warnings when certain settings are set
+        with pytest.warns(UserWarning):
+            stream.open("kafka://group@localhost:9092/topic1", "w")
+        with pytest.warns(UserWarning):
+            stream.open(broker_url, "w", start_at=start_at)
+        with pytest.warns(UserWarning):
+            stream.open(broker_url, "w", persist=persist)
 
         with stream.open(broker_url, "w") as s:
             s.write(circular_msg)
 
-        # verify GCN was processed
-        mock_stream.assert_called_with(broker_url, "w")
+
+def test_stream_open():
+    stream = io.Stream()
+
+    # verify only read/writes are allowed
+    with pytest.raises(ValueError):
+        stream.open("kafka://localhost:9092/topic1", "q")
+
+
+def test_unpack(circular_msg, circular_text):
+    wrapped_msg = {"format": "circular", "content": circular_msg}
+
+    kafka_msg = MagicMock()
+    kafka_msg.value.return_value = json.dumps(wrapped_msg).encode("utf-8")
+
+    unpacked_msg = io._Consumer.unpack(kafka_msg)
+
+
+def test_pack(circular_msg, circular_text):
+    # message class
+    circular = GCNCircular(**circular_msg)
+    packed_msg = io._Producer.pack(circular)
+
+    # unstructured message
+    message = {"hey": "you"}
+    packed = io._Producer.pack(message)
