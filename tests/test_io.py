@@ -10,6 +10,7 @@ from unittest.mock import patch, MagicMock, Mock
 
 import pytest
 
+from hop.auth import Auth
 from hop import io
 from hop.models import GCNCircular, VOEvent, MessageBlob
 
@@ -93,6 +94,7 @@ def test_stream_write(circular_msg, circular_text):
         mock_producer.write = Mock()
 
         broker_url = "kafka://localhost:port/gcn"
+        auth = Auth("user", "password")
         start_at = io.StartPosition.EARLIEST
         persist = False
 
@@ -110,7 +112,7 @@ def test_stream_write(circular_msg, circular_text):
         with pytest.warns(UserWarning):
             stream.open(broker_url, "w", persist=persist)
 
-        with stream.open(broker_url, "w") as s:
+        with stream.open(broker_url, "w", auth=auth) as s:
             s.write(circular_msg)
 
 

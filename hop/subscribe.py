@@ -6,6 +6,7 @@ __description__ = "tools to receive and parse messages"
 
 import json
 
+from .auth import load_auth
 from . import cli
 from . import io
 
@@ -33,14 +34,14 @@ def print_message(message_model, json_dump=False):
 
 
 def _add_parser_args(parser):
-    cli.add_url_opts(parser)
+    cli.add_client_opts(parser)
 
     # consumer options
     parser.add_argument(
         "-s",
         "--start-at",
         choices=io.StartPosition.__members__,
-        default=str(io.StartPosition.LATEST),
+        default=str(io.StartPosition.LATEST).upper(),
         help="Set the message offset offset to start at. Default: LATEST.",
     )
     parser.add_argument(
@@ -59,7 +60,9 @@ def _main(args):
     """Receive and parse messages.
 
     """
-    stream = io.Stream(start_at=args.start_at, persist=args.persist)
+    auth = load_auth() if not args.no_auth else None
+    start_at = io.StartPosition[args.start_at]
+    stream = io.Stream(auth=auth, start_at=start_at, persist=args.persist)
 
     with stream.open(args.url, "r") as s:
         for message in s:
