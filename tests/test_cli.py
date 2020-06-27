@@ -78,3 +78,13 @@ def test_cli_subscribe(script_runner):
 
         # verify broker url was processed
         mock_stream.assert_called_with(broker_url, "r")
+
+
+def test_cli_version(script_runner):
+    ret = script_runner.run("hop", "version", "--help")
+    assert ret.success
+    assert ret.stderr == ""
+
+    ret = script_runner.run("hop", "version")
+    assert ret.success
+    assert ret.stderr == ""
