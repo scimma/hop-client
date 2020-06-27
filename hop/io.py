@@ -5,9 +5,12 @@ __description__ = "a module for i/o utilities"
 
 from collections import namedtuple
 from contextlib import contextmanager
+import getpass
 from enum import Enum
 import json
 import logging
+import random
+import string
 import warnings
 
 from adc import consumer, errors, kafka, producer
@@ -71,7 +74,8 @@ class Stream(object):
             return _open_producer(broker_addresses, topics[0], auth=auth)
         elif mode == "r":
             if group_id is None:
-                raise ValueError("group ID must be set when in reader mode")
+                group_id = _generate_group_id(10)
+                logger.info("group ID not specified, generating a random group ID")
             # set up extra options if provided
             opts = {}
             if start_at or self.start_at:
@@ -122,6 +126,21 @@ class Deserializer(Enum):
 
     def load_file(self, input_file):
         return self.value.load_file(input_file)
+
+
+def _generate_group_id(n):
+    """Generate a random Kafka group id.
+
+    Args:
+      n: length of random string
+
+    Returns:
+      group_id: the generated group ID
+
+    """
+    alphanum = string.ascii_uppercase + string.digits
+    rand_str = ''.join(random.SystemRandom().choice(alphanum) for _ in range(n))
+    return '-'.join((getpass.getuser(), rand_str))
 
 
 _Metadata = namedtuple("Metadata", "topic partition offset timestamp key")

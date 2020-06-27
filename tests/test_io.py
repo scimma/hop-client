@@ -74,17 +74,18 @@ def test_stream_read(circular_msg, circular_text):
     with patch("hop.io._Consumer", MagicMock()) as mock_consumer:
         mock_consumer.stream.return_value = [{'hey', 'you'}]
 
-        broker_url = "kafka://hey@hostname:port/gcn"
+        broker_url1 = "kafka://hostname:port/gcn"
+        broker_url2 = "kafka://hey@hostname:port/gcn"
         start_at = io.StartPosition.EARLIEST
         persist = False
 
         stream = io.Stream(persist=persist)
 
-        # verify groupid needs to be set in read-mode
-        with pytest.raises(ValueError):
-            stream.open("kafka://localhost:9092/topic1", "r")
+        with stream.open(broker_url1, "r", start_at=start_at) as s:
+            for msg in s:
+                continue
 
-        with stream.open(broker_url, "r", start_at=start_at) as s:
+        with stream.open(broker_url2, "r", start_at=start_at) as s:
             for msg in s:
                 continue
 
