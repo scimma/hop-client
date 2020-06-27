@@ -4,6 +4,7 @@ __author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
 __description__ = "tools to parse and publish messages"
 
 
+from .auth import load_auth
 from . import cli
 from . import io
 
@@ -13,7 +14,7 @@ from . import io
 
 
 def _add_parser_args(parser):
-    cli.add_url_opts(parser)
+    cli.add_client_opts(parser)
     parser.add_argument(
         "message", metavar="MESSAGE", nargs="+", help="One or more messages to publish.",
     )
@@ -30,8 +31,9 @@ def _main(args):
     """Parse and publish messages.
 
     """
-    stream = io.Stream()
+    auth = load_auth() if not args.no_auth else None
     loader = io.Deserializer[args.format]
+    stream = io.Stream(auth=auth)
 
     with stream.open(args.url, "w") as s:
         for message_file in args.message:

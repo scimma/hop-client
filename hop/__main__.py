@@ -6,6 +6,7 @@ import argparse
 import signal
 
 from . import __version__
+from . import auth
 from . import publish
 from . import subscribe
 from . import version
@@ -41,6 +42,9 @@ def set_up_cli():
     subparser.required = True
 
     # register commands
+    p = append_subparser(subparser, "auth", auth._main)
+    auth._add_parser_args(p)
+
     p = append_subparser(subparser, "publish", publish._main)
     publish._add_parser_args(p)
 

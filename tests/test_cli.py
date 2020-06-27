@@ -80,6 +80,16 @@ def test_cli_subscribe(script_runner):
         mock_stream.assert_called_with(broker_url, "r")
 
 
+def test_cli_auth(script_runner):
+    ret1 = script_runner.run("hop", "auth", "--help")
+    assert ret1.success
+    assert ret1.stderr == ""
+
+    ret = script_runner.run("hop", "auth", "locate")
+    assert ret.success
+    assert ret.stderr == ""
+
+
 def test_cli_version(script_runner):
     ret = script_runner.run("hop", "version", "--help")
     assert ret.success
