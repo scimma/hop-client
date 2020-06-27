@@ -4,7 +4,6 @@ __author__ = "Bryce Cousins (bfc5288@psu.edu)"
 __description__ = "tools to receive and parse messages"
 
 
-import argparse
 import json
 
 from . import cli
@@ -56,17 +55,12 @@ def _add_parser_args(parser):
     )
 
 
-def _main(args=None):
+def _main(args):
     """Receive and parse messages.
 
     """
-    if not args:
-        parser = argparse.ArgumentParser()
-        _add_parser_args(parser)
-        args = parser.parse_args()
-
-    # read from topic
     stream = io.Stream(start_at=args.start_at, persist=args.persist)
+
     with stream.open(args.url, "r") as s:
         for message in s:
             print_message(message, args.json)

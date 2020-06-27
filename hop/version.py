@@ -25,7 +25,7 @@ def get_packages():
 # -- main
 
 
-def _main(args=None):
+def _main(args):
     """List all the dependencies' versions
 
     """

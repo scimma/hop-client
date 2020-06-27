@@ -4,8 +4,6 @@ __author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
 __description__ = "tools to parse and publish messages"
 
 
-import argparse
-
 from . import cli
 from . import io
 
@@ -28,17 +26,10 @@ def _add_parser_args(parser):
     )
 
 
-def _main(args=None):
+def _main(args):
     """Parse and publish messages.
 
     """
-
-    if not args:
-        parser = argparse.ArgumentParser()
-        _add_parser_args(parser)
-        args = parser.parse_args()
-
-    # set up stream and message loader
     stream = io.Stream()
     loader = io.Deserializer[args.format]
 
