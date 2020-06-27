@@ -47,7 +47,7 @@ def test_cli_publish(script_runner, message_format, message_parameters_dict):
 
         broker_url = "kafka://hostname:port/message"
         ret = script_runner.run(
-            "hop", "publish", broker_url, "-f", message_format.upper(), test_file
+            "hop", "publish", broker_url, "-f", message_format.upper(), test_file, "--no-auth",
         )
 
         # verify CLI output
@@ -70,7 +70,7 @@ def test_cli_subscribe(script_runner):
     with patch("hop.io.Stream.open", mock_open()) as mock_stream:
 
         broker_url = "kafka://hostname:port/message"
-        ret = script_runner.run("hop", "subscribe", broker_url)
+        ret = script_runner.run("hop", "subscribe", broker_url, "--no-auth")
 
         # verify CLI output
         assert ret.success
