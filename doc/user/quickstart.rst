@@ -38,7 +38,7 @@ settings by running :code:`hop auth setup`. To disable authentication in the CLI
 client, one can run :code:`--no-auth`.
 
 Using the Python API
-----------------------------
+----------------------
 
 Publish messages
 ^^^^^^^^^^^^^^^^^

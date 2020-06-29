@@ -9,8 +9,8 @@ User's Guide
 
    user/installation
    user/quickstart
-   user/commands
    user/stream
+   user/commands
 
 API Reference
 -------------
