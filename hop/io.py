@@ -83,7 +83,7 @@ class Stream(object):
         elif mode == "r":
             if group_id is None:
                 group_id = _generate_group_id(10)
-                logger.info("group ID not specified, generating a random group ID")
+                logger.info(f"group ID not specified, generating a random group ID: {group_id}")
             # set up extra options if provided
             opts = {}
             if start_at or self.start_at:
