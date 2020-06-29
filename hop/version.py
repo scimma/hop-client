@@ -6,8 +6,8 @@ __description__ = "Print the versions of the packages that hop-client depends on
 
 
 def print_packages_versions():
-    """
-        Print versions for the passed packages
+    """Print versions for the passed packages.
+
     """
     packages = get_packages()
     for pkg in packages:
@@ -18,6 +18,9 @@ def print_packages_versions():
 
 
 def get_packages():
+    """Returns the package dependencies used within hop-client.
+
+    """
     return ["hop-client", "adc_streaming", "confluent_kafka", "librdkafka"]
 
 
@@ -26,7 +29,7 @@ def get_packages():
 
 
 def _main(args):
-    """List all the dependencies' versions
+    """List all the dependencies' versions.
 
     """
 

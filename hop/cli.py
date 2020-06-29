@@ -5,6 +5,13 @@ __description__ = "a module for CLI utilities"
 
 
 def add_client_opts(parser):
+    """Add general client options to an argument parser.
+
+    Args:
+        parser: An ArgumentParser instance to add client options to.
+
+    """
+
     parser.add_argument(
         "url",
         metavar="URL",
