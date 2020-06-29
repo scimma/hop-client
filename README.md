@@ -12,24 +12,31 @@ Hop Client
 
 ## Quickstart
 
-publish a message to kafka:
+Publish a message:
 
 ```
-hop publish kafka://hostname:port/gcn -f circular example.gcn3
+hop publish kafka://hostname:port/gcn -f CIRCULAR example.gcn3
 ```
 
-Subscribe to the earliest offset of a Kafka topic and print to stdout:
+Example messages are provided in `tests/data` including:
+* A GCN circular (`example.gcn3`)
+* A VOEvent (`example_voevent.xml`)
+
+
+Consume messages:
+
 ```
-hop subscribe kafka://hostname:port/gcn -e
+hop subscribe kafka://hostname:port/gcn -s EARLIEST
 ```
 
-Two example messages (an RFC 822 formatted GCN circular `example.gcn3` and a VOEvent 2.0
-schema xml `example_voevent.xml` are provided in `tests/data`.
+This will read messages from the gcn topic from the earliest offset
+and read messages until an end of stream (EOS) is received.
 
-Client [configuration](https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md)
-properties can be passed to `hop publish` via `-X property=value` or in a configuration
-file specified by `-F <config-file>`, mimicking the behavior of `kafkacat`. This can be
-used to connect to a Kafka broker with SSL authentication enabled, for example.
+By default, authentication is enabled, reading in configuration settings
+from `auth.conf`. The path to this configuration can be found by running
+`hop auth locate`. One can initialize this configuration with default
+settings by running `hop auth setup`. To disable authentication in the CLI
+client, one can run `--no-auth`.
 
 ## Installation
 

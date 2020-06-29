@@ -9,63 +9,115 @@ Quickstart
 Using the CLI
 -------------
 
-Publish a message
+Publish messages
 ^^^^^^^^^^^^^^^^^
 
 .. code:: bash
 
-    hop publish kafka://hostname:port/gcn -f circular example.gcn3
+    hop publish kafka://hostname:port/gcn -f CIRCULAR example.gcn3
 
-Two example messages (an RFC 822 formatted GCN circular (:code:`example.gcn3`) and a VOEvent 2.0
-schema xml (:code: `example_voevent.xml`)) are provided in :code:`tests/data`.
+Example messages are provided in :code:`tests/data` including:
 
-Client `configuration <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>`_
-properties can be passed to :code:`hop publish` via :code:`-X property=value` or in a configuration
-file specified by :code:`-F <config-file>`, mimicking the behavior of :code:`kafkacat`. This can be
-used to connect to a Kafka broker with SSL authentication enabled, for example.
+* A GCN circular (:code:`example.gcn3`)
+* A VOEvent (:code:`example_voevent.xml`)
 
-Consume a message
+Consume messages
 ^^^^^^^^^^^^^^^^^
 
 .. code:: bash
 
-    hop subscribe kafka://hostname:port/gcn -e
+    hop subscribe kafka://hostname:port/gcn -s EARLIEST
 
-Configuration properties can be passed in a manner identical to :code:`hop publish` above.
+This will read messages from the gcn topic from the earliest offset
+and read messages until an end of stream (EOS) is received.
 
+By default, authentication is enabled, reading in configuration settings
+from :code:`auth.conf`. The path to this configuration can be found by running
+:code:`hop auth locate`. One can initialize this configuration with default
+settings by running :code:`hop auth setup`. To disable authentication in the CLI
+client, one can run :code:`--no-auth`.
 
-Reading messages from stream
+Using the Python API
 ----------------------------
 
-The hop client supports a python-based API for reading messages from a stream, as follows:
+Publish messages
+^^^^^^^^^^^^^^^^^
+
+The hop client exposes a python API for publishing and consuming messages as well:
 
 .. code:: python
 
     from hop import stream
 
-    with stream.open("kafka://hostname:port/topic", "r", format="json") as s:
-        for idx, msg in s:
-             print(msg)
+    with stream.open("kafka://hostname:port/topic", "r") as s:
+        for message in s:
+             print(message)
 
-This block will hang forever, listening to new messages and processing them as they arrive.
-By default, this will only process new messages since the connection was opened. The :code:`start_at`
-option lets you control where in the stream you can start listening from. For example,
-if you'd like to listen to all messages stored in a topic, you can do:
+This will listen to the Hop broker, listening to new messages and printing them to
+stdout as they arrive until there are no more messages in the stream.
+By default, this will only process new messages since the connection was opened.
+The :code:`start_at` option lets you control where in the stream you can start listening
+from. For example, if you'd like to listen to all messages stored in a topic, you can do:
 
 .. code:: python
 
-    with stream.open("kafka://hostname:port/topic", "r", format="json", start_at="latest") as s:
-        for idx, msg in s:
-             print(msg)
+    from hop import stream
+    from hop.io import StartPosition
 
-Writing messages to stream
---------------------------
+    with stream.open("kafka://hostname:port/topic", "r", start_at=StartPosition.EARLIEST) as s:
+        for message in s:
+             print(message)
 
-We can also publish messages to a topic, as follows:
+By default, authentication is enabled for the Hop broker. In order to authenticate, one
+can pass in an :code:`Auth` instance with credentials:
+
+.. code:: python
+
+    from hop import stream
+    from hop.auth import Auth
+
+    auth = Auth("my-username", "my-password")
+
+    with stream.open("kafka://hostname:port/topic", "r", auth=auth) as s:
+        for message in s:
+             print(message)
+
+A convenience function is also provided to read in auth configuration in the same way
+as in the CLI client:
+
+.. code:: python
+
+    from hop import stream
+    from hop.auth import load_auth
+
+    with stream.open("kafka://hostname:port/topic", "r", auth=load_auth()) as s:
+        for message in s:
+             print(message)
+
+Consume messages
+^^^^^^^^^^^^^^^^^
+
+Using the python API, we can also publish various types of messages, including
+structured messages such as GCN Circulars and VOEvents:
+
+.. code:: python
+
+    from hop import stream
+    from hop.models import GCNCircular
+
+    # read in a GCN circular
+    with open("path/to/circular.gcn3", "r") as f:
+        circular = GCNCircular.load(f)
+
+    with stream.open("kafka://hostname:port/topic", "w") as s:
+        s.write(circular)
+
+In addition, we can also publish unstructured messages as long as they are
+JSON serializable:
 
 .. code:: python
 
     from hop import stream
 
-    with stream.open("kafka://hostname:port/topic", "w", format="json") as s:
+    with stream.open("kafka://hostname:port/topic", "w") as s:
         s.write({"my": "message"})
