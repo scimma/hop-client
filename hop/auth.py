@@ -31,7 +31,7 @@ def get_auth_path():
     """Determines the default location for auth configuration.
 
     Returns:
-        path: path to the auth configuration file
+        The path to the authentication configuration file.
 
     """
     auth_filepath = os.path.join("hop", "auth.conf")
@@ -45,11 +45,14 @@ def load_auth(authfile=get_auth_path()):
     """Configures an Auth instance given a configuration file.
 
     Args:
-      authfile: path to config file, grab from default location
-          if not given
+        authfile: Path to a configuration file, loading from
+            the default location if not given.
 
     Returns:
-      auth: an Auth instance
+        A configured Auth instance.
+
+    Raises:
+        KeyError: An error occurred parsing the configuration file.
 
     """
     if not os.path.exists(authfile):

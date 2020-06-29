@@ -29,10 +29,10 @@ class Stream(object):
     stream connection is opened, it will use defaults specified here.
 
     Args:
-      auth: authentication options
-      start_at: the message offset to start at
-      persist: whether to listen to new messages forever or stop
-           when EOS is received
+        auth: An Auth instance.
+        start_at: The message offset to start at.
+        persist: Whether to listen to new messages forever or stop
+             when EOS is received.
 
     """
 
@@ -45,16 +45,24 @@ class Stream(object):
         """Opens a connection to an event stream.
 
         Args:
-          url: sets the broker URL to connect to
+            url: Sets the broker URL to connect to.
 
         Kwargs:
-          mode: read ('r') or write ('w') from the stream
-          auth: authentication options
-          start_at: the message offset to start at (read only)
-          persist: whether to listen to new messages forever or
-              stop when EOS is received (read only)
-          metadata: whether to receive message metadata along
-              with payload (read only)
+            mode: Read ('r') or write ('w') from the stream.
+            auth: An Auth instance.
+            start_at: The message offset to start at (read only).
+            persist: Whether to listen to new messages forever or stop
+                 when EOS is received (read only).
+            metadata: Whether to receive message metadata along
+                with payload (read only).
+
+        Returns:
+            An open connection to the client, either an adc Producer instance
+            in write mode or an adc Consumer instance in read mode.
+
+        Raises:
+            ValueError: If the mode is not set to read/write or if more than
+                one topic is specified in write mode.
 
         """
         group_id, broker_addresses, topics = kafka.parse_kafka_url(url)
@@ -104,10 +112,15 @@ class Deserializer(Enum):
         """Deserialize a stream message and instantiate a model.
 
         Args:
-          message: a serialized message
+            message: A serialized message.
 
         Returns:
-          model: a data container corresponding to the format
+            A data container corresponding to the format in the
+            serialized message.
+
+        Raises:
+            ValueError: If the message is incorrectly formatted or
+                if the message format is not recognized.
 
         """
         try:
@@ -129,13 +142,13 @@ class Deserializer(Enum):
 
 
 def _generate_group_id(n):
-    """Generate a random Kafka group id.
+    """Generate a random Kafka group ID.
 
     Args:
-      n: length of random string
+        n: Length of randomly generated string.
 
     Returns:
-      group_id: the generated group ID
+        The generated group ID.
 
     """
     alphanum = string.ascii_uppercase + string.digits

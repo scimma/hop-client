@@ -37,7 +37,7 @@ class VOEvent(object):
         """Represents the VOEvent as a dictionary.
 
         Returns:
-            dict: the dict representation of the VOEvent.
+            A dictionary representation of the VOEvent.
 
         """
         return asdict(self)
@@ -46,7 +46,7 @@ class VOEvent(object):
         """Wrap the message with its format and content.
 
         Returns:
-           A dictionary with "format" and "content" key-value pairs
+            A dictionary with "format" and "content" key-value pairs.
 
         """
 
@@ -61,7 +61,7 @@ class VOEvent(object):
         """Create a new VOEvent from an XML-formatted VOEvent.
 
         Args:
-            xml_input: a file object, string, or generator
+            xml_input: A file object, string, or generator.
 
         Returns:
             The VOEvent.
@@ -77,10 +77,10 @@ class VOEvent(object):
         """Create a new VOEvent from an XML-formatted VOEvent file.
 
         Args:
-            filename: name of the VOEvent file
+            filename: Name of the VOEvent file.
 
         Returns:
-            The VOEvent
+            The VOEvent.
 
         """
         with open(filename, "rb") as f:
@@ -105,7 +105,7 @@ class GCNCircular(object):
         """Represents the GCN Circular as a dictionary.
 
         Returns:
-            dict: the dict representation of the Circular.
+            The dictionary representation of the Circular.
 
         """
         return asdict(self)
@@ -114,7 +114,7 @@ class GCNCircular(object):
         """Wrap the message with its format and content.
 
         Returns:
-           A dictionary with "format" and "content" key-value pairs
+            A dictionary with "format" and "content" key-value pairs.
 
         """
 
@@ -130,7 +130,7 @@ class GCNCircular(object):
         """Create a new GCNCircular from an RFC 822 formatted circular.
 
         Args:
-            email_input: a file object or string
+            email_input: A file object or string.
 
         Returns:
             The GCNCircular.
@@ -152,7 +152,7 @@ class GCNCircular(object):
         """Create a new GCNCircular from an RFC 822 formatted circular file.
 
         Args:
-            filename: the GCN filename
+            filename: The GCN filename.
 
         Returns:
             The GCNCircular.
@@ -166,7 +166,7 @@ class GCNCircular(object):
 class MessageBlob(object):
     """Defines an unformatted message structure.
 
-    This is included as a dataclass to mirror the implementation of structured formats.
+    This is included to mirror the implementation of structured formats.
 
     """
 
@@ -176,7 +176,7 @@ class MessageBlob(object):
         """Represents the message as a dictionary.
 
         Returns:
-            dict: the dict representation of the message
+            The dictionary representation of the message.
 
         """
         return asdict(self)
@@ -200,7 +200,7 @@ class MessageBlob(object):
         """Create a blob message from input text.
 
         Args:
-            blob_input: the unstructured message text or fileobj
+            blob_input: The unstructured message text or file object.
 
         Returns:
             The Blob.
@@ -216,7 +216,7 @@ class MessageBlob(object):
         """Create a blob message from an input file.
 
         Args:
-            filename: a file
+            filename: A filename.
 
         Returns:
             The Blob.

@@ -31,6 +31,10 @@ def append_subparser(subparser, cmd, func):
 def set_up_cli():
     """Set up CLI commands for hop entry point.
 
+    Returns:
+        An ArgumentParser instance with hop-based commands and relevant
+        arguments added for all commands.
+
     """
     parser = argparse.ArgumentParser(prog="hop")
     parser.add_argument(
