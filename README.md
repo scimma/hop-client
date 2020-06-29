@@ -12,6 +12,12 @@ Hop Client
 
 ## Quickstart
 
+By default, authentication is enabled, reading in configuration settings
+from `auth.conf`. The path to this configuration can be found by running
+`hop auth locate`. One can initialize this configuration with default
+settings by running `hop auth setup`. To disable authentication in the CLI
+client, one can run `--no-auth`.
+
 Publish a message:
 
 ```
@@ -31,12 +37,6 @@ hop subscribe kafka://hostname:port/gcn -s EARLIEST
 
 This will read messages from the gcn topic from the earliest offset
 and read messages until an end of stream (EOS) is received.
-
-By default, authentication is enabled, reading in configuration settings
-from `auth.conf`. The path to this configuration can be found by running
-`hop auth locate`. One can initialize this configuration with default
-settings by running `hop auth setup`. To disable authentication in the CLI
-client, one can run `--no-auth`.
 
 ## Installation
 
