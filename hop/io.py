@@ -3,14 +3,15 @@
 __author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
 __description__ = "a module for i/o utilities"
 
-from collections import namedtuple
 from contextlib import contextmanager
+from dataclasses import dataclass
 import getpass
 from enum import Enum
 import json
 import logging
 import random
 import string
+from typing import Union
 import warnings
 
 from adc import consumer, errors, kafka, producer
@@ -156,13 +157,23 @@ def _generate_group_id(n):
     return '-'.join((getpass.getuser(), rand_str))
 
 
-_Metadata = namedtuple("Metadata", "topic partition offset timestamp key")
+@dataclass
+class _Metadata:
+    """Broker-specific metadata that accompanies a consumed message.
+
+    """
+
+    topic: str
+    partition: int
+    offset: int
+    timestamp: int
+    key: Union[str, bytes]
 
 
 class _Consumer(consumer.Consumer):
     def stream(self, metadata=False, **kwargs):
         for message in super().stream(**kwargs):
-            yield self.unpack(message)
+            yield self.unpack(message, metadata=metadata)
 
     @staticmethod
     def unpack(message, metadata=False):
