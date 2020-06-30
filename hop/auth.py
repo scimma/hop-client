@@ -12,7 +12,7 @@ from adc import auth
 
 DEFAULT_AUTH_CONFIG = """\
 security.protocol=SASL_SSL
-sasl.mechanism=PLAIN
+sasl.mechanism=SCRAM-SHA-512
 sasl.username=username
 sasl.password=password
 """
