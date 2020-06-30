@@ -24,11 +24,11 @@ This command allows a user to handle auth-based configuration.
 :code:`hop publish`
 ~~~~~~~~~~~~~~~~~~~~~~
 
-This command allows a user to parse various structured and unstructured messages, including:
+This command allows a user to publish various structured and unstructured messages, including:
 
 * `RFC 822 formatted GCN circular <https://gcn.gsfc.nasa.gov/gcn3_circulars.html>`_
 * An XML formatted `GCN/VOEvent notice <https://gcn.gsfc.nasa.gov/tech_describe.html>`_
-* An unstructured string or text file and publish it as via Kafka.
+* Unstructured messages such as byte-encoded or JSON-serializable data.
 
 Structured messages such as GCN circulars and VOEvents are published as JSON-formatted text.
 
