@@ -171,6 +171,7 @@ class MessageBlob(object):
     """
 
     content: str
+    missing_schema: bool = False
 
     def asdict(self):
         """Represents the message as a dictionary.
