@@ -6,6 +6,7 @@ __description__ = "a module that tests the io utilities"
 
 from dataclasses import fields
 import json
+import logging
 from unittest.mock import patch, MagicMock, Mock
 
 import pytest
@@ -13,6 +14,8 @@ import pytest
 from hop.auth import Auth
 from hop import io
 from hop.models import GCNCircular, VOEvent, MessageBlob
+
+logger = logging.getLogger("hop")
 
 
 def content_mock(message_model):
@@ -34,7 +37,7 @@ def content_mock(message_model):
     ["wrong_datatype"],
     {"wrong_key": "value"},
 ])
-def test_deserialize(message, message_parameters_dict):
+def test_deserialize(message, message_parameters_dict, caplog):
 
     # test a non-dict message
     if not isinstance(message, dict):
@@ -50,23 +53,29 @@ def test_deserialize(message, message_parameters_dict):
     message_format = message["format"]
     message_content = message["content"]
 
-    # test an invalid format
-    if message_format not in message_parameters_dict:
-        with pytest.raises(ValueError):
-            test_model = io.Deserializer.deserialize(message)
-        return
-
     # load parameters from conftest for valid formats
-    message_parameters = message_parameters_dict[message_format]
-    model_name = message_parameters["model_name"]
-    expected_model = message_parameters["expected_model"]
+    if message_format in message_parameters_dict:
+        message_parameters = message_parameters_dict[message_format]
+        model_name = message_parameters["model_name"]
+        expected_model = message_parameters["expected_model"]
 
-    # test valid formats
-    with patch(f"hop.models.{model_name}", MagicMock()):
-        test_model = io.Deserializer.deserialize(message)
+        # test valid formats
+        with patch(f"hop.models.{model_name}", MagicMock()):
+            test_model = io.Deserializer.deserialize(message)
 
-    # verify the message is classified properly
-    assert isinstance(test_model, expected_model)
+        # verify the message is classified properly
+        assert isinstance(test_model, expected_model)
+
+    else:  # test an invalid format
+        with caplog.at_level(logging.WARNING):
+            test_model = io.Deserializer.deserialize(message)
+
+            # verify a message blob was produced with warnings
+            output = f"Message format {message_format.upper()} " \
+                "not recognized, returning a MessageBlob"
+            assert isinstance(test_model, MessageBlob)
+            assert output in caplog.text
+            assert test_model.missing_schema
 
 
 def test_stream_read(circular_msg, circular_text):

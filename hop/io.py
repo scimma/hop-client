@@ -130,10 +130,13 @@ class Deserializer(Enum):
         except (KeyError, TypeError):
             raise ValueError("Message is incorrectly formatted")
         else:
-            if format in cls.__members__:
-                return cls[format.upper()].value(**content)
+            if format == Deserializer.BLOB.name:
+                return cls[format].value(content=content)
+            elif format in cls.__members__:
+                return cls[format].value(**content)
             else:
-                raise ValueError(f"Message format {format} not recognized")
+                logger.warning(f"Message format {format} not recognized, returning a MessageBlob")
+                return models.MessageBlob(content=content, missing_schema=True)
 
     def load(self, input_):
         return self.value.load(input_)
