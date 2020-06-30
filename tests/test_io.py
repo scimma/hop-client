@@ -24,9 +24,8 @@ def content_mock(message_model):
         content.update({field.name: "test"})
     return content
 
-# test the subscribe classifier for each message format
 
-
+# test the deserializer for each message format
 @pytest.mark.parametrize("message", [
     {"format": "voevent", "content": content_mock(VOEvent)},
     {"format": "circular", "content": content_mock(GCNCircular)},

@@ -82,10 +82,6 @@ def load_auth(authfile=get_auth_path()):
         return Auth(user, password, ssl=ssl, method=method, **extra_kwargs)
 
 
-# ------------------------------------------------
-# -- main
-
-
 def _add_parser_args(parser):
     subparser = parser.add_subparsers(title="Commands", metavar="<command>", dest="command")
     subparser.add_parser(
