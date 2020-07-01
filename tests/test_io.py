@@ -7,6 +7,7 @@ __description__ = "a module that tests the io utilities"
 from dataclasses import fields
 import json
 import logging
+from pathlib import Path
 from unittest.mock import patch, MagicMock, Mock
 
 import pytest
@@ -150,3 +151,43 @@ def test_pack(circular_msg, circular_text):
     # unstructured message
     message = {"hey": "you"}
     packed = io._Producer.pack(message)
+
+
+@pytest.mark.parametrize("message", [
+    {"format": "voevent", "content": content_mock(VOEvent)},
+    {"format": "circular", "content": content_mock(GCNCircular)},
+    {"format": "blob", "content": content_mock(MessageBlob)},
+])
+def test_pack_unpack_roundtrip(message, message_parameters_dict, caplog):
+    format = message["format"]
+    content = message["content"]
+
+    # load test data
+    shared_datadir = Path("tests/data")
+    test_filename = message_parameters_dict[format]["test_file"]
+    test_file = shared_datadir / "test_data" / test_filename
+
+    # generate a message
+    expected_model = message_parameters_dict[format]["expected_model"]
+    if format in ("voevent", "circular"):
+        orig_message = expected_model.load_file(test_file)
+    else:
+        orig_message = test_file.read_text()
+
+    # pack the message
+    packed_msg = io._Producer.pack(orig_message)
+
+    # mock a kafka message with value being the packed message
+    kafka_msg = MagicMock()
+    kafka_msg.value.return_value = packed_msg
+
+    # unpack the message
+    unpacked_msg = io._Consumer.unpack(kafka_msg)
+
+    # verify based on format
+    if format in ("voevent", "circular"):
+        assert isinstance(unpacked_msg, expected_model)
+        assert unpacked_msg.asdict() == orig_message.asdict()
+    else:
+        assert isinstance(unpacked_msg, MessageBlob)
+        assert unpacked_msg.content == orig_message
