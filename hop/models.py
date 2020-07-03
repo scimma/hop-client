@@ -180,7 +180,7 @@ class MessageBlob(object):
             The dictionary representation of the message.
 
         """
-        return asdict(self)
+        return asdict(self) if self.missing_schema else {"content": self.content}
 
     def serialize(self):
         """Wrap the message with its format and content.
@@ -190,11 +190,11 @@ class MessageBlob(object):
 
         """
 
-        wrapped_message = {"format": "blob", "content": self.asdict()}
+        wrapped_message = {"format": "blob", "content": self.content}
         return wrapped_message
 
     def __str__(self):
-        return self.content
+        return str(self.content)
 
     @classmethod
     def load(cls, blob_input):
