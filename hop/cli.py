@@ -1,9 +1,3 @@
-#!/usr/bin/env python
-
-__author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
-__description__ = "a module for CLI utilities"
-
-
 def add_client_opts(parser):
     """Add general client options to an argument parser.
 

@@ -1,16 +1,6 @@
-#!/usr/bin/env python
-
-__author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
-__description__ = "tools to parse and publish messages"
-
-
 from .auth import load_auth
 from . import cli
 from . import io
-
-
-# ------------------------------------------------
-# -- main
 
 
 def _add_parser_args(parser):

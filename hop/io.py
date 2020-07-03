@@ -1,8 +1,3 @@
-#!/usr/bin/env python
-
-__author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
-__description__ = "a module for i/o utilities"
-
 from contextlib import contextmanager
 from dataclasses import dataclass
 import getpass
