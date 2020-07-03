@@ -22,7 +22,7 @@ def _add_parser_args(parser):
         "-f",
         "--format",
         choices=io.Deserializer.__members__,
-        default=str(io.Deserializer.BLOB),
+        default=io.Deserializer.BLOB.name,
         help="Specify the message format. Defaults to BLOB for an unstructured message.",
     )
 
