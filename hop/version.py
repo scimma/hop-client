@@ -1,9 +1,6 @@
 import pkg_resources
 import confluent_kafka
 
-__author__ = "Shereen Elsayed (s_elsayed@ucsb.edu"
-__description__ = "Print the versions of the packages that hop-client depends on"
-
 
 def print_packages_versions():
     """Print versions for the passed packages.
@@ -22,10 +19,6 @@ def get_packages():
 
     """
     return ["hop-client", "adc_streaming", "confluent_kafka", "librdkafka"]
-
-
-# ------------------------------------------------
-# -- main
 
 
 def _main(args):

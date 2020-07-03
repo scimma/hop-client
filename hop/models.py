@@ -1,9 +1,3 @@
-#!/usr/bin/env python
-
-__author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
-__description__ = "a module to define common message formats"
-
-
 from dataclasses import asdict, dataclass, field
 import email
 import json

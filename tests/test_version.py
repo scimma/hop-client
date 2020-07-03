@@ -1,8 +1,3 @@
-#!/usr/bin/env python
-
-__author__ = "Shereen Elsayed (s_elsayed@ucsb.edu)"
-__description__ = "Test for version command"
-
 import subprocess
 from hop import version
 

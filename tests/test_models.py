@@ -1,9 +1,3 @@
-#!/usr/bin/env python
-
-__author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
-__description__ = "a module that tests models"
-
-
 from unittest.mock import patch, mock_open
 
 from hop import models

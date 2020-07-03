@@ -1,9 +1,3 @@
-#!/usr/bin/env python
-
-__author__ = "Bryce Cousins (bfc5288@psu.edu)"
-__description__ = "tools to receive and parse messages"
-
-
 import json
 
 from .auth import load_auth
@@ -27,10 +21,6 @@ def print_message(message_model, json_dump=False):
         print(json.dumps(message_model.asdict()))
     else:
         print(str(message_model))
-
-
-# ------------------------------------------------
-# -- main
 
 
 def _add_parser_args(parser):

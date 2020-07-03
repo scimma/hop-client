@@ -1,8 +1,3 @@
-#!/usr/bin/env python
-
-__author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
-__description__ = "a module for auth utilities"
-
 import argparse
 import errno
 import logging

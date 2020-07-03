@@ -1,7 +1,3 @@
-#!/usr/bin/env python
-
-__author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
-
 import argparse
 import signal
 
@@ -58,10 +54,6 @@ def set_up_cli():
     p = append_subparser(subparser, "version", version._main)
 
     return parser
-
-
-# ------------------------------------------------
-# -- main
 
 
 def main():

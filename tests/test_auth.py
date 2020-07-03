@@ -1,9 +1,3 @@
-#!/usr/bin/env python
-
-__author__ = "Patrick Godwin (patrick.godwin@psu.edu)"
-__description__ = "a module that tests the auth utilities"
-
-
 from unittest.mock import patch, mock_open
 
 import pytest

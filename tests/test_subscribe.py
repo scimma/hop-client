@@ -1,8 +1,3 @@
-#!/usr/bin/env python
-
-__author__ = "Bryce Cousins (bfc5288@psu.edu)"
-__description__ = "a module that tests subscribe utilities"
-
 import io
 import codecs
 from contextlib import redirect_stdout
@@ -13,9 +8,8 @@ import pytest
 
 from hop import subscribe
 
+
 # test the subscribe printer for each message format
-
-
 @pytest.mark.parametrize("message_format", ["voevent", "circular", "blob"])
 def test_print_message(message_format, message_parameters_dict):
 
