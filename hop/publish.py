@@ -1,3 +1,6 @@
+import sys
+
+from .auth import load_auth
 from . import cli
 from . import io
 
@@ -5,7 +8,7 @@ from . import io
 def _add_parser_args(parser):
     cli.add_client_opts(parser)
     parser.add_argument(
-        "message", metavar="MESSAGE", nargs="+", help="One or more messages to publish.",
+        "message", metavar="MESSAGE", nargs="*", help="Messages to publish.",
     )
     parser.add_argument(
         "-f",
@@ -27,3 +30,7 @@ def _main(args):
         for message_file in args.message:
             message = loader.load_file(message_file)
             s.write(message)
+
+        if not sys.stdin.isatty():
+            for message in sys.stdin.read().splitlines():
+                s.write(loader.load(message))
