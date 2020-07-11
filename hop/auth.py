@@ -8,23 +8,43 @@ import errno
 import logging
 import os
 
+import toml
+
 from adc import auth
 
 DEFAULT_AUTH_CONFIG = """\
-security.protocol=SASL_SSL
-sasl.mechanism=SCRAM-SHA-512
-sasl.username=username
-sasl.password=password
+[auth]
+username = "username"
+password = "password"
 """
 
 logger = logging.getLogger("hop")
 
-# expose auth options from adc
-SASLAuth = auth.SASLAuth
 SASLMethod = auth.SASLMethod
 
-# map default auth option to Auth
-Auth = auth.SASLAuth
+
+class Auth(auth.SASLAuth):
+    """Attach SASL-based authentication to a client.
+
+    Returns client-based auth options when called.
+
+    Parameters
+    ----------
+    user : `str`
+        Username to authenticate with.
+    password : `str`
+        Password to authenticate with.
+    ssl : `bool`, optional
+        Whether to enable SSL (enabled by default).
+    method : `SASLMethod`, optional
+        The SASL method to authenticate, default = SASLMethod.SCRAM_SHA_512.
+        See valid SASL methods in SASLMethod.
+    ssl_ca_location : `str`, optional
+        If using SSL via a self-signed cert, a path/location
+        to the certificate.
+    """
+    def __init__(self, user, password, ssl=True, method=SASLMethod.SCRAM_SHA_512, **kwargs):
+        super().__init__(user, password, ssl=ssl, method=method, **kwargs)
 
 
 def get_auth_path():
@@ -34,7 +54,7 @@ def get_auth_path():
         The path to the authentication configuration file.
 
     """
-    auth_filepath = os.path.join("hop", "auth.conf")
+    auth_filepath = os.path.join("hop", "config.toml")
     if "XDG_CONFIG_HOME" in os.environ:
         return os.path.join(os.getenv("XDG_CONFIG_HOME"), auth_filepath)
     else:
@@ -60,26 +80,31 @@ def load_auth(authfile=get_auth_path()):
 
     # load config
     with open(authfile, "r") as f:
-        config = {opt[0]: opt[1] for opt in (line.split("=") for line in f.read().splitlines())}
+        config = toml.loads(f.read())["auth"]
 
     # translate config options
     ssl = True
     extra_kwargs = {}
     try:
         # SSL options
-        if config["security.protocol"] == "SASL_PLAINTEXT":
+        if "protocol" in config and config["protocol"] == "SASL_PLAINTEXT":
             ssl = False
-        elif "ssl.ca.location" in config:
-            extra_kwargs["ssl_ca_location"] = config["ssl.ca.location"]
+        elif "ssl_ca_location" in config:
+            extra_kwargs["ssl_ca_location"] = config["ssl_ca_location"]
 
         # SASL options
-        user = config["sasl.username"]
-        password = config["sasl.password"]
-        method = SASLMethod[config["sasl.mechanism"].replace("-", "_")]
+        user = config["username"]
+        password = config["password"]
+
+        if "mechanism" in config:
+            mechanism = config["mechanism"].replace("-", "_")
+        else:
+            mechanism = "SCRAM_SHA_512"
+
     except KeyError:
         raise KeyError("configuration file is not configured correctly")
     else:
-        return Auth(user, password, ssl=ssl, method=method, **extra_kwargs)
+        return Auth(user, password, ssl=ssl, method=SASLMethod[mechanism], **extra_kwargs)
 
 
 def _add_parser_args(parser):
