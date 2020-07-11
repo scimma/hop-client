@@ -26,6 +26,7 @@ requirements:
   run:
     - python
     - adc-streaming >=1.0.0
+    - toml >= 0.9.4
     - xmltodict >=0.9.0
     - dataclasses    # [py==36]
 
