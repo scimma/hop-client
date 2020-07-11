@@ -1,5 +1,6 @@
 import argparse
 import errno
+import getpass
 import logging
 import os
 
@@ -9,8 +10,8 @@ from adc import auth
 
 DEFAULT_AUTH_CONFIG = """\
 [auth]
-username = "username"
-password = "password"
+username = "{username}"
+password = "{password}"
 """
 
 logger = logging.getLogger("hop")
@@ -135,6 +136,10 @@ def _main(args):
         if os.path.exists(authfile) and not args.force:
             logger.warning("configuration already exists, overwrite file with --force")
         else:
+            logger.info("generating configuration with user-specified username + password")
             os.makedirs(os.path.dirname(authfile), exist_ok=True)
+
+            user = input("Username: ")
             with open(authfile, "w") as f:
-                f.write(DEFAULT_AUTH_CONFIG)
+                f.write(DEFAULT_AUTH_CONFIG.format(username=user, password=getpass.getpass()))
+            logger.info(f"generated configuration at: {authfile}")
