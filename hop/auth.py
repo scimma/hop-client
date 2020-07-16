@@ -39,6 +39,7 @@ class Auth(auth.SASLAuth):
         If using SSL via a self-signed cert, a path/location
         to the certificate.
     """
+
     def __init__(self, user, password, ssl=True, method=SASLMethod.SCRAM_SHA_512, **kwargs):
         super().__init__(user, password, ssl=ssl, method=method, **kwargs)
 

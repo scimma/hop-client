@@ -10,7 +10,7 @@ Using the CLI
 -------------
 
 By default, authentication is enabled, reading in configuration settings
-from :code:`auth.conf`. The path to this configuration can be found by running
+from :code:`config.toml`. The path to this configuration can be found by running
 :code:`hop auth locate`. One can initialize this configuration with default
 settings by running :code:`hop auth setup`. To disable authentication in the CLI
 client, one can run :code:`--no-auth`.
