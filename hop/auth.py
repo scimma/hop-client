@@ -18,6 +18,8 @@ logger = logging.getLogger("hop")
 SASLMethod = auth.SASLMethod
 
 
+# thin wrapper over adc's SASLAuth to define
+# different defaults used within Hopskotch
 class Auth(auth.SASLAuth):
     """Attach SASL-based authentication to a client.
 
