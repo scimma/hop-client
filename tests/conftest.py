@@ -168,6 +168,17 @@ VOEVENT_XML = """\
 
 MESSAGE_BLOB = "This is a sample blob message. It is unstructured and does not require special parsing."
 
+AUTH_CONFIG = """\
+[auth]
+username = "username"
+password = "password"
+"""
+
+
+@pytest.fixture(scope="session")
+def auth_config():
+    return AUTH_CONFIG
+
 
 @pytest.fixture(scope="session")
 def circular_text():
