@@ -5,8 +5,8 @@ import pytest
 from hop import auth
 
 
-def test_load_auth():
-    with patch("builtins.open", mock_open(read_data=auth.DEFAULT_AUTH_CONFIG)) as mock_file:
+def test_load_auth(auth_config):
+    with patch("builtins.open", mock_open(read_data=auth_config)) as mock_file:
 
         # check error handling
         with pytest.raises(FileNotFoundError):

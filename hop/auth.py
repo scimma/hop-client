@@ -8,12 +8,6 @@ import toml
 
 from adc import auth
 
-DEFAULT_AUTH_CONFIG = """\
-[auth]
-username = "{username}"
-password = "{password}"
-"""
-
 logger = logging.getLogger("hop")
 
 SASLMethod = auth.SASLMethod
@@ -142,5 +136,5 @@ def _main(args):
 
             user = input("Username: ")
             with open(authfile, "w") as f:
-                f.write(DEFAULT_AUTH_CONFIG.format(username=user, password=getpass.getpass()))
+                toml.dump({"auth": {"username": user, "password": getpass.getpass()}}, f)
             logger.info(f"generated configuration at: {authfile}")
