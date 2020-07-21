@@ -1,6 +1,8 @@
 hop documentation
 ===========================
 
+:code:`hop-client` is a pub-sub client library for Multimessenger Astrophysics.
+
 User's Guide
 ------------
 
