@@ -10,6 +10,8 @@ User's Guide
    user/installation
    user/quickstart
    user/stream
+   user/auth
+   user/models
    user/commands
 
 API Reference
