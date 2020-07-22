@@ -82,13 +82,13 @@ def test_stream_read(circular_msg, circular_text):
         start_at = io.StartPosition.EARLIEST
         persist = False
 
-        stream = io.Stream(persist=persist)
+        stream = io.Stream(persist=persist, start_at=start_at)
 
-        with stream.open(broker_url1, "r", start_at=start_at) as s:
+        with stream.open(broker_url1, "r") as s:
             for msg in s:
                 continue
 
-        with stream.open(broker_url2, "r", start_at=start_at) as s:
+        with stream.open(broker_url2, "r") as s:
             for msg in s:
                 continue
 
@@ -102,21 +102,17 @@ def test_stream_write(circular_msg, circular_text):
         start_at = io.StartPosition.EARLIEST
         persist = False
 
-        stream = io.Stream()
+        stream = io.Stream(start_at=start_at, persist=persist, auth=auth)
 
-        # verify only 1 topic is allowed in write-mode
+        # verify only 1 topic is allowed in write mode
         with pytest.raises(ValueError):
             stream.open("kafka://localhost:9092/topic1,topic2", "w")
 
-        # check various warnings when certain settings are set
+        # verify warning is raised when groupid is set in write mode
         with pytest.warns(UserWarning):
             stream.open("kafka://group@localhost:9092/topic1", "w")
-        with pytest.warns(UserWarning):
-            stream.open(broker_url, "w", start_at=start_at)
-        with pytest.warns(UserWarning):
-            stream.open(broker_url, "w", persist=persist)
 
-        with stream.open(broker_url, "w", auth=auth) as s:
+        with stream.open(broker_url, "w") as s:
             s.write(circular_msg)
 
 
