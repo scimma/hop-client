@@ -25,13 +25,12 @@ by setting the :code:`XDG_CONFIG_PATH` variable.
 Using Credentials
 --------------------
 
-For the CLI, authentication is enabled by default and will read credentials from the
-path resolved by :code:`hop auth locate`. In order to disable authentication, one can
-pass :code:`--no-auth` for various CLI commands.
+Authentication is enabled by default and will read credentials from the
+path resolved by :code:`hop auth locate`.
 
-For the python API, the :code:`Auth` class is provided to pass in credentials to
-a :code:`Stream` instance. This provides a similar interface to authenticating
-as with the requests library.
+For the python API, one can modify various authentication options by passing
+in an :code:`Auth` instance with credentials to a :code:`Stream` instance.
+This provides a similar interface to authenticating as with the requests library.
 
 .. code:: python
 
@@ -44,15 +43,6 @@ as with the requests library.
     with stream.open("kafka://hostname:port/topic", "w") as s:
         s.write({"my": "message"})
 
-A convenience function is also provided to read in auth configuration in the same way
-as in the CLI client:
-
-.. code:: python
-
-    from hop import Stream
-    from hop.auth import load_auth
-
-    stream = Stream(auth=load_auth())
-
-    with stream.open("kafka://hostname:port/topic", "w") as s:
-        s.write({"my": "message"})
+In order to disable authentication in the command line interface, one can
+pass :code:`--no-auth` for various CLI commands. For the python API, one
+can set :code:`auth=None`.

@@ -68,29 +68,22 @@ JSON serializable:
     with stream.open("kafka://hostname:port/topic", "w") as s:
         s.write({"my": "message"})
 
-By default, authentication is enabled for the Hop broker. In order to authenticate, one
-can pass in an :code:`Auth` instance with credentials:
+By default, authentication is enabled for the Hop broker, reading in configuration
+settings from :code:`config.toml`. In order to modify various authentication options, one
+can configure a :code:`Stream` instance and pass in an :code:`Auth` instance with credentials:
 
 .. code:: python
 
-    from hop import stream
+    from hop import Stream
     from hop.auth import Auth
 
     auth = Auth("my-username", "my-password")
+    stream = Stream(auth=auth)
 
-    with stream.open("kafka://hostname:port/topic", "w", auth=auth) as s:
+    with stream.open("kafka://hostname:port/topic", "w") as s:
         s.write({"my": "message"})
 
-A convenience function is also provided to read in auth configuration in the same way
-as in the CLI client:
-
-.. code:: python
-
-    from hop import stream
-    from hop.auth import load_auth
-
-    with stream.open("kafka://hostname:port/topic", "w", auth=load_auth()) as s:
-        s.write({"my": "message"})
+To explicitly disable authentication one can set :code:`auth=None`.
 
 Consume messages
 ^^^^^^^^^^^^^^^^^
@@ -116,7 +109,9 @@ from. For example, if you'd like to listen to all messages stored in a topic, yo
     from hop import stream
     from hop.io import StartPosition
 
-    with stream.open("kafka://hostname:port/topic", "r", start_at=StartPosition.EARLIEST) as s:
+    stream = Stream(start_at=StartPosition.EARLIEST)
+
+    with stream.open("kafka://hostname:port/topic", "r") as s:
         for message in s:
              print(message)
 

@@ -40,8 +40,7 @@ so a shorthand is provided for using one:
         for message in s:
              print(message)
 
-Both :code:`stream.open` and :code:`Stream` can be passed with similar
-configuration options, including:
+A complete list of configurable options in :code:`Stream` are:
 
 * :code:`auth`: An :code:`auth.Auth` instance to provide authentication
 * :code:`start_at`: The message offset to start at, by passing in an :code:`io.StartPosition`
