@@ -42,7 +42,7 @@ from `config.toml`. The path to this configuration can be found by running
 settings by running `hop auth setup`. To disable authentication in the CLI
 client, one can run `--no-auth`.
 
-#### Command Line Interface
+### Command Line Interface
 
 Publish a message:
 
@@ -64,7 +64,7 @@ hop subscribe kafka://hostname:port/gcn -s EARLIEST
 This will read messages from the gcn topic from the earliest offset
 and read messages until an end of stream (EOS) is received.
 
-#### Python API
+### Python API
 
 Publish messages:
 
@@ -72,60 +72,53 @@ Using the python API, we can publish various types of messages, including
 structured messages such as GCN Circulars and VOEvents:
 
 ```python
-    from hop import stream
-    from hop.models import GCNCircular
+from hop import stream
+from hop.models import GCNCircular
 
-    # read in a GCN circular
-    with open("path/to/circular.gcn3", "r") as f:
-        circular = GCNCircular.load(f)
+# read in a GCN circular
+with open("path/to/circular.gcn3", "r") as f:
+    circular = GCNCircular.load(f)
 
-    with stream.open("kafka://hostname:port/topic", "w") as s:
-        s.write(circular)
+with stream.open("kafka://hostname:port/topic", "w") as s:
+    s.write(circular)
 ```
 
 In addition, we can also publish unstructured messages as long as they are
 JSON serializable:
 
 ```python
-    from hop import stream
+from hop import stream
 
-    with stream.open("kafka://hostname:port/topic", "w") as s:
-        s.write({"my": "message"})
+with stream.open("kafka://hostname:port/topic", "w") as s:
+    s.write({"my": "message"})
 ```
 
-By default, authentication is enabled for the Hop broker. In order to authenticate, one
-can pass in an `Auth` instance with credentials:
+By default, authentication is enabled for the Hop broker, reading in configuration
+settings from `config.toml`. In order to modify various authentication options, one
+can configure a `Stream` instance and pass in an `Auth` instance with credentials:
 
 ```python
-    from hop import stream
-    from hop.auth import Auth
+from hop import Stream
+from hop.auth import Auth
 
-    auth = Auth("my-username", "my-password")
+auth = Auth("my-username", "my-password")
+stream = Stream(auth=auth)
 
-    with stream.open("kafka://hostname:port/topic", "w", auth=auth) as s:
-        s.write({"my": "message"})
+with stream.open("kafka://hostname:port/topic", "w") as s:
+    s.write({"my": "message"})
 ```
 
-A convenience function is also provided to read in auth configuration in the same way
-as in the CLI client:
-
-```python
-    from hop import stream
-    from hop.auth import load_auth
-
-    with stream.open("kafka://hostname:port/topic", "w", auth=load_auth()) as s:
-        s.write({"my": "message"})
-```
+To explicitly disable authentication one can set `auth=None`.
 
 Consume messages:
 
 
 ```python
-    from hop import stream
+from hop import stream
 
-    with stream.open("kafka://hostname:port/topic", "r") as s:
-        for message in s:
-             print(message)
+with stream.open("kafka://hostname:port/topic", "r") as s:
+    for message in s:
+         print(message)
 ```
 
 This will listen to the Hop broker, listening to new messages and printing them to
@@ -135,12 +128,14 @@ The `start_at` option lets you control where in the stream you can start listeni
 from. For example, if you'd like to listen to all messages stored in a topic, you can do:
 
 ```python
-    from hop import stream
-    from hop.io import StartPosition
+from hop import Stream
+from hop.io import StartPosition
 
-    with stream.open("kafka://hostname:port/topic", "r", start_at=StartPosition.EARLIEST) as s:
-        for message in s:
-             print(message)
+stream = Stream(start_at=StartPosition.EARLIEST)
+
+with stream.open("kafka://hostname:port/topic", "r") as s:
+    for message in s:
+         print(message)
 ```
 
 
