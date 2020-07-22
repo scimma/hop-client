@@ -10,6 +10,30 @@ Hop Client
 
 **hop-client** is a pub-sub client library for Multimessenger Astrophysics.
 
+## Installation
+
+You can install hop either via pip, conda, or from source.
+
+To install with pip:
+
+```
+pip install -U hop-client
+```
+
+To install with conda, you must use the channel from the SCiMMA Anaconda organization:
+
+```
+conda install --channel scimma hop-client
+```
+
+To install from source:
+
+```
+tar -xzf hop-client-x.y.z.tar.gz
+cd hop-client-x.y.z
+python setup.py install
+```
+
 ## Quickstart
 
 By default, authentication is enabled, reading in configuration settings
@@ -119,30 +143,6 @@ from. For example, if you'd like to listen to all messages stored in a topic, yo
              print(message)
 ```
 
-
-## Installation
-
-You can install hop either via pip, conda, or from source.
-
-To install with pip:
-
-```
-pip install -U hop-client
-```
-
-To install with conda, you must use the channel from the SCiMMA Anaconda organization:
-
-```
-conda install --channel scimma hop-client
-```
-
-To install from source:
-
-```
-tar -xzf hop-client-x.y.z.tar.gz
-cd hop-client-x.y.z
-python setup.py install
-```
 
 ## Development
 
