@@ -11,6 +11,7 @@ import warnings
 
 from adc import consumer, errors, kafka, producer
 
+from .auth import load_auth
 from . import models
 
 logger = logging.getLogger("hop")
@@ -25,19 +26,19 @@ class Stream(object):
     stream connection is opened, it will use defaults specified here.
 
     Args:
-        auth: An Auth instance.
-        start_at: The message offset to start at.
+        auth: An `Auth` instance. Defaults to loading from `auth.load_auth()`.
+        start_at: The message offset to start at in read mode. Defaults to LATEST.
         persist: Whether to listen to new messages forever or stop
-             when EOS is received.
+             when EOS is received in read mode. Defaults to False.
 
     """
 
-    def __init__(self, auth=None, start_at=None, persist=None):
+    def __init__(self, auth=load_auth(), start_at=StartPosition.LATEST, persist=False):
         self.auth = auth
         self.start_at = start_at
         self.persist = persist
 
-    def open(self, url, mode="r", auth=None, start_at=None, persist=None, metadata=False):
+    def open(self, url, mode="r", metadata=False):
         """Opens a connection to an event stream.
 
         Args:
@@ -45,10 +46,6 @@ class Stream(object):
 
         Kwargs:
             mode: Read ('r') or write ('w') from the stream.
-            auth: An Auth instance.
-            start_at: The message offset to start at (read only).
-            persist: Whether to listen to new messages forever or stop
-                 when EOS is received (read only).
             metadata: Whether to receive message metadata along
                 with payload (read only).
 
@@ -64,35 +61,24 @@ class Stream(object):
         group_id, broker_addresses, topics = kafka.parse_kafka_url(url)
         logger.debug("connecting to addresses=%s  group_id=%s  topics=%s",
                      broker_addresses, group_id, topics)
-        if not auth and self.auth:
-            auth = self.auth
         if mode == "w":
             if len(topics) != 1:
                 raise ValueError("must specify exactly one topic in write mode")
             if group_id is not None:
                 warnings.warn("group ID has no effect when opening a stream in write mode")
-            if start_at is not None:
-                warnings.warn("start_at has no effect when opening a stream in write mode")
-            if persist is not None:
-                warnings.warn("read_forever has no effect when opening a stream in write mode")
-            return _open_producer(broker_addresses, topics[0], auth=auth)
+            return _open_producer(broker_addresses, topics[0], auth=self.auth)
         elif mode == "r":
             if group_id is None:
                 group_id = _generate_group_id(10)
                 logger.info(f"group ID not specified, generating a random group ID: {group_id}")
-            # set up extra options if provided
-            opts = {}
-            if start_at or self.start_at:
-                opts["start_at"] = start_at if start_at else self.start_at
-            if persist is not None or self.persist is not None:
-                opts["read_forever"] = persist if persist is not None else self.persist
             return _open_consumer(
                 group_id,
                 broker_addresses,
                 topics,
-                auth=auth,
                 metadata=metadata,
-                **opts,
+                start_at=self.start_at,
+                auth=self.auth,
+                read_forever=self.persist,
             )
         else:
             raise ValueError("mode must be either 'w' or 'r'")
