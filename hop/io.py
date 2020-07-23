@@ -41,7 +41,7 @@ class Stream(object):
         self.persist = persist
 
     @property
-    @lru_cache
+    @lru_cache(maxsize=1)
     def auth(self):
         # authentication is disabled in adc-streaming by passing None,
         # so to provide a nicer interface, we allow boolean flags as well.
@@ -63,7 +63,6 @@ class Stream(object):
                 return None
         else:
             return self._auth
-
 
     def open(self, url, mode="r", metadata=False):
         """Opens a connection to an event stream.
