@@ -1,4 +1,3 @@
-from .auth import load_auth
 from . import cli
 from . import io
 
@@ -21,9 +20,8 @@ def _main(args):
     """Parse and publish messages.
 
     """
-    auth = load_auth() if not args.no_auth else None
     loader = io.Deserializer[args.format]
-    stream = io.Stream(auth=auth)
+    stream = io.Stream(auth=(not args.no_auth))
 
     with stream.open(args.url, "w") as s:
         for message_file in args.message:

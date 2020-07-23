@@ -43,6 +43,6 @@ This provides a similar interface to authenticating as with the requests library
     with stream.open("kafka://hostname:port/topic", "w") as s:
         s.write({"my": "message"})
 
-In order to disable authentication in the command line interface, one can
-pass :code:`--no-auth` for various CLI commands. For the python API, one
-can set :code:`auth=None`.
+In order to disable authentication in the command line interface, you can
+pass :code:`--no-auth` for various CLI commands. For the python API, you
+can set :code:`auth` to :code:`False`.

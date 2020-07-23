@@ -108,7 +108,7 @@ with stream.open("kafka://hostname:port/topic", "w") as s:
     s.write({"my": "message"})
 ```
 
-To explicitly disable authentication one can set `auth=None`.
+To explicitly disable authentication one can set `auth` to `False`.
 
 Consume messages:
 
