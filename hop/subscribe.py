@@ -1,6 +1,5 @@
 import json
 
-from .auth import load_auth
 from . import cli
 from . import io
 
@@ -50,9 +49,8 @@ def _main(args):
     """Receive and parse messages.
 
     """
-    auth = load_auth() if not args.no_auth else None
     start_at = io.StartPosition[args.start_at]
-    stream = io.Stream(auth=auth, start_at=start_at, persist=args.persist)
+    stream = io.Stream(auth=(not args.no_auth), start_at=start_at, persist=args.persist)
 
     with stream.open(args.url, "r") as s:
         for message in s:

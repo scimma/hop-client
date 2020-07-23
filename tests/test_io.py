@@ -82,7 +82,7 @@ def test_stream_read(circular_msg, circular_text):
         start_at = io.StartPosition.EARLIEST
         persist = False
 
-        stream = io.Stream(persist=persist, start_at=start_at)
+        stream = io.Stream(persist=persist, start_at=start_at, auth=False)
 
         with stream.open(broker_url1, "r") as s:
             for msg in s:
@@ -117,7 +117,7 @@ def test_stream_write(circular_msg, circular_text):
 
 
 def test_stream_open():
-    stream = io.Stream()
+    stream = io.Stream(auth=False)
 
     # verify only read/writes are allowed
     with pytest.raises(ValueError):

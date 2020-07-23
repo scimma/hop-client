@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
+from functools import lru_cache
 import getpass
 from enum import Enum
 import json
@@ -11,7 +12,7 @@ import warnings
 
 from adc import consumer, errors, kafka, producer
 
-from .auth import load_auth
+from .auth import get_auth_path, load_auth
 from . import models
 
 logger = logging.getLogger("hop")
@@ -26,17 +27,43 @@ class Stream(object):
     stream connection is opened, it will use defaults specified here.
 
     Args:
-        auth: An `Auth` instance. Defaults to loading from `auth.load_auth()`.
+        auth: A `bool` or `Auth` instance. Defaults to loading from `auth.load_auth()`
+            if set to True. To disable authentication, set to False.
         start_at: The message offset to start at in read mode. Defaults to LATEST.
         persist: Whether to listen to new messages forever or stop
              when EOS is received in read mode. Defaults to False.
 
     """
 
-    def __init__(self, auth=load_auth(), start_at=StartPosition.LATEST, persist=False):
-        self.auth = auth
+    def __init__(self, auth=True, start_at=StartPosition.LATEST, persist=False):
+        self._auth = auth
         self.start_at = start_at
         self.persist = persist
+
+    @property
+    @lru_cache
+    def auth(self):
+        # authentication is disabled in adc-streaming by passing None,
+        # so to provide a nicer interface, we allow boolean flags as well.
+        # this also explicitly gets around a problem in setting
+        # authentication to True by default in the convenience class `stream`
+        # which is set to `Stream()`. instead, authentication is first loaded
+        # during the first open stream and cached for future use.
+        if isinstance(self._auth, bool):
+            if self._auth:
+                try:
+                    return load_auth()
+                except FileNotFoundError:
+                    logger.error(
+                        "authentication set to True and configuration "
+                        f"not found at {get_auth_path()} to authenticate"
+                    )
+                    raise
+            else:
+                return None
+        else:
+            return self._auth
+
 
     def open(self, url, mode="r", metadata=False):
         """Opens a connection to an event stream.
@@ -61,6 +88,7 @@ class Stream(object):
         group_id, broker_addresses, topics = kafka.parse_kafka_url(url)
         logger.debug("connecting to addresses=%s  group_id=%s  topics=%s",
                      broker_addresses, group_id, topics)
+
         if mode == "w":
             if len(topics) != 1:
                 raise ValueError("must specify exactly one topic in write mode")

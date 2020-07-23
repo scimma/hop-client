@@ -83,7 +83,7 @@ can configure a :code:`Stream` instance and pass in an :code:`Auth` instance wit
     with stream.open("kafka://hostname:port/topic", "w") as s:
         s.write({"my": "message"})
 
-To explicitly disable authentication one can set :code:`auth=None`.
+To explicitly disable authentication, one can set :code:`auth` to :code:`False`.
 
 Consume messages
 ^^^^^^^^^^^^^^^^^
