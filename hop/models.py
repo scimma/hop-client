@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 import email
 import json
@@ -6,7 +7,58 @@ import xmltodict
 
 
 @dataclass
-class VOEvent(object):
+class MessageModel(ABC):
+    """An abstract message model.
+
+    """
+
+    def asdict(self):
+        """Represents the message model as a dictionary.
+
+        """
+        return asdict(self)
+
+    def serialize(self):
+        """Wrap the message with its format and content.
+
+        Returns:
+            A dictionary with "format" and "content" keys.
+
+        """
+
+        return {"format": type(self).__name__.lower(), "content": self.asdict()}
+
+    @classmethod
+    def load_file(cls, filename):
+        """Create a new message model from a file.
+
+        Args:
+            filename: The path to a file.
+
+        Returns:
+            The message model.
+
+        """
+        with open(filename, "r") as f:
+            return cls.load(f)
+
+    @classmethod
+    @abstractmethod
+    def load(cls, input_):
+        """Create a new message model from a file object or string.
+
+        Args:
+            input_: A file object or string.
+
+        Returns:
+            The message model.
+
+        """
+        pass
+
+
+@dataclass
+class VOEvent(MessageModel):
     """Defines a VOEvent 2.0 structure.
 
     Implements the schema defined by:
@@ -26,26 +78,6 @@ class VOEvent(object):
     Citations: dict = field(default_factory=dict)
     Description: dict = field(default_factory=dict)
     Reference: dict = field(default_factory=dict)
-
-    def asdict(self):
-        """Represents the VOEvent as a dictionary.
-
-        Returns:
-            A dictionary representation of the VOEvent.
-
-        """
-        return asdict(self)
-
-    def serialize(self):
-        """Wrap the message with its format and content.
-
-        Returns:
-            A dictionary with "format" and "content" key-value pairs.
-
-        """
-
-        wrapped_message = {"format": "voevent", "content": self.asdict()}
-        return wrapped_message
 
     def __str__(self):
         return json.dumps(self.asdict(), indent=2)
@@ -82,7 +114,7 @@ class VOEvent(object):
 
 
 @dataclass
-class GCNCircular(object):
+class GCNCircular(MessageModel):
     """Defines a GCN Circular structure.
 
     The parsed GCN circular is formatted as a dictionary with
@@ -95,14 +127,9 @@ class GCNCircular(object):
     header: dict
     body: str
 
-    def asdict(self):
-        """Represents the GCN Circular as a dictionary.
-
-        Returns:
-            The dictionary representation of the Circular.
-
-        """
-        return asdict(self)
+    def __str__(self):
+        headers = [(name.upper() + ":").ljust(9) + val for name, val in self.header.items()]
+        return "\n".join(headers + ["", self.body])
 
     def serialize(self):
         """Wrap the message with its format and content.
@@ -114,10 +141,6 @@ class GCNCircular(object):
 
         wrapped_message = {"format": "circular", "content": self.asdict()}
         return wrapped_message
-
-    def __str__(self):
-        headers = [(name.upper() + ":").ljust(9) + val for name, val in self.header.items()]
-        return "\n".join(headers + ["", self.body])
 
     @classmethod
     def load(cls, email_input):
@@ -141,24 +164,10 @@ class GCNCircular(object):
             body=message.get_payload(),
         )
 
-    @classmethod
-    def load_file(cls, filename):
-        """Create a new GCNCircular from an RFC 822 formatted circular file.
-
-        Args:
-            filename: The GCN filename.
-
-        Returns:
-            The GCNCircular.
-
-        """
-        with open(filename, "r") as f:
-            return cls.load(f)
-
 
 @dataclass
-class MessageBlob(object):
-    """Defines an unformatted message structure.
+class Blob(MessageModel):
+    """Defines an unformatted message blob.
 
     This is included to mirror the implementation of structured formats.
 
@@ -166,6 +175,9 @@ class MessageBlob(object):
 
     content: str
     missing_schema: bool = False
+
+    def __str__(self):
+        return str(self.content)
 
     def asdict(self):
         """Represents the message as a dictionary.
@@ -175,20 +187,6 @@ class MessageBlob(object):
 
         """
         return asdict(self) if self.missing_schema else {"content": self.content}
-
-    def serialize(self):
-        """Wrap the message with its format and content.
-
-        Returns:
-           A dictionary with "format" and "content" key-value pairs
-
-        """
-
-        wrapped_message = {"format": "blob", "content": self.content}
-        return wrapped_message
-
-    def __str__(self):
-        return str(self.content)
 
     @classmethod
     def load(cls, blob_input):
@@ -205,17 +203,3 @@ class MessageBlob(object):
             return cls(blob_input.read())
         else:
             return cls(blob_input)
-
-    @classmethod
-    def load_file(cls, filename):
-        """Create a blob message from an input file.
-
-        Args:
-            filename: A filename.
-
-        Returns:
-            The Blob.
-
-        """
-        with open(filename, "r") as f:
-            return cls(f.read())
