@@ -75,11 +75,11 @@ def test_cli_subscribe(script_runner):
 
 
 def test_cli_auth(script_runner):
-    ret1 = script_runner.run("hop", "auth", "--help")
+    ret1 = script_runner.run("hop", "configure", "--help")
     assert ret1.success
     assert ret1.stderr == ""
 
-    ret = script_runner.run("hop", "auth", "locate")
+    ret = script_runner.run("hop", "configure", "locate")
     assert ret.success
     assert ret.stderr == ""
 

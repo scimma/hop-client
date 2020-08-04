@@ -6,7 +6,7 @@ from unittest.mock import patch, MagicMock, Mock
 
 import pytest
 
-from hop.auth import Auth
+from hop.configure import Auth
 from hop import io
 from hop.models import GCNCircular, VOEvent, MessageBlob
 

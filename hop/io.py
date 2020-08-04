@@ -35,22 +35,22 @@ class Stream(object):
 
     """
 
-    def __init__(self, config=True, start_at=StartPosition.LATEST, persist=False):
-        self._config = config
+    def __init__(self, auth=True, start_at=StartPosition.LATEST, persist=False):
+        self._auth = auth
         self.start_at = start_at
         self.persist = persist
 
     @property
     @lru_cache(maxsize=1)
-    def config(self):
+    def auth(self):
         # configuration is disabled in adc-streaming by passing None,
         # so to provide a nicer interface, we allow boolean flags as well.
         # this also explicitly gets around a problem in setting
         # configuration to True by default in the convenience class `stream`
         # which is set to `Stream()`. instead, configuration is first loaded
         # during the first open stream and cached for future use.
-        if isinstance(self._config, bool):
-            if self._config:
+        if isinstance(self._auth, bool):
+            if self._auth:
                 try:
                     return load_config()
                 except FileNotFoundError:
@@ -62,7 +62,7 @@ class Stream(object):
             else:
                 return None
         else:
-            return self._config
+            return self._auth
 
     def open(self, url, mode="r", metadata=False):
         """Opens a connection to an event stream.
@@ -93,7 +93,7 @@ class Stream(object):
                 raise ValueError("must specify exactly one topic in write mode")
             if group_id is not None:
                 warnings.warn("group ID has no effect when opening a stream in write mode")
-            return _open_producer(broker_addresses, topics[0], config=self.config)
+            return _open_producer(broker_addresses, topics[0], auth=self.auth)
         elif mode == "r":
             if group_id is None:
                 group_id = _generate_group_id(10)
@@ -104,7 +104,7 @@ class Stream(object):
                 topics,
                 metadata=metadata,
                 start_at=self.start_at,
-                config=self.config,
+                auth=self.auth,
                 read_forever=self.persist,
             )
         else:

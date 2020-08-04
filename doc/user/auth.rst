@@ -35,7 +35,7 @@ This provides a similar interface to authenticating as with the requests library
 .. code:: python
 
     from hop import Stream
-    from hop.auth import Auth
+    from hop.configure import Auth
 
     auth = Auth("my-username", "my-password")
     stream = Stream(auth=auth)
@@ -45,4 +45,4 @@ This provides a similar interface to authenticating as with the requests library
 
 In order to disable authentication in the command line interface, you can
 pass :code:`--no-auth` for various CLI commands. For the python API, you
-can set :code:`auth` to :code:`False`.
+can set :code:`configure` to :code:`False`.
