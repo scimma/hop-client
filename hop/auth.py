@@ -78,4 +78,3 @@ def load_auth(config_file=configure.get_config_path()):
         raise KeyError("configuration file is not configured correctly")
     else:
         return Auth(user, password, ssl=ssl, method=SASLMethod[mechanism], **extra_kwargs)
-

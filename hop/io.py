@@ -57,7 +57,7 @@ class Stream(object):
                 except FileNotFoundError:
                     logger.error(
                         "configuration set to True and configuration file"
-                        f"not found at {get_config_file_path()} to authenticate"
+                        f"not found at {get_config_path()} to authenticate"
                     )
                     raise
             else:
