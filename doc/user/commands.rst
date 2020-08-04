@@ -8,12 +8,12 @@ Commands
 
 **hop-client** provides a command line interface for various tasks:
 
-* :code:`hop auth`: Authentication utilities
+* :code:`hop configure`: Authentication utilities
 * :code:`hop publish`: Publish messages such as GCN circulars and notices
 * :code:`hop subscribe`: Listen to messages such as GCN circulars and notices
 * :code:`hop version`: Show version dependencies of :code:`hop-client`
 
-:code:`hop auth`
+:code:`hop configure`
 ~~~~~~~~~~~~~~~~~~~~~~
 
 This command allows a user to handle auth-based configuration.

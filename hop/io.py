@@ -12,7 +12,7 @@ import warnings
 
 from adc import consumer, errors, kafka, producer
 
-from .auth import get_auth_path, load_auth
+from .configure import get_config_file_path, load_config
 from . import models
 
 logger = logging.getLogger("hop")
@@ -27,7 +27,7 @@ class Stream(object):
     stream connection is opened, it will use defaults specified here.
 
     Args:
-        auth: A `bool` or `Auth` instance. Defaults to loading from `auth.load_auth()`
+        config: A `bool` or `Config` instance. Defaults to loading from `config.load_config()`
             if set to True. To disable authentication, set to False.
         start_at: The message offset to start at in read mode. Defaults to LATEST.
         persist: Whether to listen to new messages forever or stop
@@ -35,34 +35,34 @@ class Stream(object):
 
     """
 
-    def __init__(self, auth=True, start_at=StartPosition.LATEST, persist=False):
-        self._auth = auth
+    def __init__(self, config=True, start_at=StartPosition.LATEST, persist=False):
+        self._config = config
         self.start_at = start_at
         self.persist = persist
 
     @property
     @lru_cache(maxsize=1)
-    def auth(self):
-        # authentication is disabled in adc-streaming by passing None,
+    def config(self):
+        # configuration is disabled in adc-streaming by passing None,
         # so to provide a nicer interface, we allow boolean flags as well.
         # this also explicitly gets around a problem in setting
-        # authentication to True by default in the convenience class `stream`
-        # which is set to `Stream()`. instead, authentication is first loaded
+        # configuration to True by default in the convenience class `stream`
+        # which is set to `Stream()`. instead, configuration is first loaded
         # during the first open stream and cached for future use.
-        if isinstance(self._auth, bool):
-            if self._auth:
+        if isinstance(self._config, bool):
+            if self._config:
                 try:
-                    return load_auth()
+                    return load_config()
                 except FileNotFoundError:
                     logger.error(
-                        "authentication set to True and configuration "
-                        f"not found at {get_auth_path()} to authenticate"
+                        "configuration set to True and configuration file"
+                        f"not found at {get_config_file_path()} to authenticate"
                     )
                     raise
             else:
                 return None
         else:
-            return self._auth
+            return self._config
 
     def open(self, url, mode="r", metadata=False):
         """Opens a connection to an event stream.
@@ -93,7 +93,7 @@ class Stream(object):
                 raise ValueError("must specify exactly one topic in write mode")
             if group_id is not None:
                 warnings.warn("group ID has no effect when opening a stream in write mode")
-            return _open_producer(broker_addresses, topics[0], auth=self.auth)
+            return _open_producer(broker_addresses, topics[0], config=self.config)
         elif mode == "r":
             if group_id is None:
                 group_id = _generate_group_id(10)
@@ -104,7 +104,7 @@ class Stream(object):
                 topics,
                 metadata=metadata,
                 start_at=self.start_at,
-                auth=self.auth,
+                config=self.config,
                 read_forever=self.persist,
             )
         else:
