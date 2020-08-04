@@ -5,6 +5,8 @@ import json
 
 import xmltodict
 
+from . import plugins
+
 
 @dataclass
 class MessageModel(ABC):
@@ -203,3 +205,12 @@ class Blob(MessageModel):
             return cls(blob_input.read())
         else:
             return cls(blob_input)
+
+
+@plugins.register
+def get_models():
+    return {
+        "voevent": VOEvent,
+        "circular": GCNCircular,
+        "blob": Blob,
+    }

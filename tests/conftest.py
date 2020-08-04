@@ -233,8 +233,8 @@ def message_parameters_dict():
             "model_text": VOEVENT_XML.encode(),
         },
         "blob": {
-            "model_name": "MessageBlob",
-            "expected_model": models.MessageBlob,
+            "model_name": "Blob",
+            "expected_model": models.Blob,
             "test_file": "example_blob.txt",
             "model_text": MESSAGE_BLOB,
         },

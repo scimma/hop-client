@@ -42,7 +42,7 @@ def test_blob(blob_text, blob_msg):
     with patch("builtins.open", mock_open(read_data=blob_text)):
         blob_file = "example_blob.txt"
         with open(blob_file, "r") as f:
-            blob = models.MessageBlob.load(f)
+            blob = models.Blob.load(f)
 
         # verify blob text is correct
         assert blob.content == blob_msg["content"]

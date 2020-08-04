@@ -8,7 +8,7 @@ import pytest
 
 from hop.auth import Auth
 from hop import io
-from hop.models import GCNCircular, VOEvent, MessageBlob
+from hop.models import GCNCircular, VOEvent, Blob
 
 logger = logging.getLogger("hop")
 
@@ -27,7 +27,7 @@ def content_mock(message_model):
 @pytest.mark.parametrize("message", [
     {"format": "voevent", "content": content_mock(VOEvent)},
     {"format": "circular", "content": content_mock(GCNCircular)},
-    {"format": "blob", "content": content_mock(MessageBlob)},
+    {"format": "blob", "content": content_mock(Blob)},
     {"format": "other", "content": "other"},
     ["wrong_datatype"],
     {"wrong_key": "value"},
@@ -67,8 +67,8 @@ def test_deserialize(message, message_parameters_dict, caplog):
 
             # verify a message blob was produced with warnings
             output = f"Message format {message_format.upper()} " \
-                "not recognized, returning a MessageBlob"
-            assert isinstance(test_model, MessageBlob)
+                "not recognized, returning a Blob"
+            assert isinstance(test_model, Blob)
             assert output in caplog.text
             assert test_model.missing_schema
 
@@ -146,7 +146,7 @@ def test_pack(circular_msg, circular_text):
 @pytest.mark.parametrize("message", [
     {"format": "voevent", "content": content_mock(VOEvent)},
     {"format": "circular", "content": content_mock(GCNCircular)},
-    {"format": "blob", "content": content_mock(MessageBlob)},
+    {"format": "blob", "content": content_mock(Blob)},
 ])
 def test_pack_unpack_roundtrip(message, message_parameters_dict, caplog):
     format = message["format"]
@@ -179,5 +179,5 @@ def test_pack_unpack_roundtrip(message, message_parameters_dict, caplog):
         assert isinstance(unpacked_msg, expected_model)
         assert unpacked_msg.asdict() == orig_message.asdict()
     else:
-        assert isinstance(unpacked_msg, MessageBlob)
+        assert isinstance(unpacked_msg, Blob)
         assert unpacked_msg.content == orig_message
