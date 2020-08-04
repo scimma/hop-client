@@ -12,7 +12,8 @@ import warnings
 
 from adc import consumer, errors, kafka, producer
 
-from .configure import get_config_file_path, load_config
+from .configure import get_config_path
+from .auth import load_auth
 from . import models
 
 logger = logging.getLogger("hop")
@@ -27,7 +28,7 @@ class Stream(object):
     stream connection is opened, it will use defaults specified here.
 
     Args:
-        config: A `bool` or `Config` instance. Defaults to loading from `config.load_config()`
+        config: A `bool` or `Config` instance. Defaults to loading from `auth.load_auth()`
             if set to True. To disable authentication, set to False.
         start_at: The message offset to start at in read mode. Defaults to LATEST.
         persist: Whether to listen to new messages forever or stop
@@ -52,7 +53,7 @@ class Stream(object):
         if isinstance(self._auth, bool):
             if self._auth:
                 try:
-                    return load_config()
+                    return load_auth()
                 except FileNotFoundError:
                     logger.error(
                         "configuration set to True and configuration file"
