@@ -18,7 +18,7 @@ Commands
 
 This command allows a user to handle auth-based configuration.
 
-.. program-output:: hop auth --help
+.. program-output:: hop configure --help
    :nostderr:
 
 :code:`hop publish`

@@ -21,13 +21,13 @@ Currently, the structured messages available are :code:`VOEvent` and
 .. code:: python
 
     from hop import Stream
-    from hop.auth import load_auth
+    from hop.configure import load_config
     from hop.models import VOEvent
 
     xml_path = "/path/to/voevent.xml"
     voevent = VOEvent.load_file(xml_path)
 
-    stream = Stream(auth=load_auth())
+    stream = Stream(auth=load_config())
     with stream.open("kafka://hostname:port/topic", "w") as s:
         s.write(voevent)
 
