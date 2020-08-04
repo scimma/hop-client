@@ -10,10 +10,13 @@ import string
 from typing import Union
 import warnings
 
+import pluggy
+
 from adc import consumer, errors, kafka, producer
 
 from .auth import get_auth_path, load_auth
 from . import models
+from . import plugins
 
 logger = logging.getLogger("hop")
 
@@ -111,11 +114,32 @@ class Stream(object):
             raise ValueError("mode must be either 'w' or 'r'")
 
 
-class Deserializer(Enum):
-    CIRCULAR = models.GCNCircular
-    VOEVENT = models.VOEvent
-    BLOB = models.MessageBlob
+def _load_deserializer_plugins():
+    """Load all registered deserializer plugins.
 
+    """
+    # set up plugin manager
+    manager = pluggy.PluginManager("hop")
+    manager.add_hookspecs(plugins)
+
+    # load in base models
+    manager.register(models)
+
+    # load external models
+    try:
+        manager.load_setuptools_entrypoints("hop_plugin")
+    except Exception:
+        logger.warning("WARNING: could not load external hop models, verify installed plugins")
+
+    # add all registered plugins to registry
+    registered = {}
+    for model_plugins in manager.hook.get_models():
+        registered.update({name.upper(): model for name, model in model_plugins.items()})
+
+    return registered
+
+
+class _DeserializerMixin:
     @classmethod
     def deserialize(cls, message):
         """Deserialize a stream message and instantiate a model.
@@ -143,14 +167,22 @@ class Deserializer(Enum):
             elif format in cls.__members__:
                 return cls[format].value(**content)
             else:
-                logger.warning(f"Message format {format} not recognized, returning a MessageBlob")
-                return models.MessageBlob(content=content, missing_schema=True)
+                logger.warning(f"Message format {format} not recognized, returning a Blob")
+                return models.Blob(content=content, missing_schema=True)
 
     def load(self, input_):
         return self.value.load(input_)
 
     def load_file(self, input_file):
         return self.value.load_file(input_file)
+
+
+Deserializer = Enum(
+    "Deserializer",
+    _load_deserializer_plugins(),
+    module=__name__,
+    type=_DeserializerMixin
+)
 
 
 def _generate_group_id(n):
