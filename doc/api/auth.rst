@@ -1,7 +1,7 @@
 .. _auth:
 
-hop.configure
+hop.auth
 ################
 
-.. automodule:: hop.configure
+.. automodule:: hop.auth
     :members:

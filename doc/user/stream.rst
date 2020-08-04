@@ -42,7 +42,7 @@ so a shorthand is provided for using one:
 
 A complete list of configurable options in :code:`Stream` are:
 
-* :code:`auth`: A `bool` or :code:`configure.Auth` instance to provide authentication
+* :code:`auth`: A `bool` or :code:`auth.Auth` instance to provide authentication
 * :code:`start_at`: The message offset to start at, by passing in an :code:`io.StartPosition`
 * :code:`persist`: Whether to keep a long-live connection to the client beyond EOS
 

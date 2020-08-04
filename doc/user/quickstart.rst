@@ -75,7 +75,7 @@ can configure a :code:`Stream` instance and pass in an :code:`Auth` instance wit
 .. code:: python
 
     from hop import Stream
-    from hop.configure import Auth
+    from hop.auth import Auth
 
     auth = Auth("my-username", "my-password")
     stream = Stream(auth=auth)

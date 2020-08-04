@@ -35,7 +35,7 @@ This provides a similar interface to authenticating as with the requests library
 .. code:: python
 
     from hop import Stream
-    from hop.configure import Auth
+    from hop.auth import Auth
 
     auth = Auth("my-username", "my-password")
     stream = Stream(auth=auth)
