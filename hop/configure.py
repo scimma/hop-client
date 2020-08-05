@@ -39,6 +39,52 @@ def _add_parser_args(parser):
         "-f", "--force", action="store_true", help="If set, overrides current configuration",
     )
 
+    setup_subparser.add_argument(
+        "-i", "--import_cred", help="Import credentilas from CSV file",
+    )
+
+
+def write_config_file(config_file, username, password):
+
+    os.makedirs(os.path.dirname(config_file), exist_ok=True)
+    with open(config_file, "w") as f:
+        toml.dump({"auth": {"username": username, "password": password}}, f)
+        logger.info(f"Generated configuration at: {config_file}")
+
+
+def configuration_setup(config_file, is_force, csv_file):
+
+    if os.path.exists(config_file) and not is_force:
+        logger.warning("Configuration already exists, overwrite file with --force")
+
+    elif csv_file is None:
+        logger.info("Generating configuration with user-specified username + password")
+
+        username = input("Username: ")
+        write_config_file(config_file, username, getpass.getpass())
+
+    else:
+        try:
+            cf = open(csv_file)
+        except OSError:
+            logger.warning(f"File {csv_file} cannot be opened")
+        else:
+            header = cf.readline().split(",")
+            values = cf.readline().split(",")
+            # extract the username and password according to the arrangment in header
+            # this to avoid extracting wrong data from cred file if we added new fields
+            # before the username and password and/or if the user has an old version of the
+            # credentials file while we updated it with new fields.
+            i = 0
+            for item in header:
+                item = item.rstrip()
+                if item == "username":
+                    username = values[i].rstrip()
+                elif item == "password":
+                    password = values[i].rstrip()
+                i += 1
+            write_config_file(config_file, username, password)
+
 
 def _main(args):
     """Configuration utilities.
@@ -52,15 +98,7 @@ def _main(args):
     if args.command == "locate":
         print(config_file)
     elif args.command == "setup":
-        if os.path.exists(config_file) and not args.force:
-            logger.warning("Configuration already exists, overwrite file with --force")
-        else:
-            logger.info("Generating configuration with user-specified username + password")
-            os.makedirs(os.path.dirname(config_file), exist_ok=True)
-
-            user = input("Username: ")
-            with open(config_file, "w") as f:
-                toml.dump({"auth": {"username": user, "password": getpass.getpass()}}, f)
-            logger.info(f"Generated configuration at: {config_file}")
+        print(args)
+        configuration_setup(config_file, args.force, args.import_cred)
     elif args.command is None:
         logger.warning("Please use any of these commands: locate or setup")

@@ -16,7 +16,9 @@ to authenticate.
 
 In order to generate a configuration file, one can run :code:`hop configure setup`,
 which prompts the user for a username and password to connect to Hopskotch
-to publish or subscribe to messages.
+to publish or subscribe to messages. If you have the credentials csv file, you can
+use it in the configuration file generation as 
+:code:`hop configure setup --import_cred <CREDENTIALS_FILE>` 
 
 The default location for the configuration file can be found with :code:`hop configure locate`,
 which points by default to :code:`${HOME}/.config/hop/config.toml`, but can be configured
