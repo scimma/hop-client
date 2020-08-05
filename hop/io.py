@@ -28,7 +28,7 @@ class Stream(object):
     stream connection is opened, it will use defaults specified here.
 
     Args:
-        config: A `bool` or `Config` instance. Defaults to loading from `auth.load_auth()`
+        auth: A `bool` or `Auth` instance. Defaults to loading from `auth.load_auth()`
             if set to True. To disable authentication, set to False.
         start_at: The message offset to start at in read mode. Defaults to LATEST.
         persist: Whether to listen to new messages forever or stop
