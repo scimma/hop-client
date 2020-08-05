@@ -99,7 +99,7 @@ can configure a `Stream` instance and pass in an `Auth` instance with credential
 
 ```python
 from hop import Stream
-from hop.configure import Auth
+from hop.auth import Auth
 
 auth = Auth("my-username", "my-password")
 stream = Stream(auth=auth)
