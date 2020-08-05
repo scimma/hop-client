@@ -8,6 +8,7 @@ hop-client API
 
     auth
     cli
+    configure
     io
     publish
     subscribe

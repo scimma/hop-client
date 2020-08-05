@@ -12,7 +12,8 @@ import warnings
 
 from adc import consumer, errors, kafka, producer
 
-from .auth import get_auth_path, load_auth
+from .configure import get_config_path
+from .auth import load_auth
 from . import models
 
 logger = logging.getLogger("hop")
@@ -43,11 +44,11 @@ class Stream(object):
     @property
     @lru_cache(maxsize=1)
     def auth(self):
-        # authentication is disabled in adc-streaming by passing None,
+        # configuration is disabled in adc-streaming by passing None,
         # so to provide a nicer interface, we allow boolean flags as well.
         # this also explicitly gets around a problem in setting
-        # authentication to True by default in the convenience class `stream`
-        # which is set to `Stream()`. instead, authentication is first loaded
+        # configuration to True by default in the convenience class `stream`
+        # which is set to `Stream()`. instead, configuration is first loaded
         # during the first open stream and cached for future use.
         if isinstance(self._auth, bool):
             if self._auth:
@@ -55,8 +56,8 @@ class Stream(object):
                     return load_auth()
                 except FileNotFoundError:
                     logger.error(
-                        "authentication set to True and configuration "
-                        f"not found at {get_auth_path()} to authenticate"
+                        "configuration set to True and configuration file"
+                        f"not found at {get_config_path()} to authenticate"
                     )
                     raise
             else:

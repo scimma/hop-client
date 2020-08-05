@@ -1,14 +1,8 @@
-import argparse
-import errno
-import getpass
-import logging
-import os
-
-import toml
-
 from adc import auth
-
-logger = logging.getLogger("hop")
+from . import configure
+import os
+import errno
+import toml
 
 SASLMethod = auth.SASLMethod
 
@@ -40,25 +34,11 @@ class Auth(auth.SASLAuth):
         super().__init__(user, password, ssl=ssl, method=method, **kwargs)
 
 
-def get_auth_path():
-    """Determines the default location for auth configuration.
-
-    Returns:
-        The path to the authentication configuration file.
-
-    """
-    auth_filepath = os.path.join("hop", "config.toml")
-    if "XDG_CONFIG_HOME" in os.environ:
-        return os.path.join(os.getenv("XDG_CONFIG_HOME"), auth_filepath)
-    else:
-        return os.path.join(os.getenv("HOME"), ".config", auth_filepath)
-
-
-def load_auth(authfile=get_auth_path()):
+def load_auth(config_file=configure.get_config_path()):
     """Configures an Auth instance given a configuration file.
 
     Args:
-        authfile: Path to a configuration file, loading from
+        config_file: Path to a configuration file, loading from
             the default location if not given.
 
     Returns:
@@ -68,11 +48,11 @@ def load_auth(authfile=get_auth_path()):
         KeyError: An error occurred parsing the configuration file.
 
     """
-    if not os.path.exists(authfile):
-        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), authfile)
+    if not os.path.exists(config_file):
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), config_file)
 
     # load config
-    with open(authfile, "r") as f:
+    with open(config_file, "r") as f:
         config = toml.loads(f.read())["auth"]
 
     # translate config options
@@ -98,45 +78,3 @@ def load_auth(authfile=get_auth_path()):
         raise KeyError("configuration file is not configured correctly")
     else:
         return Auth(user, password, ssl=ssl, method=SASLMethod[mechanism], **extra_kwargs)
-
-
-def _add_parser_args(parser):
-    subparser = parser.add_subparsers(title="Commands", metavar="<command>", dest="command")
-    subparser.add_parser(
-        "locate",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        help="display authentication config path",
-    )
-
-    setup_subparser = subparser.add_parser(
-        "setup",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        help="set up authentication config with defaults",
-    )
-    setup_subparser.add_argument(
-        "-f", "--force", action="store_true", help="If set, overrides current configuration",
-    )
-
-
-def _main(args):
-    """Authentication utilities.
-
-    """
-    authfile = get_auth_path()
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s | %(name)s : %(levelname)s : %(message)s",
-    )
-
-    if args.command == "locate":
-        print(authfile)
-    elif args.command == "setup":
-        if os.path.exists(authfile) and not args.force:
-            logger.warning("configuration already exists, overwrite file with --force")
-        else:
-            logger.info("generating configuration with user-specified username + password")
-            os.makedirs(os.path.dirname(authfile), exist_ok=True)
-
-            user = input("Username: ")
-            with open(authfile, "w") as f:
-                toml.dump({"auth": {"username": user, "password": getpass.getpass()}}, f)
-            logger.info(f"generated configuration at: {authfile}")
