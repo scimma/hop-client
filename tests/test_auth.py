@@ -3,6 +3,7 @@ from unittest.mock import patch, mock_open
 import pytest
 
 from hop import auth
+from hop import configure
 import subprocess
 import os
 
@@ -32,8 +33,8 @@ def test_setup_auth():
     result = subprocess.Popen(["hop", "configure", "setup", "--import_cred", credentials_file],
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     output, error = result.communicate()
-    assert "Your configuration file has been written at" in output.decode("utf-8")
-    configuration_file = auth.get_auth_path()
+    assert "hop : INFO : Generated configuration at:" in output.decode("utf-8")
+    configuration_file = configure.get_config_path()
     cf = open(configuration_file, "r")
     config_file_text = cf.read()
     assert username in config_file_text
