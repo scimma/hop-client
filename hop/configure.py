@@ -33,7 +33,7 @@ def _add_parser_args(parser):
     setup_subparser = subparser.add_parser(
         "setup",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        help="set up authentication config with defaults",
+        help="set up configuration",
     )
     setup_subparser.add_argument(
         "-f", "--force", action="store_true", help="If set, overrides current configuration",
