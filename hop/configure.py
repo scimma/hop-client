@@ -98,7 +98,6 @@ def _main(args):
     if args.command == "locate":
         print(config_file)
     elif args.command == "setup":
-        print(args)
         configuration_setup(config_file, args.force, args.import_cred)
     elif args.command is None:
         logger.warning("Please use any of these commands: locate or setup")
