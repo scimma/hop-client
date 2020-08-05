@@ -27,7 +27,7 @@ def _add_parser_args(parser):
     subparser.add_parser(
         "locate",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        help="display authentication config path",
+        help="display configuration path",
     )
 
     setup_subparser = subparser.add_parser(
