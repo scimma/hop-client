@@ -41,7 +41,7 @@ def _add_parser_args(parser):
 
 
 def _main(args):
-    """Authentication utilities.
+    """Configuration utilities.
 
     """
     config_file = get_config_path()
