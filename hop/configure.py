@@ -70,10 +70,7 @@ def set_up_configuration(config_file, is_force, csv_file):
             csv_file: Path to csv credentials file 
     """
 
-    if os.path.exists(config_file) and not is_force:
-        logger.warning("Configuration already exists, overwrite file with --force")
-
-    elif csv_file is None:
+    if csv_file is None:
         logger.info("Generating configuration with user-specified username + password")
 
         username = input("Username: ")
@@ -102,6 +99,9 @@ def _main(args):
     if args.command == "locate":
         print(config_file)
     elif args.command == "setup":
-        set_up_configuration(config_file, args.force, args.import_cred)
+        if os.path.exists(config_file) and not is_force:
+            logger.warning("Configuration already exists, overwrite file with --force")
+        else:
+            set_up_configuration(config_file, args.force, args.import_cred)
     elif args.command is None:
         logger.warning("Please use any of these commands: locate or setup")
