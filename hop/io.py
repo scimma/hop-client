@@ -129,12 +129,24 @@ def _load_deserializer_plugins():
     try:
         manager.load_setuptools_entrypoints("hop_plugin")
     except Exception:
-        logger.warning("WARNING: could not load external hop models, verify installed plugins")
+        logger.warning(
+            "could not load external message plugins as one or more plugins "
+            "generated errors upon import. to fix this issue, uninstall or fix "
+            "any problematic plugins that are currently installed."
+        )
 
     # add all registered plugins to registry
     registered = {}
     for model_plugins in manager.hook.get_models():
-        registered.update({name.upper(): model for name, model in model_plugins.items()})
+        for name, model in model_plugins.items():
+            plugin_name = name.upper()
+            if plugin_name in registered:
+                logger.warning(
+                    f"identified duplicate message plugin {plugin_name} registered under "
+                    "the same name. this may cause unexpected behavior when using this "
+                    "message format."
+                )
+            registered[plugin_name] = model
 
     return registered
 
