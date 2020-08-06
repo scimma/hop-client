@@ -45,6 +45,14 @@ def _add_parser_args(parser):
 
 
 def write_config_file(config_file, username, password):
+    """
+        Write configuration file for the given username and password
+
+        Args:
+            config_file: configuration file path
+            username: username at hopskotch
+            password: password at hopskotch
+    """
 
     os.makedirs(os.path.dirname(config_file), exist_ok=True)
     with open(config_file, "w") as f:
@@ -52,7 +60,15 @@ def write_config_file(config_file, username, password):
         logger.info(f"Generated configuration at: {config_file}")
 
 
-def configuration_setup(config_file, is_force, csv_file):
+def set_up_configuration(config_file, is_force, csv_file):
+    """
+        Setup configuration file
+
+        Args:
+            config_file: Configuration file path
+            is_force: True if --force option is set, otherwise False
+            csv_file: Path to csv credentials file 
+    """
 
     if os.path.exists(config_file) and not is_force:
         logger.warning("Configuration already exists, overwrite file with --force")
@@ -98,6 +114,6 @@ def _main(args):
     if args.command == "locate":
         print(config_file)
     elif args.command == "setup":
-        configuration_setup(config_file, args.force, args.import_cred)
+        set_up_configuration(config_file, args.force, args.import_cred)
     elif args.command is None:
         logger.warning("Please use any of these commands: locate or setup")
