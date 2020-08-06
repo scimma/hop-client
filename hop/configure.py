@@ -80,25 +80,13 @@ def set_up_configuration(config_file, is_force, csv_file):
         write_config_file(config_file, username, getpass.getpass())
 
     else:
-        try:
-            cf = open(csv_file)
-        except OSError:
-            logger.warning(f"File {csv_file} cannot be opened")
+        if os.path.exists(csv_file):
+            with open(csv_file, "r") as f:
+                reader = csv.DictReader(f)
+                creds = next(reader)
+                write_config_file(config_file, creds["username"], creds["password"])
         else:
-            header = cf.readline().split(",")
-            values = cf.readline().split(",")
-            # extract the username and password according to the arrangment in header
-            # this to avoid extracting wrong data from cred file if we added new fields
-            # before the username and password and/or if the user has an old version of the
-            # credentials file while we updated it with new fields.
-            i = 0
-            for item in header:
-                item = item.rstrip()
-                if item == "username":
-                    username = values[i].rstrip()
-                elif item == "password":
-                    password = values[i].rstrip()
-                i += 1
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), csv_file)
             write_config_file(config_file, username, password)
 
 
