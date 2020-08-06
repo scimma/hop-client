@@ -13,4 +13,5 @@ hop-client API
     publish
     subscribe
     models
+    plugins
     version
