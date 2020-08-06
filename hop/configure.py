@@ -2,6 +2,8 @@ import argparse
 import getpass
 import logging
 import os
+import csv
+import errno
 
 import toml
 
@@ -39,6 +41,51 @@ def _add_parser_args(parser):
         "-f", "--force", action="store_true", help="If set, overrides current configuration",
     )
 
+    setup_subparser.add_argument(
+        "-i", "--import", dest="import_cred", help="Import credentilas from CSV file",
+    )
+
+
+def write_config_file(config_file, username, password):
+    """
+        Write configuration file for the given username and password
+
+        Args:
+            config_file: configuration file path
+            username: username at hopskotch
+            password: password at hopskotch
+    """
+
+    os.makedirs(os.path.dirname(config_file), exist_ok=True)
+    with open(config_file, "w") as f:
+        toml.dump({"auth": {"username": username, "password": password}}, f)
+        logger.info(f"Generated configuration at: {config_file}")
+
+
+def set_up_configuration(config_file, csv_file):
+    """
+        Setup configuration file
+
+        Args:
+            config_file: Configuration file path
+            csv_file: Path to csv credentials file
+    """
+
+    if csv_file is None:
+        logger.info("Generating configuration with user-specified username + password")
+
+        username = input("Username: ")
+        write_config_file(config_file, username, getpass.getpass())
+
+    else:
+        if os.path.exists(csv_file):
+            with open(csv_file, "r") as f:
+                reader = csv.DictReader(f)
+                creds = next(reader)
+                write_config_file(config_file, creds["username"], creds["password"])
+        else:
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), csv_file)
+
 
 def _main(args):
     """Configuration utilities.
@@ -55,12 +102,6 @@ def _main(args):
         if os.path.exists(config_file) and not args.force:
             logger.warning("Configuration already exists, overwrite file with --force")
         else:
-            logger.info("Generating configuration with user-specified username + password")
-            os.makedirs(os.path.dirname(config_file), exist_ok=True)
-
-            user = input("Username: ")
-            with open(config_file, "w") as f:
-                toml.dump({"auth": {"username": user, "password": getpass.getpass()}}, f)
-            logger.info(f"Generated configuration at: {config_file}")
+            set_up_configuration(config_file, args.import_cred)
     elif args.command is None:
         logger.warning("Please use any of these commands: locate or setup")
