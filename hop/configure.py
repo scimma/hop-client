@@ -2,6 +2,8 @@ import argparse
 import getpass
 import logging
 import os
+import csv
+import errno
 
 import toml
 
@@ -60,14 +62,13 @@ def write_config_file(config_file, username, password):
         logger.info(f"Generated configuration at: {config_file}")
 
 
-def set_up_configuration(config_file, is_force, csv_file):
+def set_up_configuration(config_file, csv_file):
     """
         Setup configuration file
 
         Args:
             config_file: Configuration file path
-            is_force: True if --force option is set, otherwise False
-            csv_file: Path to csv credentials file 
+            csv_file: Path to csv credentials file
     """
 
     if csv_file is None:
@@ -84,7 +85,6 @@ def set_up_configuration(config_file, is_force, csv_file):
                 write_config_file(config_file, creds["username"], creds["password"])
         else:
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), csv_file)
-            write_config_file(config_file, username, password)
 
 
 def _main(args):
@@ -99,9 +99,9 @@ def _main(args):
     if args.command == "locate":
         print(config_file)
     elif args.command == "setup":
-        if os.path.exists(config_file) and not is_force:
+        if os.path.exists(config_file) and not args.force:
             logger.warning("Configuration already exists, overwrite file with --force")
         else:
-            set_up_configuration(config_file, args.force, args.import_cred)
+            set_up_configuration(config_file, args.import_cred)
     elif args.command is None:
         logger.warning("Please use any of these commands: locate or setup")
