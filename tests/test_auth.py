@@ -30,7 +30,7 @@ def test_setup_auth():
         f.write("username,password\n")
         f.write(username + "," + password + "\n")
     # check on new configuration file is written using credential file
-    result = subprocess.Popen(["hop", "configure", "setup", "--import_cred", credentials_file],
+    result = subprocess.Popen(["hop", "configure", "setup", "--import", credentials_file],
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     output, error = result.communicate()
     assert "hop : INFO : Generated configuration at:" in output.decode("utf-8")

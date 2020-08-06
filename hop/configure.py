@@ -42,7 +42,7 @@ def _add_parser_args(parser):
     )
 
     setup_subparser.add_argument(
-        "-i", "--import_cred", help="Import credentilas from CSV file",
+        "-i", "--import", dest="import_cred", help="Import credentilas from CSV file",
     )
 
 
