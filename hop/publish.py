@@ -31,6 +31,13 @@ def _main(args):
             message = loader.load_file(message_file)
             s.write(message)
 
+        # check if stdin is connected to TTY device
         if not sys.stdin.isatty():
-            for message in sys.stdin.read().splitlines():
-                s.write(loader.load(message))
+            messages = sys.stdin.read().splitlines()
+
+            if messages:
+                assert args.format == io.Deserializer.BLOB.name, \
+                    "piping/redirection only allowed for BLOB formats"
+
+                for message in messages:
+                    s.write(loader.load(message))
