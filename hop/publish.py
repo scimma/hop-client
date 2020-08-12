@@ -1,6 +1,5 @@
 import sys
 
-from .auth import load_auth
 from . import cli
 from . import io
 
