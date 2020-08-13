@@ -54,5 +54,8 @@ def test_no_command_configure():
     process = subprocess.Popen(["hop", "configure"],
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     output, error = process.communicate()
-    warning_message = "hop : WARNING : Please use any of these commands: locate or setup"
+    warning_message = (
+        "usage: hop configure [-h] <command> ...\n"
+        "hop configure: error: the following arguments are required: <command>"
+    )
     assert warning_message in output.decode("utf-8")
