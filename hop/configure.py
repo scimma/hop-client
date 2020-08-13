@@ -1,4 +1,3 @@
-import argparse
 import getpass
 import logging
 import os
@@ -25,35 +24,29 @@ def get_config_path():
 
 
 def _add_parser_args(parser):
-    subparser = parser.add_subparsers(title="Commands", metavar="<command>", dest="command")
-    subparser.add_parser(
-        "locate",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        help="display configuration path",
-    )
+    subparser = parser.add_subparsers(title="commands", metavar="<command>", dest="command")
+    subparser.required = True
 
-    setup_subparser = subparser.add_parser(
-        "setup",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        help="set up configuration",
-    )
+    subparser.add_parser("locate", help="display configuration path")
+
+    setup_subparser = subparser.add_parser("setup", help="set up configuration")
     setup_subparser.add_argument(
         "-f", "--force", action="store_true", help="If set, overrides current configuration",
     )
 
     setup_subparser.add_argument(
-        "-i", "--import", dest="import_cred", help="Import credentilas from CSV file",
+        "-i", "--import", dest="import_cred", help="Import credentials from CSV file",
     )
 
 
 def write_config_file(config_file, username, password):
-    """
-        Write configuration file for the given username and password
+    """Write configuration file for the given username and password.
 
-        Args:
-            config_file: configuration file path
-            username: username at hopskotch
-            password: password at hopskotch
+    Args:
+        config_file: configuration file path
+        username: username at hopskotch
+        password: password at hopskotch
+
     """
 
     os.makedirs(os.path.dirname(config_file), exist_ok=True)
@@ -63,12 +56,12 @@ def write_config_file(config_file, username, password):
 
 
 def set_up_configuration(config_file, csv_file):
-    """
-        Setup configuration file
+    """Set up configuration file.
 
-        Args:
-            config_file: Configuration file path
-            csv_file: Path to csv credentials file
+    Args:
+        config_file: Configuration file path
+        csv_file: Path to csv credentials file
+
     """
 
     if csv_file is None:
@@ -103,5 +96,3 @@ def _main(args):
             logger.warning("Configuration already exists, overwrite file with --force")
         else:
             set_up_configuration(config_file, args.import_cred)
-    elif args.command is None:
-        logger.warning("Please use any of these commands: locate or setup")

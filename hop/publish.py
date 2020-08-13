@@ -17,7 +17,7 @@ def _add_parser_args(parser):
 
 
 def _main(args):
-    """Parse and publish messages.
+    """Publish messages.
 
     """
     loader = io.Deserializer[args.format]
