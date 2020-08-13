@@ -46,7 +46,7 @@ def _add_parser_args(parser):
 
 
 def _main(args):
-    """Receive and parse messages.
+    """Subscribe to messages.
 
     """
     start_at = io.StartPosition[args.start_at]
