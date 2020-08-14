@@ -1,7 +1,7 @@
 import argparse
 
 
-def append_subparser(subparser, cmd, func, formatter=False):
+def append_subparser(subparser, cmd, func, formatter_class=None):
     """Attach a command to a subparser, generating help from docstrings.
 
     Args:
@@ -15,12 +15,12 @@ def append_subparser(subparser, cmd, func, formatter=False):
     help_ = func.__doc__.split("\n")[0].lower().strip(".")
     desc = func.__doc__.strip()
 
-    if formatter:
+    if formatter_class:
         parser = subparser.add_parser(
             cmd,
             help=help_,
             description=desc,
-            formatter_class=SubcommandHelpFormatter
+            formatter_class=formatter_class
         )
     else:
         parser = subparser.add_parser(cmd, help=help_, description=desc)
