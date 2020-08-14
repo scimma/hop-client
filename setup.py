@@ -41,7 +41,7 @@ setup(
     author_email = 'patrick.godwin@psu.edu',
     license = 'BSD 3-Clause',
 
-    packages = ['hop'],
+    packages = ['hop', 'hop.utils'],
 
     entry_points = {
         'console_scripts': [

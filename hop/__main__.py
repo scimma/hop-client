@@ -27,7 +27,12 @@ def set_up_cli():
     subparser.required = True
 
     # register commands
-    p = cli_utils.append_subparser(subparser, "configure", configure._main, formatter=True)
+    p = cli_utils.append_subparser(
+        subparser,
+        "configure",
+        configure._main,
+        formatter_class=cli_utils.SubcommandHelpFormatter
+    )
     configure._add_parser_args(p)
 
     p = cli_utils.append_subparser(subparser, "publish", publish._main)
