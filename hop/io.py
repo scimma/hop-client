@@ -1,4 +1,3 @@
-from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
 import getpass
@@ -10,6 +9,7 @@ import string
 from typing import Union
 import warnings
 
+import confluent_kafka
 import pluggy
 
 from adc import consumer, errors, kafka, producer
@@ -68,7 +68,7 @@ class Stream(object):
         else:
             return self._auth
 
-    def open(self, url, mode="r", metadata=False):
+    def open(self, url, mode="r"):
         """Opens a connection to an event stream.
 
         Args:
@@ -76,8 +76,6 @@ class Stream(object):
 
         Kwargs:
             mode: Read ('r') or write ('w') from the stream.
-            metadata: Whether to receive message metadata along
-                with payload (read only).
 
         Returns:
             An open connection to the client, either an adc Producer instance
@@ -97,16 +95,15 @@ class Stream(object):
                 raise ValueError("must specify exactly one topic in write mode")
             if group_id is not None:
                 warnings.warn("group ID has no effect when opening a stream in write mode")
-            return _open_producer(broker_addresses, topics[0], auth=self.auth)
+            return _Producer(broker_addresses, topics[0], auth=self.auth)
         elif mode == "r":
             if group_id is None:
                 group_id = _generate_group_id(10)
                 logger.info(f"group ID not specified, generating a random group ID: {group_id}")
-            return _open_consumer(
+            return _Consumer(
                 group_id,
                 broker_addresses,
                 topics,
-                metadata=metadata,
                 start_at=self.start_at,
                 auth=self.auth,
                 read_forever=self.persist,
@@ -226,19 +223,43 @@ class Metadata:
     key: Union[str, bytes]
 
 
-class _Consumer(consumer.Consumer):
-    def stream(self, metadata=False, **kwargs):
-        for message in super().stream(**kwargs):
+class _Consumer:
+    def __init__(self, group_id, broker_addresses, topics, **kwargs):
+        self._consumer = consumer.Consumer(consumer.ConsumerConfig(
+            broker_urls=broker_addresses,
+            group_id=group_id,
+            **kwargs,
+        ))
+        for t in topics:
+            self._consumer.subscribe(t)
+
+    def read(self, metadata=False, autocommit=True, **kwargs):
+        """Read messages from a stream.
+
+        Args:
+            metadata: Whether to receive message metadata alongside messages.
+            autocommit: Whether messages are automatically marked as handled
+                via `mark_done` when the next message is yielded. Defaults to True.
+
+        """
+        for message in self._consumer.stream(autocommit=autocommit, **kwargs):
             yield self.unpack(message, metadata=metadata)
 
     @staticmethod
     def unpack(message, metadata=False):
+        """Deserialize and unpack messages.
+
+        Args:
+            message: The message to deserialize and unpack.
+            metadata: Whether to receive message metadata alongside messages.
+
+        """
         payload = json.loads(message.value().decode("utf-8"))
         payload = Deserializer.deserialize(payload)
         if metadata:
             return (
                 payload,
-                _Metadata(
+                Metadata(
                     message.topic(),
                     message.partition(),
                     message.offset(),
@@ -249,39 +270,77 @@ class _Consumer(consumer.Consumer):
         else:
             return payload
 
+    def mark_done(self, metadata):
+        """Mark a message as fully-processed.
 
-class _Producer(producer.Producer):
+        Args:
+            metadata: A Metadata instance containing broker-specific metadata.
+
+        """
+        tp = confluent_kafka.TopicPartition(
+            topic=metadata.topic,
+            partition=metadata.partition,
+            offset=metadata.offset + 1
+        )
+        # access Kafka consumer to store offsets
+        self._consumer._consumer.store_offsets(offsets=[tp])
+
+    def close(self):
+        """End all subscriptions and shut down.
+
+        """
+        self._consumer.close()
+
+    def __iter__(self):
+        yield from self.read()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+
+class _Producer:
+    def __init__(self, broker_addresses, topic, **kwargs):
+        self._producer = producer.Producer(producer.ProducerConfig(
+            broker_urls=broker_addresses,
+            topic=topic,
+            delivery_callback=errors.raise_delivery_errors,
+            **kwargs,
+        ))
+
     def write(self, message):
-        super().write(self.pack(message))
+        """Write messages to a stream.
+
+        Args:
+            message: The message to write.
+
+        """
+        self._producer.write(self.pack(message))
 
     @staticmethod
     def pack(message):
+        """Pack and serialize messages.
+
+        Args:
+            message: The message to pack and serialize.
+
+        """
         try:
             payload = message.serialize()
         except AttributeError:
             payload = {"format": "blob", "content": message}
         return json.dumps(payload).encode("utf-8")
 
+    def close(self):
+        """Wait for enqueued messages to be written and shut down.
 
-@contextmanager
-def _open_consumer(group_id, broker_addresses, topics, metadata=False, **kwargs):
-    client = _Consumer(consumer.ConsumerConfig(
-        broker_urls=broker_addresses,
-        group_id=group_id,
-        **kwargs,
-    ))
-    for t in topics:
-        client.subscribe(t)
-    try:
-        yield client.stream(metadata=metadata)
-    finally:
-        client.close()
+        """
+        return self._producer.close()
 
+    def __enter__(self):
+        return self
 
-def _open_producer(broker_addresses, topic, **kwargs):
-    return _Producer(producer.ProducerConfig(
-        broker_urls=broker_addresses,
-        topic=topic,
-        delivery_callback=errors.raise_delivery_errors,
-        **kwargs,
-    ))
+    def __exit__(self, *exc):
+        return self._producer.__exit__(*exc)
