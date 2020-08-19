@@ -213,8 +213,8 @@ def _generate_group_id(n):
     return '-'.join((getpass.getuser(), rand_str))
 
 
-@dataclass
-class _Metadata:
+@dataclass(frozen=True)
+class Metadata:
     """Broker-specific metadata that accompanies a consumed message.
 
     """
