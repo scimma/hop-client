@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 import getpass
 from enum import Enum
@@ -210,17 +210,25 @@ def _generate_group_id(n):
     return '-'.join((getpass.getuser(), rand_str))
 
 
-@dataclass(frozen=True)
+@dataclass
 class Metadata:
     """Broker-specific metadata that accompanies a consumed message.
 
     """
 
-    topic: str
-    partition: int
-    offset: int
-    timestamp: int
-    key: Union[str, bytes]
+    topic: str = field(init=False)
+    partition: int = field(init=False)
+    offset: int = field(init=False)
+    timestamp: int = field(init=False)
+    key: Union[str, bytes] = field(init=False)
+    _raw: confluent_kafka.Message
+
+    def __post_init__(self):
+        self.topic = self._raw.topic()
+        self.partition = self._raw.partition()
+        self.offset = self._raw.offset()
+        self.timestamp = self._raw.timestamp()[1]
+        self.key = self._raw.key()
 
 
 class _Consumer:
@@ -257,16 +265,7 @@ class _Consumer:
         payload = json.loads(message.value().decode("utf-8"))
         payload = Deserializer.deserialize(payload)
         if metadata:
-            return (
-                payload,
-                Metadata(
-                    message.topic(),
-                    message.partition(),
-                    message.offset(),
-                    message.timestamp()[1],
-                    message.key(),
-                )
-            )
+            return (payload, Metadata(_raw=message))
         else:
             return payload
 
@@ -277,13 +276,7 @@ class _Consumer:
             metadata: A Metadata instance containing broker-specific metadata.
 
         """
-        tp = confluent_kafka.TopicPartition(
-            topic=metadata.topic,
-            partition=metadata.partition,
-            offset=metadata.offset + 1
-        )
-        # access Kafka consumer to store offsets
-        self._consumer._consumer.store_offsets(offsets=[tp])
+        self._consumer.mark_done(metadata._raw)
 
     def close(self):
         """End all subscriptions and shut down.
