@@ -46,6 +46,18 @@ A complete list of configurable options in :code:`Stream` are:
 * :code:`start_at`: The message offset to start at, by passing in an :code:`io.StartPosition`
 * :code:`persist`: Whether to keep a long-live connection to the client beyond EOS
 
+One doesn't have to use the context manager protocol (:code:`with` block)
+to open up a stream as long as the stream is explicitly closed afterwards:
+
+.. code:: python
+
+    from hop import stream
+
+    s = stream.open("kafka://hostname:port/topic", "r")
+    for message in s:
+         print(message)
+    s.close()
+
 So far, all examples have shown the iterator interface for reading messages from an open
 stream. But one can instead call :code:`s.read()` directly or in the case of more specialized
 workflows, may make use of extra keyword arguments to configure an open stream. For example,
