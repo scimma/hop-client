@@ -73,13 +73,18 @@ def test_deserialize(message, message_parameters_dict, caplog):
             assert test_model.missing_schema
 
 
-def test_stream_read(circular_msg, circular_text):
-    with patch("hop.io._Consumer", MagicMock()) as mock_consumer:
-        mock_consumer.stream.return_value = [{'hey', 'you'}]
+def test_stream_read(circular_msg, circular_text, mock_broker, mock_consumer):
+    topic = "gcn"
+    group_id = "test-group"
+    start_at = io.StartPosition.EARLIEST
 
-        broker_url1 = "kafka://hostname:port/gcn"
-        broker_url2 = "kafka://hey@hostname:port/gcn"
-        start_at = io.StartPosition.EARLIEST
+    mock_adc_consumer = mock_consumer(mock_broker, topic, group_id, start_at)
+    with patch("hop.io.consumer.Consumer", autospec=True) as mock_instance:
+        mock_instance.side_effect = mock_adc_consumer
+        mock_adc_consumer.stream.return_value = [{'hey', 'you'}]
+
+        broker_url1 = "kafka://hostname:port/{topic}"
+        broker_url2 = "kafka://{group_id}@hostname:port/{topic}"
         persist = False
 
         stream = io.Stream(persist=persist, start_at=start_at, auth=False)
@@ -93,11 +98,13 @@ def test_stream_read(circular_msg, circular_text):
                 continue
 
 
-def test_stream_write(circular_msg, circular_text):
-    with patch("hop.io._Producer", MagicMock()) as mock_producer:
-        mock_producer.write = Mock()
+def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
+    topic = "gcn"
+    mock_adc_producer = mock_producer(mock_broker, topic)
+    with patch("hop.io.producer.Producer", autospec=True) as mock_instance:
+        mock_instance.side_effect = mock_adc_producer
 
-        broker_url = "kafka://localhost:port/gcn"
+        broker_url = f"kafka://localhost:port/{topic}"
         auth = Auth("user", "password")
         start_at = io.StartPosition.EARLIEST
         persist = False
@@ -181,3 +188,15 @@ def test_pack_unpack_roundtrip(message, message_parameters_dict, caplog):
     else:
         assert isinstance(unpacked_msg, Blob)
         assert unpacked_msg.content == orig_message
+
+
+def test_metadata(mock_kafka_message):
+    metadata = io.Metadata(_raw=mock_kafka_message)
+
+    # verify all properties are populated and match raw message
+    assert metadata._raw == mock_kafka_message
+    assert metadata.topic == mock_kafka_message.topic()
+    assert metadata.partition == mock_kafka_message.partition()
+    assert metadata.offset == mock_kafka_message.offset()
+    assert metadata.timestamp == mock_kafka_message.timestamp()[1]
+    assert metadata.key == mock_kafka_message.key()
