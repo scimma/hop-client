@@ -46,7 +46,10 @@ A complete list of configurable options in :code:`Stream` are:
 * :code:`start_at`: The message offset to start at, by passing in an :code:`io.StartPosition`
 * :code:`persist`: Whether to keep a long-live connection to the client beyond EOS
 
-In addition, :code:`stream.open` provides an option to retrieve Kafka message metadata as well
+So far, all examples have shown the iterator interface for reading messages from an open
+stream. But one can instead call :code:`s.read()` directly or in the case of more specialized
+workflows, may make use of extra keyword arguments to configure an open stream. For example,
+the :code:`metadata` option allows one to retrieve Kafka message metadata as well
 as the message itself, such as the Kafka topic, key, timestamp and offset. This may
 be useful in the case of listening to multiple topics at once:
 
@@ -54,6 +57,44 @@ be useful in the case of listening to multiple topics at once:
 
     from hop import stream
 
-    with stream.open("kafka://hostname:port/topic1,topic2", "r", metadata=True) as s:
-        for message, metadata in s:
+    with stream.open("kafka://hostname:port/topic1,topic2", "r") as s:
+        for message, metadata in s.read(metadata=True):
              print(message, metadata.topic)
+
+Anatomy of a Kafka URL
+-----------------------
+
+Both the CLI and python API take a URL that describes how to connect to various
+Kafka topics, and takes the form:
+
+.. code:: bash
+
+   kafka://[groupid@]broker/topic[,topic2[,...]]
+
+The broker takes the form :code:`hostname[:port]` and gives the URL to connect to a
+Kafka broker. Optionally, a :code:`groupid` is provided which is used to keep track
+of which messages have been read from a topic with a given group ID. This allows a long-lived
+process reading messages to pick up where they left off after a restart, for example.
+Finally, one can publish to a topic or subscribe to one or more topics to consume messages
+from.
+
+Committing Messages Manually
+------------------------------
+
+By default, messages that are read in by the stream are marked as read immediately after
+returning them from an open stream instance for a given group ID. This is suitable for most cases,
+but some workflows have more strict fault tolerance requirements and don't want to lose
+messages in the case of a failure while processing the current message. We can instead commit
+messages after we are done processing them so that in the case of a failure, a process that is
+restarted can get the same message back and finish processing it before moving on to the next.
+This requires returning broker-specific metadata as well as assigning yourself to a specific group ID.
+A workflow to do this is shown below:
+
+.. code:: python
+
+    from hop import stream
+
+    with stream.open("kafka://mygroup@hostname:port/topic1", "r") as s:
+        for message, metadata in s.read(metadata=True, autocommit=False):
+             print(message, metadata.topic)
+             s.mark_done(metadata)
