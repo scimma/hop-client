@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import lru_cache
 import getpass
 from enum import Enum
@@ -210,25 +210,29 @@ def _generate_group_id(n):
     return '-'.join((getpass.getuser(), rand_str))
 
 
-@dataclass
+@dataclass(frozen=True)
 class Metadata:
     """Broker-specific metadata that accompanies a consumed message.
 
     """
 
-    topic: str = field(init=False)
-    partition: int = field(init=False)
-    offset: int = field(init=False)
-    timestamp: int = field(init=False)
-    key: Union[str, bytes] = field(init=False)
+    topic: str
+    partition: int
+    offset: int
+    timestamp: int
+    key: Union[str, bytes]
     _raw: confluent_kafka.Message
 
-    def __post_init__(self):
-        self.topic = self._raw.topic()
-        self.partition = self._raw.partition()
-        self.offset = self._raw.offset()
-        self.timestamp = self._raw.timestamp()[1]
-        self.key = self._raw.key()
+    @classmethod
+    def from_message(cls, msg: confluent_kafka.Message) -> 'Metadata':
+        return cls(
+            topic=msg.topic(),
+            partition=msg.partition(),
+            offset=msg.offset(),
+            timestamp=msg.timestamp()[1],
+            key=msg.key(),
+            _raw=msg,
+        )
 
 
 class _Consumer:
@@ -265,7 +269,7 @@ class _Consumer:
         payload = json.loads(message.value().decode("utf-8"))
         payload = Deserializer.deserialize(payload)
         if metadata:
-            return (payload, Metadata(_raw=message))
+            return (payload, Metadata.from_message(message))
         else:
             return payload
 
