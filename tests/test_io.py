@@ -2,7 +2,7 @@ from dataclasses import fields
 import json
 import logging
 from pathlib import Path
-from unittest.mock import patch, MagicMock, Mock
+from unittest.mock import patch, MagicMock
 
 import pytest
 
