@@ -1,11 +1,18 @@
+from collections import defaultdict
+from functools import partialmethod
 import io
+from unittest.mock import MagicMock
 
 import pytest
 
+from adc.consumer import Consumer
+from adc.producer import Producer
+
 from hop import models
+from hop.io import StartPosition
+
 
 # example GCN circular from https://gcn.gsfc.nasa.gov/gcn3_circulars.html
-
 GCN_TITLE = "GCN GRB OBSERVATION REPORT"
 GCN_NUMBER = "40"
 GCN_SUBJECT = "GRB980329 VLA observations"
@@ -167,6 +174,78 @@ AUTH_CONFIG = """\
 username = "username"
 password = "password"
 """
+
+
+class MockBroker:
+    """Mock a Kafka broker.
+
+    This stores internally messages and tracks offsets
+    for different consumer groups.
+
+    """
+
+    def __init__(self):
+        self._messages = defaultdict(list)
+        self._offsets = defaultdict(dict)
+
+    def write(self, topic, msg):
+        self._messages[topic].append(msg)
+
+    def read(self, topic, groupid, start_at=StartPosition.EARLIEST, **kwargs):
+        if topic not in self._offsets or groupid not in self._offsets[topic]:
+            if start_at == StartPosition.EARLIEST:
+                self._offsets[topic][groupid] = 0
+            else:
+                self._offsets[topic][groupid] = len(self._messages[topic]) - 1
+
+        try:
+            offset = self._offsets[topic][groupid]
+            yield from self._messages[offset:]
+        except IndexError:
+            pass
+        else:
+            self._offsets[topic][groupid] = len(self._messages[topic]) - 1
+
+
+@pytest.fixture(scope="session")
+def mock_broker():
+    return MockBroker()
+
+
+@pytest.fixture(scope="session")
+def mock_producer():
+    def _mock_producer(mock_broker, topic):
+        producer = MagicMock(spec=Producer)
+        producer.write.side_effect = partialmethod(mock_broker.write, topic=topic)
+        return producer
+
+    return _mock_producer
+
+
+@pytest.fixture(scope="session")
+def mock_consumer():
+    def _mock_consumer(mock_broker, topic, group_id, start_at):
+        consumer = MagicMock(spec=Consumer)
+        consumer.stream.side_effect = partialmethod(
+            mock_broker.read,
+            groupid=group_id,
+            topic=topic,
+            start_at=start_at,
+        )
+        return consumer
+
+    return _mock_consumer
+
+
+@pytest.fixture(scope="session")
+def mock_kafka_message():
+    message = MagicMock()
+    message.topic.return_value = "test-topic"
+    message.partition.return_value = 0
+    message.offset.return_value = 0
+    message.timestamp.return_value = (0, 1234567890)
+    message.key.return_value = "test-key"
+    return message
 
 
 @pytest.fixture(scope="session")
