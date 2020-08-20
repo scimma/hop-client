@@ -83,8 +83,8 @@ def test_stream_read(circular_msg, circular_text, mock_broker, mock_consumer):
         mock_instance.side_effect = mock_adc_consumer
         mock_adc_consumer.stream.return_value = [{'hey', 'you'}]
 
-        broker_url1 = "kafka://hostname:port/{topic}"
-        broker_url2 = "kafka://{group_id}@hostname:port/{topic}"
+        broker_url1 = f"kafka://hostname:port/{topic}"
+        broker_url2 = f"kafka://{group_id}@hostname:port/{topic}"
         persist = False
 
         stream = io.Stream(persist=persist, start_at=start_at, auth=False)
