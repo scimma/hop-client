@@ -191,7 +191,7 @@ def test_pack_unpack_roundtrip(message, message_parameters_dict, caplog):
 
 
 def test_metadata(mock_kafka_message):
-    metadata = io.Metadata(_raw=mock_kafka_message)
+    metadata = io.Metadata.from_message(mock_kafka_message)
 
     # verify all properties are populated and match raw message
     assert metadata._raw == mock_kafka_message
