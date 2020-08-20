@@ -34,6 +34,7 @@ class SubcommandHelpFormatter(argparse.RawDescriptionHelpFormatter):
     """Custom formatter for displaying subcommands.
 
     """
+
     def _format_action(self, action):
         # fixes spacing/indent introduced by metavar in subparser
         self._action_max_length = 20
