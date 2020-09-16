@@ -2,10 +2,13 @@ from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 import email
 import json
+from typing import Any, Dict, List, Union
 
 import xmltodict
 
 from . import plugins
+
+JSONType = Union[str, int, float, bool, None, Dict[str, Any], List[Any]]
 
 
 @dataclass
@@ -171,11 +174,9 @@ class GCNCircular(MessageModel):
 class Blob(MessageModel):
     """Defines an unformatted message blob.
 
-    This is included to mirror the implementation of structured formats.
-
     """
 
-    content: str
+    content: JSONType
     missing_schema: bool = False
 
     def __str__(self):
@@ -202,9 +203,9 @@ class Blob(MessageModel):
 
         """
         if hasattr(blob_input, "read"):
-            return cls(blob_input.read())
+            return cls(content=blob_input.read())
         else:
-            return cls(blob_input)
+            return cls(content=blob_input)
 
 
 @plugins.register
