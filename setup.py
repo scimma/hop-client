@@ -1,5 +1,5 @@
 import os
-from setuptools import setup
+from setuptools import find_packages, setup
 
 # read in README
 this_dir = os.path.abspath(os.path.dirname(__file__))
@@ -41,7 +41,7 @@ setup(
     author_email = 'patrick.godwin@psu.edu',
     license = 'BSD 3-Clause',
 
-    packages = ['hop', 'hop.utils'],
+    packages = find_packages(),
 
     entry_points = {
         'console_scripts': [
