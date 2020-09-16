@@ -6,6 +6,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2] - 2020-09-16
+### Changed
+- Change `hop auth` to `hop configure`.
+- Return message content rather than a Blob model when unpacking
+  unstructured messages.
+
+### Added
+- Allow custom message formats via external plugins.
+- Add `hop configure web` to get credentials through web UI.
+- Add `hop configure setup -c <credentials>` to populate configuration
+  with credentials.
+- Allow use of open Stream instances without context manager interface.
+- Expose manual committing of messages to allow fault tolerance within
+  applications.
+
 ## [0.1] - 2020-07-24
 ### Changed
 - Modify message serialization format passed through the wire to enable
@@ -65,7 +80,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial Release.
 
-[Unreleased]: https://github.com/scimma/hop-client/compare/v0.1...HEAD
+[Unreleased]: https://github.com/scimma/hop-client/compare/v0.2...HEAD
+[0.2]: https://github.com/scimma/hop-client/releases/tag/v0.2
 [0.1]: https://github.com/scimma/hop-client/releases/tag/v0.1
 [0.0.5]: https://github.com/scimma/hop-client/releases/tag/v0.0.5
 [0.0.4]: https://github.com/scimma/hop-client/releases/tag/v0.0.4
