@@ -1,0 +1,47 @@
+name: Create a release from a tag
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Create release through REST API
+      run: |
+        # generate link changelog to parse later into the release description
+        CHANGELOG_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/master/CHANGELOG.md"
+        
+        # extract the tagname string from the tagpath that triggered the workflow
+        TAG_NAME=$(echo $GITHUB_REF | sed 's/refs\/tags\///')
+
+        # specify fields for the release
+        RELEASE_NAME="${TAG_NAME} release of ${GITHUB_REPOSITORY}"
+        RELEASE_DESC="This release contains the changes, additions, and removals described in the ${TAG_NAME} section of the changelog at ${CHANGELOG_URL}"
+
+        # generate data for the cURL command beforehand, to ease the parsing of strings/variables;
+        # see https://stackoverflow.com/a/17032673/9161344
+        generate_release_data() {
+        cat <<EOF
+        {
+        "tag_name":"$TAG_NAME",
+        "name":"${RELEASE_NAME}",
+        "body":"${RELEASE_DESC}",
+        "draft": false,
+        "prerelease": false
+        }
+        EOF
+        }
+
+        # curl the Github API with the release command.
+        # see https://docs.github.com/en/rest/reference/repos#releases
+        curl \
+            -X POST \
+            --header 'authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${GITHUB_REPOSITORY}/releases \
+            -d "$(generate_release_data)"
