@@ -173,7 +173,7 @@ class _DeserializerMixin:
             raise ValueError("Message is incorrectly formatted")
         else:
             if format == Deserializer.BLOB.name:
-                return cls[format].value(content=content)
+                return content
             elif format in cls.__members__:
                 return cls[format].value(**content)
             else:
