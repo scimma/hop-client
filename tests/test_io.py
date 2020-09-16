@@ -27,7 +27,7 @@ def content_mock(message_model):
 @pytest.mark.parametrize("message", [
     {"format": "voevent", "content": content_mock(VOEvent)},
     {"format": "circular", "content": content_mock(GCNCircular)},
-    {"format": "blob", "content": content_mock(Blob)},
+    {"format": "blob", "content": "this is a test message"},
     {"format": "other", "content": "other"},
     ["wrong_datatype"],
     {"wrong_key": "value"},
@@ -153,7 +153,7 @@ def test_pack(circular_msg, circular_text):
 @pytest.mark.parametrize("message", [
     {"format": "voevent", "content": content_mock(VOEvent)},
     {"format": "circular", "content": content_mock(GCNCircular)},
-    {"format": "blob", "content": content_mock(Blob)},
+    {"format": "blob", "content": "this is a test message"},
 ])
 def test_pack_unpack_roundtrip(message, message_parameters_dict, caplog):
     format = message["format"]
@@ -186,8 +186,8 @@ def test_pack_unpack_roundtrip(message, message_parameters_dict, caplog):
         assert isinstance(unpacked_msg, expected_model)
         assert unpacked_msg.asdict() == orig_message.asdict()
     else:
-        assert isinstance(unpacked_msg, Blob)
-        assert unpacked_msg.content == orig_message
+        assert isinstance(unpacked_msg, type(unpacked_msg))
+        assert unpacked_msg == orig_message
 
 
 def test_metadata(mock_kafka_message):
