@@ -313,7 +313,7 @@ def message_parameters_dict():
         },
         "blob": {
             "model_name": "Blob",
-            "expected_model": models.Blob,
+            "expected_model": str,
             "test_file": "example_blob.txt",
             "model_text": MESSAGE_BLOB,
         },
