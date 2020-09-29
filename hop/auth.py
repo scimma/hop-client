@@ -34,7 +34,7 @@ class Auth(auth.SASLAuth):
         super().__init__(user, password, ssl=ssl, method=method, **kwargs)
 
 
-def load_auth(config_file=configure.get_config_path()):
+def load_auth(config_file=None):
     """Configures an Auth instance given a configuration file.
 
     Args:
@@ -48,6 +48,8 @@ def load_auth(config_file=configure.get_config_path()):
         KeyError: An error occurred parsing the configuration file.
 
     """
+    if config_file is None:
+        config_file = configure.get_config_path()
     if not os.path.exists(config_file):
         raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), config_file)
 

@@ -1,4 +1,6 @@
 from unittest.mock import patch, mock_open
+from tempfile import TemporaryDirectory
+from contextlib import contextmanager
 
 import pytest
 
@@ -8,8 +10,32 @@ import subprocess
 import os
 
 
+@contextmanager
+def temp_environ(**vars):
+    """
+    A simple context manager for temprarily setting environment variables
+
+    Kwargs:
+        variables to be set and their values
+
+    Returns:
+        None
+    """
+    from os import environ
+    original = dict(environ)
+    os.environ.update(vars)
+    try:
+        yield  # no value needed
+    finally:
+        # restore original data
+        os.environ.clear()
+        os.environ.update(original)
+
+
 def test_load_auth(auth_config):
-    with patch("builtins.open", mock_open(read_data=auth_config)) as mock_file:
+    with patch("builtins.open", mock_open(read_data=auth_config)) as mock_file, \
+            TemporaryDirectory() as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir):
 
         # check error handling
         with pytest.raises(FileNotFoundError):
@@ -22,32 +48,33 @@ def test_load_auth(auth_config):
 
 
 def test_setup_auth():
+    with TemporaryDirectory() as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        credentials_file = config_dir + "/credentials.csv"
+        username = "scimma"
+        password = "scimmapass"
+        with open(credentials_file, "w") as f:
+            f.write("username,password\n")
+            f.write(username + "," + password + "\n")
 
-    credentials_file = "credentials.csv"
-    username = "scimma"
-    password = "scimmapass"
-    with open(credentials_file, "w") as f:
-        f.write("username,password\n")
-        f.write(username + "," + password + "\n")
+        # check on new configuration file is written using credential file
+        process = subprocess.Popen(["hop", "configure", "setup", "--import", credentials_file],
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        output, error = process.communicate()
+        assert "hop : INFO : Generated configuration at:" in output.decode("utf-8")
+        configuration_file = configure.get_config_path()
+        cf = open(configuration_file, "r")
+        config_file_text = cf.read()
+        assert username in config_file_text
+        assert password in config_file_text
+        os.remove(credentials_file)
 
-    # check on new configuration file is written using credential file
-    process = subprocess.Popen(["hop", "configure", "setup", "--import", credentials_file],
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    output, error = process.communicate()
-    assert "hop : INFO : Generated configuration at:" in output.decode("utf-8")
-    configuration_file = configure.get_config_path()
-    cf = open(configuration_file, "r")
-    config_file_text = cf.read()
-    assert username in config_file_text
-    assert password in config_file_text
-    os.remove(credentials_file)
-
-    # hop configure setup (need --force)
-    process = subprocess.Popen(["hop", "configure", "setup"],
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    output, error = process.communicate()
-    warning_message = "hop : WARNING : Configuration already exists, overwrite file with --force"
-    assert warning_message in output.decode("utf-8")
+        # hop configure setup (need --force)
+        process = subprocess.Popen(["hop", "configure", "setup"],
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        output, error = process.communicate()
+        warning_message = \
+            "hop : WARNING : Configuration already exists, overwrite file with --force"
+        assert warning_message in output.decode("utf-8")
 
 
 def test_no_command_configure():
