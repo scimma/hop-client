@@ -127,8 +127,19 @@ def test_stream_open():
     stream = io.Stream(auth=False)
 
     # verify only read/writes are allowed
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as err:
         stream.open("kafka://localhost:9092/topic1", "q")
+    assert "mode must be either 'w' or 'r'" in err.value.args
+
+    # verify that URLs with no scheme are rejected
+    with pytest.raises(ValueError) as err:
+        stream.open("bad://exmple.com/topic", "r")
+    assert "invalid kafka URL: must start with 'kafka://'" in err.value.args
+
+    # verify that URLs with no topic are rejected
+    with pytest.raises(ValueError) as err:
+        stream.open("kafka://exmple.com/", "r")
+    assert "no topic(s) specified in kafka URL" in err.value.args
 
 
 def test_unpack(circular_msg, circular_text):
