@@ -92,3 +92,16 @@ def test_cli_version(script_runner):
     ret = script_runner.run("hop", "version")
     assert ret.success
     assert ret.stderr == ""
+
+
+def test_error_verbosity(script_runner):
+    simple = script_runner.run("hop", "subscribe", "BAD-URL")
+    assert not simple.success
+    assert simple.stdout == ""
+    assert "Traceback (most recent call last)" not in simple.stderr
+    assert simple.stderr.startswith("hop: ")
+
+    detailed = script_runner.run("hop", "--debug", "subscribe", "BAD-URL")
+    assert not detailed.success
+    assert detailed.stdout == ""
+    assert "Traceback (most recent call last)" in detailed.stderr

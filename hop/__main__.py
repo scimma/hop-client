@@ -1,5 +1,7 @@
 import argparse
 import signal
+import sys
+import traceback
 
 from . import __version__
 from . import configure
@@ -20,6 +22,11 @@ def set_up_cli():
     parser = argparse.ArgumentParser(prog="hop", formatter_class=cli_utils.SubcommandHelpFormatter)
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s version {__version__}",
+    )
+
+    parser.add_argument(
+        "-d", "--debug", action="store_true",
+        help="Display more verbose errors with internal details",
     )
 
     # set up subparser
@@ -51,7 +58,14 @@ def main():
 
     parser = set_up_cli()
     args = parser.parse_args()
-    args.func(args)
+    try:
+        args.func(args)
+    except Exception as ex:
+        if args.debug:
+            traceback.print_exc(file=sys.stderr)
+        else:
+            print(parser.prog + ":", ex, file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
