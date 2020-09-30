@@ -90,6 +90,8 @@ class Stream(object):
         logger.debug("connecting to addresses=%s  group_id=%s  topics=%s",
                      broker_addresses, group_id, topics)
 
+        if topics is None:
+            raise ValueError("no topic(s) specified in kafka URL")
         if mode == "w":
             if len(topics) != 1:
                 raise ValueError("must specify exactly one topic in write mode")
