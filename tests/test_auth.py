@@ -1,5 +1,4 @@
 from unittest.mock import patch, mock_open
-from tempfile import TemporaryDirectory
 from contextlib import contextmanager
 
 import pytest
@@ -32,10 +31,9 @@ def temp_environ(**vars):
         os.environ.update(original)
 
 
-def test_load_auth(auth_config):
+def test_load_auth(auth_config, tmpdir):
     with patch("builtins.open", mock_open(read_data=auth_config)) as mock_file, \
-            TemporaryDirectory() as config_dir, \
-            temp_environ(XDG_CONFIG_HOME=config_dir):
+            temp_environ(XDG_CONFIG_HOME=str(tmpdir)):
 
         # check error handling
         with pytest.raises(FileNotFoundError):
@@ -47,9 +45,82 @@ def test_load_auth(auth_config):
             auth.load_auth()
 
 
-def test_setup_auth():
-    with TemporaryDirectory() as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
-        credentials_file = config_dir + "/credentials.csv"
+def test_load_auth_malformed():
+    missing_username = """
+                       [auth]
+                       password = "password"
+                       extra = "stuff"
+                       """
+    with patch("builtins.open", mock_open(read_data=missing_username)) as mock_file, \
+            patch("os.path.exists") as mock_exists, \
+            pytest.raises(KeyError):
+        auth.load_auth()
+
+    missing_password = """
+                       [auth]
+                       username = "username"
+                       extra = "stuff"
+                       """
+    with patch("builtins.open", mock_open(read_data=missing_password)) as mock_file, \
+            patch("os.path.exists") as mock_exists, \
+            pytest.raises(KeyError):
+        auth.load_auth()
+
+
+def test_load_auth_options(auth_config):
+    # SSL should be used by default
+    # The default mechanism should be SCRAM_SHA_512
+    with patch("builtins.open", mock_open(read_data=auth_config)) as mock_file, \
+            patch("os.path.exists") as mock_exists, \
+            patch("hop.auth.Auth") as auth_mock:
+        auth.load_auth()
+        assert auth_mock.called_with(ssl=True)
+        from adc.auth import SASLMethod
+        assert auth_mock.called_with(mechanism=SASLMethod.SCRAM_SHA_512)
+
+    # But it should be possible to disable SSL
+    use_plaintext = """
+                       [auth]
+                       username = "username"
+                       password = "password"
+                       protocol = "SASL_PLAINTEXT"
+                       """
+    with patch("builtins.open", mock_open(read_data=use_plaintext)) as mock_file, \
+            patch("os.path.exists") as mock_exists, \
+            patch("hop.auth.Auth") as auth_mock:
+        auth.load_auth()
+        assert auth_mock.called_with(ssl=False)
+
+    # An SSL CA data path should be honored
+    with_ca_data = """
+                   [auth]
+                   username = "username"
+                   password = "password"
+                   ssl_ca_location = "/foo/bar/baz"
+                   """
+    with patch("builtins.open", mock_open(read_data=with_ca_data)) as mock_file, \
+            patch("os.path.exists") as mock_exists, \
+            patch("hop.auth.Auth") as auth_mock:
+        auth.load_auth()
+        assert auth_mock.called_with(ssl_ca_location="/foo/bar/baz")
+
+    # Alternate mechanisms should be honored
+    plain_mechanism = """
+                      [auth]
+                      username = "username"
+                      password = "password"
+                      mechanism = "PLAIN"
+                      """
+    with patch("builtins.open", mock_open(read_data=plain_mechanism)) as mock_file, \
+            patch("os.path.exists") as mock_exists, \
+            patch("hop.auth.Auth") as auth_mock:
+        auth.load_auth()
+        assert auth_mock.called_with(mechanism=SASLMethod.PLAIN)
+
+
+def test_setup_auth(tmpdir):
+    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)):
+        credentials_file = tmpdir / "credentials.csv"
         username = "scimma"
         password = "scimmapass"
         with open(credentials_file, "w") as f:
