@@ -5,7 +5,6 @@ import pytest
 
 from hop import auth
 from hop import configure
-import subprocess
 import os
 
 
@@ -118,7 +117,7 @@ def test_load_auth_options(auth_config):
         assert auth_mock.called_with(mechanism=SASLMethod.PLAIN)
 
 
-def test_setup_auth(tmpdir):
+def test_setup_auth(script_runner, tmpdir):
     with temp_environ(XDG_CONFIG_HOME=str(tmpdir)):
         credentials_file = tmpdir / "credentials.csv"
         username = "scimma"
@@ -128,10 +127,9 @@ def test_setup_auth(tmpdir):
             f.write(username + "," + password + "\n")
 
         # check on new configuration file is written using credential file
-        process = subprocess.Popen(["hop", "configure", "setup", "--import", credentials_file],
-                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        output, error = process.communicate()
-        assert "hop : INFO : Generated configuration at:" in output.decode("utf-8")
+        ret1 = script_runner.run("hop", "configure", "setup", "--import", str(credentials_file))
+        assert ret1.success
+        assert "hop : INFO : Generated configuration at:" in ret1.stderr
         configuration_file = configure.get_config_path()
         cf = open(configuration_file, "r")
         config_file_text = cf.read()
@@ -140,20 +138,17 @@ def test_setup_auth(tmpdir):
         os.remove(credentials_file)
 
         # hop configure setup (need --force)
-        process = subprocess.Popen(["hop", "configure", "setup"],
-                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        output, error = process.communicate()
         warning_message = \
             "hop : WARNING : Configuration already exists, overwrite file with --force"
-        assert warning_message in output.decode("utf-8")
+        ret2 = script_runner.run("hop", "configure", "setup")
+        assert warning_message in ret2.stderr
 
 
-def test_no_command_configure():
-    process = subprocess.Popen(["hop", "configure"],
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    output, error = process.communicate()
+def test_no_command_configure(script_runner):
     warning_message = (
         "usage: hop configure [-h] <command> ...\n"
         "hop configure: error: the following arguments are required: <command>"
     )
-    assert warning_message in output.decode("utf-8")
+    ret = script_runner.run("hop", "configure")
+    assert not ret.success
+    assert warning_message in ret.stderr
