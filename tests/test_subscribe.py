@@ -1,17 +1,18 @@
-import io
-import codecs
 from contextlib import redirect_stdout
+import io
+import os
 from pathlib import Path
 
-from unittest.mock import patch, MagicMock
 import pytest
 
+from hop import models
 from hop import subscribe
 
 
 # test the subscribe printer for each message format
 @pytest.mark.parametrize("message_format", ["voevent", "circular", "blob"])
-def test_print_message(message_format, message_parameters_dict):
+@pytest.mark.parametrize("json_dump", [True, False])
+def test_print_message(message_format, json_dump, message_parameters_dict):
 
     # load parameters from conftest
     message_parameters = message_parameters_dict[message_format]
@@ -20,32 +21,32 @@ def test_print_message(message_format, message_parameters_dict):
 
     shared_datadir = Path("tests/data")
 
-    test_content = (shared_datadir / "test_data" / test_file).read_text()
+    test_content_path = shared_datadir / "test_data" / test_file
 
-    # control the output of the hop.model's print method with mocking
-    with patch(f"hop.models.{model_name}", MagicMock()) as mock_model:
-        mock_model.__str__.return_value = test_content
+    # load model
+    model_class = message_parameters["expected_model"]
+    if issubclass(model_class, models.MessageModel):
+        model = model_class.load_file(test_content_path)
+    else:
+        model = test_content_path.read_text()
 
-        f = io.StringIO()
-        with redirect_stdout(f):
-            subscribe.print_message(mock_model, json_dump=False)
+    f = io.StringIO()
+    with redirect_stdout(f):
+        subscribe.print_message(model, json_dump=json_dump)
 
-        # read stdout from beginning
-        f.seek(0)
+    # extract message string from stdout
+    test_message_stdout_str = f.getvalue()
 
-        # extract message string from stdout
-        test_message_stdout_list = f.readlines()
-        test_message_stdout_str = "".join(test_message_stdout_list)
+    # read in expected stdout text
+    expected_basename = os.path.splitext(test_file)[0]
+    if json_dump:
+        expected_file = "_".join([expected_basename, "json"]) + ".stdout"
+    else:
+        expected_file = expected_basename + ".stdout"
+    expected_message_stdout = (shared_datadir / "expected_data" / expected_file).read_text()
 
-        # read in expected stdout text
-        expected_message_raw = (
-            shared_datadir / "expected_data" / (test_file + ".stdout")
-        ).read_text()
+    # verify printed message structure is correct
+    print(test_message_stdout_str)
+    assert test_message_stdout_str == expected_message_stdout
 
-        # use codec to decode the expected output to leave newline/tab characters intact
-        expected_message_stdout = codecs.unicode_escape_decode(expected_message_raw)[0]
-
-        # verify printed message structure is correct
-        print(test_message_stdout_str)
-
-        assert test_message_stdout_str == expected_message_stdout
+    f.close()
