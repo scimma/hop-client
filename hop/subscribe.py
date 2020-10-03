@@ -2,24 +2,25 @@ import json
 
 from . import cli
 from . import io
+from . import models
 
 
-def print_message(message_model, json_dump=False):
+def print_message(message, json_dump=False):
     """Print the content of a message.
 
     Args:
-      message_model: dataclass model object for a message
+      message: message to print
       json_dump: boolean indicating whether to print as raw json
 
     Returns:
       None
     """
-
-    # print the message content
     if json_dump:
-        print(json.dumps(message_model.asdict()))
-    else:
-        print(str(message_model))
+        if isinstance(message, models.MessageModel):
+            message = json.dumps(message.asdict())
+        else:
+            message = json.dumps(message)
+    print(message)
 
 
 def _add_parser_args(parser):
