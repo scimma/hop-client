@@ -30,7 +30,6 @@ class MessageModel(ABC):
             A dictionary with "format" and "content" keys.
 
         """
-
         return {"format": type(self).__name__.lower(), "content": self.asdict()}
 
     @classmethod
@@ -181,6 +180,15 @@ class Blob(MessageModel):
 
     def __str__(self):
         return str(self.content)
+
+    def serialize(self):
+        """Wrap the message with its format and content.
+
+        Returns:
+            A dictionary with "format" and "content" keys.
+
+        """
+        return {"format": type(self).__name__.lower(), "content": self.content}
 
     def asdict(self):
         """Represents the message as a dictionary.
