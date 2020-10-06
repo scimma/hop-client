@@ -130,10 +130,13 @@ def _load_deserializer_plugins():
         manager.load_setuptools_entrypoints("hop_plugin")
     except Exception:
         logger.warning(
-            "could not load external message plugins as one or more plugins "
+            "Could not load external message plugins as one or more plugins "
             "generated errors upon import. to fix this issue, uninstall or fix "
             "any problematic plugins that are currently installed."
         )
+        import sys
+        import traceback
+        traceback.print_exc(file=sys.stderr)
 
     # add all registered plugins to registry
     registered = {}
@@ -142,7 +145,7 @@ def _load_deserializer_plugins():
             plugin_name = name.upper()
             if plugin_name in registered:
                 logger.warning(
-                    f"identified duplicate message plugin {plugin_name} registered under "
+                    f"Identified duplicate message plugin {plugin_name} registered under "
                     "the same name. this may cause unexpected behavior when using this "
                     "message format."
                 )
@@ -330,7 +333,12 @@ class _Producer:
             payload = message.serialize()
         except AttributeError:
             payload = {"format": "blob", "content": message}
-        return json.dumps(payload).encode("utf-8")
+        try:
+            return json.dumps(payload).encode("utf-8")
+        except TypeError:
+            raise TypeError("Unable to pack a message of type "
+                            + message.__class__.__name__
+                            + " which cannot be serialized to JSON")
 
     def close(self):
         """Wait for enqueued messages to be written and shut down.
