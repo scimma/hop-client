@@ -332,6 +332,9 @@ def test_plugin_loading(caplog):
                         "foo": None,
                         "bar": None,
                         }, {"Foo": str}])
+    # If we don't make this property explicitly false, the Mock will helpfully create it as another
+    # Mock object which will then look true-ish to pluggy, leading to problems
+    gm_mock.spec.warn_on_impl = False
     pm2.hook.get_models = gm_mock
     with patch("pluggy.PluginManager", MagicMock(return_value=pm2)), \
             caplog.at_level(logging.WARNING):
