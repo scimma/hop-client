@@ -2,7 +2,7 @@ from dataclasses import fields
 import json
 import logging
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import mock_open, patch, MagicMock
 
 import pytest
 
@@ -73,29 +73,32 @@ def test_deserialize(message, message_parameters_dict, caplog):
             assert test_model.missing_schema
 
 
-def test_stream_read(circular_msg, circular_text, mock_broker, mock_consumer):
+def test_stream_read(circular_msg):
     topic = "gcn"
     group_id = "test-group"
     start_at = io.StartPosition.EARLIEST
 
-    mock_adc_consumer = mock_consumer(mock_broker, topic, group_id, start_at)
-    with patch("hop.io.consumer.Consumer", autospec=True) as mock_instance:
-        mock_instance.side_effect = mock_adc_consumer
-        mock_adc_consumer.stream.return_value = [{'hey', 'you'}]
-
+    message_data = {"format": "circular", "content": circular_msg}
+    fake_message = MagicMock()
+    fake_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
+    mock_instance = MagicMock()
+    mock_instance.stream = MagicMock(return_value=[fake_message])
+    stream = io.Stream(persist=False, start_at=start_at, auth=False)
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
         broker_url1 = f"kafka://hostname:port/{topic}"
         broker_url2 = f"kafka://{group_id}@hostname:port/{topic}"
-        persist = False
 
-        stream = io.Stream(persist=persist, start_at=start_at, auth=False)
-
+        messages = 0
         with stream.open(broker_url1, "r") as s:
             for msg in s:
-                continue
+                messages += 1
+        assert messages == 1
 
+        messages = 0
         with stream.open(broker_url2, "r") as s:
             for msg in s:
-                continue
+                messages += 1
+        assert messages == 1
 
 
 def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
@@ -121,6 +124,36 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
 
         with stream.open(broker_url, "w") as s:
             s.write(circular_msg)
+
+        # repeat, but with a manual close instead of context management
+        s = stream.open(broker_url, "w")
+        s.write(circular_msg)
+        s.close()
+
+
+def test_stream_auth(auth_config):
+    # turning off authentication should give None for the auth property
+    s1 = io.Stream(auth=False)
+    assert s1.auth is None
+
+    # turning on authentication should give an auth object with the data read from the default file
+    with patch("builtins.open", mock_open(read_data=auth_config)) as mock_file, \
+            patch("os.path.exists") as mock_exists:
+        s2 = io.Stream(auth=True)
+        a2 = s2.auth
+        mock_file.assert_called_once()
+        assert a2._config["sasl.username"] == "username"
+        assert a2._config["sasl.password"] == "password"
+
+    # turning on authentication should fail when the default file does not exist
+    with patch("os.path.exists", MagicMock(return_value=False)) as mock_exists, \
+            pytest.raises(FileNotFoundError):
+        s3 = io.Stream(auth=True)
+        a3 = s3.auth
+
+    # anything other than a bool passed to the Stream constructor should get handed back unchanged
+    s4 = io.Stream(auth="blarg")
+    assert s4.auth == "blarg"
 
 
 def test_stream_open():
@@ -149,6 +182,26 @@ def test_unpack(circular_msg, circular_text):
     kafka_msg.value.return_value = json.dumps(wrapped_msg).encode("utf-8")
 
     unpacked_msg = io._Consumer.unpack(kafka_msg)
+
+    unpacked_msg2, metadata = io._Consumer.unpack(kafka_msg, metadata=True)
+    assert unpacked_msg2 == unpacked_msg
+
+
+def test_mark_done(circular_msg):
+    start_at = io.StartPosition.EARLIEST
+    message_data = {"format": "circular", "content": circular_msg}
+
+    mock_message = MagicMock()
+    mock_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
+    mock_instance = MagicMock()
+    mock_instance.stream = MagicMock(return_value=[mock_message])
+    stream = io.Stream(persist=False, start_at=start_at, auth=False)
+
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+        with stream.open("kafka://hostname:port/gcn", "r") as s:
+            for msg, metadata in s.read(metadata=True):
+                s.mark_done(metadata)
+                mock_instance.mark_done.assert_called()
 
 
 def test_pack(circular_msg, circular_text):
@@ -201,6 +254,44 @@ def test_pack_unpack_roundtrip(message, message_parameters_dict, caplog):
         assert unpacked_msg == orig_message
 
 
+def test_pack_unpack_roundtrip_unstructured():
+    # objects (of types that json.loads happens to produce) should remain unchanged by the process
+    # of packing and unpacking
+    for orig_message in ["a string", ["a", "B", "c"], {"dict": True, "other_data": [5, 17]}]:
+        packed_msg = io._Producer.pack(orig_message)
+        kafka_msg = MagicMock()
+        kafka_msg.value.return_value = packed_msg
+        unpacked_msg = io._Consumer.unpack(kafka_msg)
+        assert unpacked_msg == orig_message
+
+    # non-serializable objects should raise an error
+    with pytest.raises(TypeError):
+        # note that we are not trying to pack a string, but the string class itself
+        packed_msg = io._Producer.pack(str)
+
+
+@pytest.mark.parametrize("message", [
+    {"format": "voevent", "content": content_mock(VOEvent)},
+    {"format": "circular", "content": content_mock(GCNCircular)}
+])
+def test_load_load_file_equivalence(message, message_parameters_dict):
+    format = message["format"]
+    content = message["content"]
+
+    # load test data
+    shared_datadir = Path("tests/data")
+    test_filename = message_parameters_dict[format]["test_file"]
+    test_file = shared_datadir / "test_data" / test_filename
+
+    deserializer = io.Deserializer[format.upper()]
+    from_file = deserializer.load_file(test_file)
+
+    with open(test_file, "r") as df:
+        raw_data = df.read()
+    from_mem = deserializer.load(raw_data)
+    assert from_mem == from_file
+
+
 def test_metadata(mock_kafka_message):
     metadata = io.Metadata.from_message(mock_kafka_message)
 
@@ -211,3 +302,62 @@ def test_metadata(mock_kafka_message):
     assert metadata.offset == mock_kafka_message.offset()
     assert metadata.timestamp == mock_kafka_message.timestamp()[1]
     assert metadata.key == mock_kafka_message.key()
+
+
+def test_plugin_loading(caplog):
+    # plugins which fail during loading should trigger a warning
+    import pluggy
+    pm1 = pluggy.PluginManager("hop")
+
+    def raise_ex(ignored):
+        raise Exception("Things are bad")
+    lse_mock = MagicMock(side_effect=raise_ex)
+    pm1.load_setuptools_entrypoints = lse_mock
+
+    with patch("pluggy.PluginManager", MagicMock(return_value=pm1)), \
+            caplog.at_level(logging.WARNING):
+        registered = io._load_deserializer_plugins()
+        assert "Could not load external message plugins" in caplog.text
+        # but built-in models should still be available
+        assert len(registered) == 3
+        assert "VOEVENT" in registered
+        assert "CIRCULAR" in registered
+        assert "BLOB" in registered
+        # while we're here, make sure the documented interface is being used
+        lse_mock.assert_called_with("hop_plugin")
+
+    # users should be warned if plugins collide
+    pm2 = pluggy.PluginManager("hop")
+    gm_mock = MagicMock(return_value=[{
+                        "foo": None,
+                        "bar": None,
+                        }, {"Foo": str}])
+    # If we don't make this property explicitly false, the Mock will helpfully create it as another
+    # Mock object which will then look true-ish to pluggy, leading to problems
+    gm_mock.spec.warn_on_impl = False
+    pm2.hook.get_models = gm_mock
+    with patch("pluggy.PluginManager", MagicMock(return_value=pm2)), \
+            caplog.at_level(logging.WARNING):
+        registered = io._load_deserializer_plugins()
+        assert "Identified duplicate message plugin" in caplog.text
+
+    # additional plugins should appear in the resulting list
+    pm3 = pluggy.PluginManager("hop")
+
+    def fake_lse(ignored):
+        original_get_models = pm3.hook.get_models
+
+        def add_extra_model():
+            models = original_get_models()
+            models.append({"Foo": None})
+            return models
+        pm3.hook.get_models = add_extra_model
+    pm3.load_setuptools_entrypoints = fake_lse
+    with patch("pluggy.PluginManager", MagicMock(return_value=pm3)):
+        registered = io._load_deserializer_plugins()
+        print(registered)
+        assert len(registered) == 4
+        assert "FOO" in registered
+        assert "VOEVENT" in registered
+        assert "CIRCULAR" in registered
+        assert "BLOB" in registered
