@@ -104,8 +104,8 @@ def test_stream_read(circular_msg):
 def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
     topic = "gcn"
     mock_adc_producer = mock_producer(mock_broker, topic)
-    with patch("hop.io.producer.Producer", autospec=True) as mock_instance:
-        mock_instance.side_effect = mock_adc_producer
+    expected_msg = json.dumps(Blob(circular_msg).serialize()).encode("utf-8")
+    with patch("hop.io.producer.Producer", autospec=True, return_value=mock_adc_producer):
 
         broker_url = f"kafka://localhost:port/{topic}"
         auth = Auth("user", "password")
@@ -122,13 +122,17 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
         with pytest.warns(UserWarning):
             stream.open("kafka://group@localhost:9092/topic1", "w")
 
+        mock_broker.reset()
         with stream.open(broker_url, "w") as s:
             s.write(circular_msg)
+            assert mock_broker.has_message(topic, expected_msg)
 
         # repeat, but with a manual close instead of context management
+        mock_broker.reset()
         s = stream.open(broker_url, "w")
         s.write(circular_msg)
         s.close()
+        assert mock_broker.has_message(topic, expected_msg)
 
 
 def test_stream_auth(auth_config):

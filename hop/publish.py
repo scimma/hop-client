@@ -1,4 +1,5 @@
 import sys
+import json
 
 from . import cli
 from . import io
@@ -39,4 +40,4 @@ def _main(args):
                     "piping/redirection only allowed for BLOB formats"
 
                 for message in messages:
-                    s.write(loader.load(message))
+                    s.write(loader.load(json.loads(message)))
