@@ -50,6 +50,7 @@ class MessageModel(ABC):
     @abstractmethod
     def load(cls, input_):
         """Create a new message model from a file object or string.
+        This base implementation has no functionality and should not be called.
 
         Args:
             input_: A file object or string.
@@ -58,7 +59,7 @@ class MessageModel(ABC):
             The message model.
 
         """
-        pass
+        raise NotImplementedError("MessageModel.load() should not be called")
 
 
 @dataclass
