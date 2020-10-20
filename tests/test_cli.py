@@ -102,6 +102,25 @@ def test_cli_publish_blob_types(mock_broker, mock_producer, mock_consumer):
                 assert msg in extracted_msgs
 
 
+def test_cli_publish_bad_blob(mock_broker, mock_producer):
+    # ensure that invalid JSON causes an exception to be raised
+    from hop import publish, io
+
+    args = MagicMock()
+    args.url = "kafka://hostname:port/topic"
+    args.format = io.Deserializer.BLOB.name
+
+    mock_adc_producer = mock_producer(mock_broker, "topic")
+    msgs = ["not quoted", '{"unclosed:"brace"',
+            "invalid\tcharacters\\\b"]
+    for msg in msgs:
+        # note that we do not serialize the messages as JSON
+        with patch("sys.stdin", StringIO(msg)) as mock_stdin, \
+                patch("hop.io.producer.Producer", return_value=mock_adc_producer), \
+                pytest.raises(ValueError):
+            publish._main(args)
+
+
 def test_cli_subscribe(script_runner):
     ret = script_runner.run("hop", "subscribe", "--help")
     assert ret.success

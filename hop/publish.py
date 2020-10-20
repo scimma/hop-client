@@ -39,5 +39,8 @@ def _main(args):
                 assert args.format == io.Deserializer.BLOB.name, \
                     "piping/redirection only allowed for BLOB formats"
 
-                for message in messages:
-                    s.write(loader.load(json.loads(message)))
+                try:
+                    for message in messages:
+                        s.write(loader.load(json.loads(message)))
+                except json.decoder.JSONDecodeError as err:
+                    raise ValueError("Blob messages must be valid JSON") from err

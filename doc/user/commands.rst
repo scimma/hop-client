@@ -28,9 +28,13 @@ This command allows a user to publish various structured and unstructured messag
 
 * `RFC 822 formatted GCN circular <https://gcn.gsfc.nasa.gov/gcn3_circulars.html>`_
 * An XML formatted `GCN/VOEvent notice <https://gcn.gsfc.nasa.gov/tech_describe.html>`_
-* Unstructured messages such as byte-encoded or JSON-serializable data.
+* Unstructured messages such as JSON-serializable data.
 
 Structured messages such as GCN circulars and VOEvents are published as JSON-formatted text.
+
+Unstructured messages may be piped to this command to be published. This mode of operation
+requires JSON input with individual messages separated by newlines, and the Blob format
+(`-f BLOB`) to be selected. 
 
 .. program-output:: hop publish --help
    :nostderr:
