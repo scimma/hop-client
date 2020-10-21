@@ -1,7 +1,8 @@
-from unittest.mock import patch, mock_open
+from unittest.mock import patch, mock_open, MagicMock
 import sys
-
 import pytest
+from io import StringIO
+import io
 
 from hop import __version__
 
@@ -55,6 +56,69 @@ def test_cli_publish(script_runner, message_format, message_parameters_dict):
             mock_file.assert_called_with(test_file, "r")
 
         mock_stream.assert_called_with(broker_url, "w")
+
+    # test publishing from stdin
+    with patch("hop.io.Stream.open", mock_open()) as mock_stream:
+        ret = script_runner.run("hop", "publish", "-f", message_format.upper(), broker_url,
+                                stdin=io.StringIO('"message1"\n"message2"'))
+        if message_format == "blob":
+            assert ret.success
+        else:  # only the blob format is supported, others should trigger an error
+            assert not ret.success
+            assert "piping/redirection only allowed for BLOB formats" in ret.stderr
+
+
+def test_cli_publish_blob_types(mock_broker, mock_producer, mock_consumer):
+    from hop import publish, io, models
+    import json
+    args = MagicMock()
+    args.url = "kafka://hostname:port/topic"
+    args.format = io.Deserializer.BLOB.name
+    start_at = io.StartPosition.EARLIEST
+    read_url = "kafka://group@hostname:port/topic"
+
+    mock_adc_producer = mock_producer(mock_broker, "topic")
+    mock_adc_consumer = mock_consumer(mock_broker, "topic", "group")
+    msgs = ["a string", ["a", "list", "of", "values"],
+            {"a": "dict", "with": ["multiple", "values"]}]
+    for msg in msgs:
+        with patch("sys.stdin", StringIO(json.dumps(msg))) as mock_stdin, \
+                patch("hop.io.producer.Producer", return_value=mock_adc_producer), \
+                patch("hop.io.consumer.Consumer", return_value=mock_adc_consumer):
+            publish._main(args)
+
+            # each published message should be on the broker
+            expected_msg = json.dumps(models.Blob(msg).serialize()).encode("utf-8")
+            assert mock_broker.has_message("topic", expected_msg)
+
+            # reading from the broker should yield messages which match the originals
+            with io.Stream(persist=False, start_at=None, auth=False).open(read_url, "r") as s:
+                extracted_msgs = []
+                for extracted_msg in s:
+                    extracted_msgs.append(extracted_msg)
+                # there should be one new message
+                assert len(extracted_msgs) == 1
+                # and it should be the one we published
+                assert msg in extracted_msgs
+
+
+def test_cli_publish_bad_blob(mock_broker, mock_producer):
+    # ensure that invalid JSON causes an exception to be raised
+    from hop import publish, io
+
+    args = MagicMock()
+    args.url = "kafka://hostname:port/topic"
+    args.format = io.Deserializer.BLOB.name
+
+    mock_adc_producer = mock_producer(mock_broker, "topic")
+    msgs = ["not quoted", '{"unclosed:"brace"',
+            "invalid\tcharacters\\\b"]
+    for msg in msgs:
+        # note that we do not serialize the messages as JSON
+        with patch("sys.stdin", StringIO(msg)) as mock_stdin, \
+                patch("hop.io.producer.Producer", return_value=mock_adc_producer), \
+                pytest.raises(ValueError):
+            publish._main(args)
 
 
 def test_cli_subscribe(script_runner):

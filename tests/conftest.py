@@ -1,12 +1,8 @@
 from collections import defaultdict
-from functools import partialmethod
 import io
 from unittest.mock import MagicMock
 
 import pytest
-
-from adc.consumer import Consumer
-from adc.producer import Producer
 
 from hop import models
 from hop.io import StartPosition
@@ -185,11 +181,17 @@ class MockBroker:
     """
 
     def __init__(self):
+        self.reset()
+
+    def reset(self):
         self._messages = defaultdict(list)
         self._offsets = defaultdict(dict)
 
     def write(self, topic, msg):
         self._messages[topic].append(msg)
+
+    def has_message(self, topic, message):
+        return message in self._messages[topic]
 
     def read(self, topic, groupid, start_at=StartPosition.EARLIEST, **kwargs):
         if topic not in self._offsets or groupid not in self._offsets[topic]:
@@ -200,11 +202,10 @@ class MockBroker:
 
         try:
             offset = self._offsets[topic][groupid]
-            yield from self._messages[offset:]
+            self._offsets[topic][groupid] += 1
+            yield from self._messages[topic][offset:]
         except IndexError:
             pass
-        else:
-            self._offsets[topic][groupid] = len(self._messages[topic]) - 1
 
 
 @pytest.fixture(scope="session")
@@ -215,8 +216,24 @@ def mock_broker():
 @pytest.fixture(scope="session")
 def mock_producer():
     def _mock_producer(mock_broker, topic):
-        producer = MagicMock(spec=Producer)
-        producer.write.side_effect = partialmethod(mock_broker.write, topic=topic)
+        class ProducerBrokerWrapper:
+            def __init__(self, broker, topic):
+                self.broker = broker
+                self.topic = topic
+
+            def write(self, msg):
+                self.broker.write(self.topic, msg)
+
+            def close(self):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                pass
+
+        producer = ProducerBrokerWrapper(mock_broker, topic)
         return producer
 
     return _mock_producer
@@ -224,14 +241,39 @@ def mock_producer():
 
 @pytest.fixture(scope="session")
 def mock_consumer():
-    def _mock_consumer(mock_broker, topic, group_id, start_at):
-        consumer = MagicMock(spec=Consumer)
-        consumer.stream.side_effect = partialmethod(
-            mock_broker.read,
-            groupid=group_id,
-            topic=topic,
-            start_at=start_at,
-        )
+    def _mock_consumer(mock_broker, topic, group_id, start_at=StartPosition.EARLIEST):
+        class ConsumerBrokerWrapper:
+            def __init__(self, broker, topic, group_id, start_at):
+                self.broker = broker
+                self.topic = topic
+                self.group_id = group_id
+                self.start_at = start_at
+
+            def subscribe(self, topic):
+                # TODO: Support multiple topics?
+                assert topic == self.topic
+
+            def stream(self, *args, **kwargs):
+                class Message:
+                    def __init__(self, value):
+                        self._value = value
+
+                    def value(self):
+                        return self._value
+
+                for message in self.broker.read(self.topic, self.group_id, self.start_at, **kwargs):
+                    yield Message(message)
+
+            def close(self):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                pass
+
+        consumer = ConsumerBrokerWrapper(mock_broker, topic, group_id, start_at)
         return consumer
 
     return _mock_consumer
