@@ -242,6 +242,25 @@ class Metadata:
 
 class _Consumer:
     def __init__(self, group_id, broker_addresses, topics, **kwargs):
+        """
+        Args:
+            group_id: The Kafka consumer group to join for reading messages.
+            broker_addresses: The list of bootstrap Kafka broker URLs.
+            topics: The list of names of topics to which to subscribe.
+
+        Kwargs:
+            read_forever: If true, keep the stream open to wait for more messages
+                after reading the last currently available message.
+            start_at: The position in the topic stream at which to start
+                reading, specified as a StartPosition object.
+            auth: An adc.auth.SASLAuth object specifying client authentication
+                to use.
+            error_callback: A callback which will be called with any
+                confluent_kafka.KafkaError objects produced representing internal
+                Kafka errors.
+            offset_commit_interval: A datetime.timedelta specifying how often to
+                report progress to Kafka.
+        """
         self._consumer = consumer.Consumer(consumer.ConsumerConfig(
             broker_urls=broker_addresses,
             group_id=group_id,
@@ -258,6 +277,16 @@ class _Consumer:
             autocommit: Whether messages are automatically marked as handled
                 via `mark_done` when the next message is yielded. Defaults to True.
 
+        Kwargs:
+            batch_size: The number of messages to request from Kafka at a time.
+                Lower numbers can give lower latency, while higher numbers will
+                be more efficient, but may add latency.
+            batch_timeout: The period of time to wait to get a full batch of
+                messages from Kafka. Similar to batch_size, lower numbers can
+                reduce latency while higher numbers can be more efficient at the
+                cost of greater latency.
+                If specified, this argument should be a datetime.timedelta
+                object.
         """
         for message in self._consumer.stream(autocommit=autocommit, **kwargs):
             yield self.unpack(message, metadata=metadata)
@@ -305,6 +334,23 @@ class _Consumer:
 
 class _Producer:
     def __init__(self, broker_addresses, topic, **kwargs):
+        """
+        Args:
+            broker_addresses: The list of bootstrap Kafka broker URLs.
+            topic: The name of the topic to which to write.
+
+        Kwargs:
+            auth: An adc.auth.SASLAuth object specifying client authentication
+                to use.
+            delivery_callback: A callback which will be called when each message
+                is either delivered or permenantly fails to be delivered.
+            error_callback: A callback which will be called with any
+                confluent_kafka.KafkaError objects produced representing internal
+                Kafka errors.
+            produce_timeout: A datetime.timedelta object specifying the maximum
+                time to wait for a message to be sent to Kafka. If zero, sending
+                will never time out.
+        """
         self._producer = producer.Producer(producer.ProducerConfig(
             broker_urls=broker_addresses,
             topic=topic,
