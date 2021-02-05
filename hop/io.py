@@ -31,11 +31,12 @@ class Stream(object):
     stream connection is opened, it will use defaults specified here.
 
     Args:
-        auth: A `bool` or `Auth` instance. Defaults to loading from `auth.load_auth()`
-            if set to True. To disable authentication, set to False.
+        auth: A `bool` or :class:`Auth <hop.auth.Auth>` instance. Defaults to
+            loading from :meth:`auth.load_auth <hop.auth.load_auth>` if set to
+            True. To disable authentication, set to False.
         start_at: The message offset to start at in read mode. Defaults to LATEST.
         persist: Whether to listen to new messages forever or stop
-             when EOS is received in read mode. Defaults to False.
+            when EOS is received in read mode. Defaults to False.
 
     """
 
@@ -73,13 +74,11 @@ class Stream(object):
 
         Args:
             url: Sets the broker URL to connect to.
-
-        Kwargs:
             mode: Read ('r') or write ('w') from the stream.
 
         Returns:
-            An open connection to the client, either an adc Producer instance
-            in write mode or an adc Consumer instance in read mode.
+            An open connection to the client, either a :class:`Producer` instance
+            in write mode or a :class:`Consumer` instance in read mode.
 
         Raises:
             ValueError: If the mode is not set to read/write or if more than
@@ -97,12 +96,12 @@ class Stream(object):
                 raise ValueError("must specify exactly one topic in write mode")
             if group_id is not None:
                 warnings.warn("group ID has no effect when opening a stream in write mode")
-            return _Producer(broker_addresses, topics[0], auth=self.auth)
+            return Producer(broker_addresses, topics[0], auth=self.auth)
         elif mode == "r":
             if group_id is None:
                 group_id = _generate_group_id(10)
                 logger.info(f"group ID not specified, generating a random group ID: {group_id}")
-            return _Consumer(
+            return Consumer(
                 group_id,
                 broker_addresses,
                 topics,
@@ -240,15 +239,18 @@ class Metadata:
         )
 
 
-class _Consumer:
+class Consumer:
+    """
+    An event stream opened for reading one or more topics.
+    Instances of this class should be obtained from :meth:`Stream.open`.
+    """
+
     def __init__(self, group_id, broker_addresses, topics, **kwargs):
         """
         Args:
             group_id: The Kafka consumer group to join for reading messages.
             broker_addresses: The list of bootstrap Kafka broker URLs.
             topics: The list of names of topics to which to subscribe.
-
-        Kwargs:
             read_forever: If true, keep the stream open to wait for more messages
                 after reading the last currently available message.
             start_at: The position in the topic stream at which to start
@@ -260,6 +262,8 @@ class _Consumer:
                 Kafka errors.
             offset_commit_interval: A datetime.timedelta specifying how often to
                 report progress to Kafka.
+
+        :meta private:
         """
         self._consumer = consumer.Consumer(consumer.ConsumerConfig(
             broker_urls=broker_addresses,
@@ -276,8 +280,6 @@ class _Consumer:
             metadata: Whether to receive message metadata alongside messages.
             autocommit: Whether messages are automatically marked as handled
                 via `mark_done` when the next message is yielded. Defaults to True.
-
-        Kwargs:
             batch_size: The number of messages to request from Kafka at a time.
                 Lower numbers can give lower latency, while higher numbers will
                 be more efficient, but may add latency.
@@ -289,16 +291,15 @@ class _Consumer:
                 object.
         """
         for message in self._consumer.stream(autocommit=autocommit, **kwargs):
-            yield self.unpack(message, metadata=metadata)
+            yield self._unpack(message, metadata=metadata)
 
     @staticmethod
-    def unpack(message, metadata=False):
+    def _unpack(message, metadata=False):
         """Deserialize and unpack messages.
 
         Args:
             message: The message to deserialize and unpack.
             metadata: Whether to receive message metadata alongside messages.
-
         """
         payload = json.loads(message.value().decode("utf-8"))
         payload = Deserializer.deserialize(payload)
@@ -332,14 +333,17 @@ class _Consumer:
         self.close()
 
 
-class _Producer:
+class Producer:
+    """
+    An event stream opened for writing to a topic.
+    Instances of this class should be obtained from :meth:`Stream.open`.
+    """
+
     def __init__(self, broker_addresses, topic, **kwargs):
         """
         Args:
             broker_addresses: The list of bootstrap Kafka broker URLs.
             topic: The name of the topic to which to write.
-
-        Kwargs:
             auth: An adc.auth.SASLAuth object specifying client authentication
                 to use.
             delivery_callback: A callback which will be called when each message
@@ -350,6 +354,8 @@ class _Producer:
             produce_timeout: A datetime.timedelta object specifying the maximum
                 time to wait for a message to be sent to Kafka. If zero, sending
                 will never time out.
+
+        :meta private:
         """
         self._producer = producer.Producer(producer.ProducerConfig(
             broker_urls=broker_addresses,
@@ -365,15 +371,16 @@ class _Producer:
             message: The message to write.
 
         """
-        self._producer.write(self.pack(message))
+        self._producer.write(self._pack(message))
 
     @staticmethod
-    def pack(message):
+    def _pack(message):
         """Pack and serialize messages.
 
         Args:
             message: The message to pack and serialize.
 
+        :meta private:
         """
         try:
             payload = message.serialize()
