@@ -185,9 +185,9 @@ def test_unpack(circular_msg, circular_text):
     kafka_msg = MagicMock()
     kafka_msg.value.return_value = json.dumps(wrapped_msg).encode("utf-8")
 
-    unpacked_msg = io._Consumer.unpack(kafka_msg)
+    unpacked_msg = io.Consumer._unpack(kafka_msg)
 
-    unpacked_msg2, metadata = io._Consumer.unpack(kafka_msg, metadata=True)
+    unpacked_msg2, metadata = io.Consumer._unpack(kafka_msg, metadata=True)
     assert unpacked_msg2 == unpacked_msg
 
 
@@ -211,11 +211,11 @@ def test_mark_done(circular_msg):
 def test_pack(circular_msg, circular_text):
     # message class
     circular = GCNCircular(**circular_msg)
-    packed_msg = io._Producer.pack(circular)
+    packed_msg = io.Producer._pack(circular)
 
     # unstructured message
     message = {"hey": "you"}
-    packed = io._Producer.pack(message)
+    packed = io.Producer._pack(message)
 
 
 @pytest.mark.parametrize("message", [
@@ -240,14 +240,14 @@ def test_pack_unpack_roundtrip(message, message_parameters_dict, caplog):
         orig_message = test_file.read_text()
 
     # pack the message
-    packed_msg = io._Producer.pack(orig_message)
+    packed_msg = io.Producer._pack(orig_message)
 
     # mock a kafka message with value being the packed message
     kafka_msg = MagicMock()
     kafka_msg.value.return_value = packed_msg
 
     # unpack the message
-    unpacked_msg = io._Consumer.unpack(kafka_msg)
+    unpacked_msg = io.Consumer._unpack(kafka_msg)
 
     # verify based on format
     if format in ("voevent", "circular"):
@@ -262,16 +262,16 @@ def test_pack_unpack_roundtrip_unstructured():
     # objects (of types that json.loads happens to produce) should remain unchanged by the process
     # of packing and unpacking
     for orig_message in ["a string", ["a", "B", "c"], {"dict": True, "other_data": [5, 17]}]:
-        packed_msg = io._Producer.pack(orig_message)
+        packed_msg = io.Producer._pack(orig_message)
         kafka_msg = MagicMock()
         kafka_msg.value.return_value = packed_msg
-        unpacked_msg = io._Consumer.unpack(kafka_msg)
+        unpacked_msg = io.Consumer._unpack(kafka_msg)
         assert unpacked_msg == orig_message
 
     # non-serializable objects should raise an error
     with pytest.raises(TypeError):
         # note that we are not trying to pack a string, but the string class itself
-        packed_msg = io._Producer.pack(str)
+        packed_msg = io.Producer._pack(str)
 
 
 @pytest.mark.parametrize("message", [
