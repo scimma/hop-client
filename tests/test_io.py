@@ -2,13 +2,15 @@ from dataclasses import fields
 import json
 import logging
 from pathlib import Path
-from unittest.mock import mock_open, patch, MagicMock
+from unittest.mock import patch, MagicMock
 
 import pytest
 
 from hop.auth import Auth
 from hop import io
 from hop.models import GCNCircular, VOEvent, Blob
+
+from conftest import temp_environ, temp_config
 
 logger = logging.getLogger("hop")
 
@@ -135,23 +137,20 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
         assert mock_broker.has_message(topic, expected_msg)
 
 
-def test_stream_auth(auth_config):
+def test_stream_auth(auth_config, tmpdir):
     # turning off authentication should give None for the auth property
     s1 = io.Stream(auth=False)
     assert s1.auth is None
 
     # turning on authentication should give an auth object with the data read from the default file
-    with patch("builtins.open", mock_open(read_data=auth_config)) as mock_file, \
-            patch("os.path.exists") as mock_exists:
+    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)), temp_config(auth_config):
         s2 = io.Stream(auth=True)
         a2 = s2.auth
-        mock_file.assert_called_once()
         assert a2._config["sasl.username"] == "username"
         assert a2._config["sasl.password"] == "password"
 
     # turning on authentication should fail when the default file does not exist
-    with patch("os.path.exists", MagicMock(return_value=False)) as mock_exists, \
-            pytest.raises(FileNotFoundError):
+    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)), pytest.raises(FileNotFoundError):
         s3 = io.Stream(auth=True)
         a3 = s3.auth
 
