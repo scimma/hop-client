@@ -7,6 +7,7 @@ from hop import configure
 
 def check_config_file(config_path, username, password):
     assert os.path.exists(config_path)
+    assert os.stat(config_path).st_mode & 0o7777 == 0o600
     cf = open(config_path, "r")
     config_file_text = cf.read()
     assert username in config_file_text

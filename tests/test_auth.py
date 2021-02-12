@@ -6,12 +6,13 @@ import pytest
 from hop import auth
 from hop import configure
 import os
+import stat
 
 
 @contextmanager
 def temp_environ(**vars):
     """
-    A simple context manager for temprarily setting environment variables
+    A simple context manager for temporarily setting environment variables
 
     Kwargs:
         variables to be set and their values
@@ -30,40 +31,68 @@ def temp_environ(**vars):
         os.environ.update(original)
 
 
+@contextmanager
+def temp_config(data, perms=stat.S_IRUSR | stat.S_IWUSR):
+    """
+    A context manager which creates a temporary config file with specified data and permissions
+
+    Args:
+        data: the data to be written to the file
+        perms: the permissions which should be set on the file.
+            The default value is to use the standard, safe permissions
+
+    Returns:
+        None
+    """
+    config_path = configure.get_config_path()
+    os.makedirs(os.path.dirname(config_path), exist_ok=True)
+    config_file = open(config_path, mode='w')
+    os.chmod(config_path, perms)
+    config_file.write(data)
+    config_file.close()
+    try:
+        yield  # no value needed
+    finally:
+        # remove file
+        os.remove(config_path)
+
+
 def test_load_auth(auth_config, tmpdir):
-    with patch("builtins.open", mock_open(read_data=auth_config)) as mock_file, \
-            temp_environ(XDG_CONFIG_HOME=str(tmpdir)):
-
-        # check error handling
-        with pytest.raises(FileNotFoundError):
-            auth.load_auth()
-
-        # check auth loads correctly
-        with patch("os.path.exists") as mock_exists:
-            mock_exists.return_value = True
-            auth.load_auth()
-
-
-def test_load_auth_malformed():
-    missing_username = """
-                       [auth]
-                       password = "password"
-                       extra = "stuff"
-                       """
-    with patch("builtins.open", mock_open(read_data=missing_username)) as mock_file, \
-            patch("os.path.exists") as mock_exists, \
-            pytest.raises(KeyError):
+    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)), temp_config(auth_config):
         auth.load_auth()
 
-    missing_password = """
-                       [auth]
-                       username = "username"
-                       extra = "stuff"
-                       """
-    with patch("builtins.open", mock_open(read_data=missing_password)) as mock_file, \
-            patch("os.path.exists") as mock_exists, \
-            pytest.raises(KeyError):
+
+def test_load_auth_non_existent(auth_config, tmpdir):
+    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)), \
+            pytest.raises(FileNotFoundError):
         auth.load_auth()
+
+
+def test_load_auth_bad_perms(auth_config, tmpdir):
+    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)):
+        for bad_perm in [stat.S_IRGRP, stat.S_IWGRP, stat.S_IXGRP,
+                         stat.S_IROTH, stat.S_IWOTH, stat.S_IXOTH]:
+            with temp_config(auth_config, bad_perm), pytest.raises(RuntimeError):
+                auth.load_auth()
+
+
+def test_load_auth_malformed(tmpdir):
+    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)):
+        missing_username = """
+                           [auth]
+                           password = "password"
+                           extra = "stuff"
+                           """
+        with temp_config(missing_username), pytest.raises(KeyError):
+            auth.load_auth()
+
+        missing_password = """
+                           [auth]
+                           username = "username"
+                           extra = "stuff"
+                       """
+        with temp_config(missing_password), pytest.raises(KeyError):
+            auth.load_auth()
 
 
 def test_load_auth_options(auth_config):
