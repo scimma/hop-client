@@ -11,7 +11,7 @@ from conftest import temp_environ, temp_config
 
 
 def test_load_auth(auth_config, tmpdir):
-    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)), temp_config(auth_config):
+    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
         auth.load_auth()
 
 
@@ -22,75 +22,78 @@ def test_load_auth_non_existent(auth_config, tmpdir):
 
 
 def test_load_auth_bad_perms(auth_config, tmpdir):
-    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)):
-        for bad_perm in [stat.S_IRGRP, stat.S_IWGRP, stat.S_IXGRP,
-                         stat.S_IROTH, stat.S_IWOTH, stat.S_IXOTH]:
-            with temp_config(auth_config, bad_perm), pytest.raises(RuntimeError):
-                auth.load_auth()
+    for bad_perm in [stat.S_IRGRP, stat.S_IWGRP, stat.S_IXGRP,
+                     stat.S_IROTH, stat.S_IWOTH, stat.S_IXOTH]:
+        with temp_config(tmpdir, auth_config, bad_perm) as config_dir, \
+                temp_environ(XDG_CONFIG_HOME=config_dir), pytest.raises(RuntimeError):
+            auth.load_auth()
 
 
 def test_load_auth_malformed(tmpdir):
-    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)):
-        missing_username = """
-                           [auth]
-                           password = "password"
-                           extra = "stuff"
-                           """
-        with temp_config(missing_username), pytest.raises(KeyError):
-            auth.load_auth()
-
-        missing_password = """
-                           [auth]
-                           username = "username"
-                           extra = "stuff"
+    missing_username = """
+                       [auth]
+                       password = "password"
+                       extra = "stuff"
                        """
-        with temp_config(missing_password), pytest.raises(KeyError):
-            auth.load_auth()
+    with temp_config(tmpdir, missing_username) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir), pytest.raises(KeyError):
+        auth.load_auth()
+
+    missing_password = """
+                       [auth]
+                       username = "username"
+                       extra = "stuff"
+                   """
+    with temp_config(tmpdir, missing_password) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir), pytest.raises(KeyError):
+        auth.load_auth()
 
 
 def test_load_auth_options(auth_config, tmpdir):
-    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)):
-        # SSL should be used by default
-        # The default mechanism should be SCRAM_SHA_512
-        with temp_config(auth_config), patch("hop.auth.Auth") as auth_mock:
-            auth.load_auth()
-            assert auth_mock.called_with(ssl=True)
-            from adc.auth import SASLMethod
-            assert auth_mock.called_with(mechanism=SASLMethod.SCRAM_SHA_512)
+    # SSL should be used by default
+    # The default mechanism should be SCRAM_SHA_512
+    with temp_config(tmpdir, auth_config) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir), patch("hop.auth.Auth") as auth_mock:
+        auth.load_auth()
+        assert auth_mock.called_with(ssl=True)
+        from adc.auth import SASLMethod
+        assert auth_mock.called_with(mechanism=SASLMethod.SCRAM_SHA_512)
 
-        # But it should be possible to disable SSL
-        use_plaintext = """
-                           [auth]
-                           username = "username"
-                           password = "password"
-                           protocol = "SASL_PLAINTEXT"
-                           """
-        with temp_config(use_plaintext), patch("hop.auth.Auth") as auth_mock:
-            auth.load_auth()
-            assert auth_mock.called_with(ssl=False)
-
-        # An SSL CA data path should be honored
-        with_ca_data = """
+    # But it should be possible to disable SSL
+    use_plaintext = """
                        [auth]
                        username = "username"
                        password = "password"
-                       ssl_ca_location = "/foo/bar/baz"
+                       protocol = "SASL_PLAINTEXT"
                        """
-        with temp_config(with_ca_data), patch("hop.auth.Auth") as auth_mock:
-            auth.load_auth()
-            assert auth_mock.called_with(ssl_ca_location="/foo/bar/baz")
+    with temp_config(tmpdir, use_plaintext) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir), patch("hop.auth.Auth") as auth_mock:
+        auth.load_auth()
+        assert auth_mock.called_with(ssl=False)
 
-        # Alternate mechanisms should be honored
-        plain_mechanism = """
-                          [auth]
-                          username = "username"
-                          password = "password"
-                          mechanism = "PLAIN"
-                          """
-        with temp_config(plain_mechanism), \
-                patch("hop.auth.Auth") as auth_mock:
-            auth.load_auth()
-            assert auth_mock.called_with(mechanism=SASLMethod.PLAIN)
+    # An SSL CA data path should be honored
+    with_ca_data = """
+                   [auth]
+                   username = "username"
+                   password = "password"
+                   ssl_ca_location = "/foo/bar/baz"
+                   """
+    with temp_config(tmpdir, with_ca_data) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir), patch("hop.auth.Auth") as auth_mock:
+        auth.load_auth()
+        assert auth_mock.called_with(ssl_ca_location="/foo/bar/baz")
+
+    # Alternate mechanisms should be honored
+    plain_mechanism = """
+                      [auth]
+                      username = "username"
+                      password = "password"
+                      mechanism = "PLAIN"
+                      """
+    with temp_config(tmpdir, plain_mechanism) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir), patch("hop.auth.Auth") as auth_mock:
+        auth.load_auth()
+        assert auth_mock.called_with(mechanism=SASLMethod.PLAIN)
 
 
 def test_setup_auth(script_runner, tmpdir):

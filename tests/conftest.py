@@ -7,7 +7,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from hop import configure
 from hop import models
 from hop.io import StartPosition
 
@@ -389,7 +388,7 @@ def temp_environ(**vars):
 
 
 @contextmanager
-def temp_config(data, perms=stat.S_IRUSR | stat.S_IWUSR):
+def temp_config(tmpdir, data, perms=stat.S_IRUSR | stat.S_IWUSR):
     """
     A context manager which creates a temporary config file with specified data and permissions
 
@@ -399,16 +398,17 @@ def temp_config(data, perms=stat.S_IRUSR | stat.S_IWUSR):
             The default value is to use the standard, safe permissions
 
     Returns:
-        None
+        The path to the config directory for hop to use this config file, as a string
     """
-    config_path = configure.get_config_path()
+
+    config_path = f"{tmpdir}/hop/config.toml"
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     config_file = open(config_path, mode='w')
     os.chmod(config_path, perms)
     config_file.write(data)
     config_file.close()
     try:
-        yield  # no value needed
+        yield str(tmpdir)
     finally:
         # remove file
         os.remove(config_path)

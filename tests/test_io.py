@@ -143,7 +143,7 @@ def test_stream_auth(auth_config, tmpdir):
     assert s1.auth is None
 
     # turning on authentication should give an auth object with the data read from the default file
-    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)), temp_config(auth_config):
+    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
         s2 = io.Stream(auth=True)
         a2 = s2.auth
         assert a2._config["sasl.username"] == "username"
