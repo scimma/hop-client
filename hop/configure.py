@@ -51,8 +51,8 @@ def write_config_file(config_file, username, password):
     """
 
     os.makedirs(os.path.dirname(config_file), exist_ok=True)
-    with open(config_file, "w") as f:
-        os.chmod(config_file, stat.S_IRUSR | stat.S_IWUSR)
+    fd = os.open(config_file, os.O_WRONLY | os.O_CREAT, stat.S_IRUSR | stat.S_IWUSR)
+    with open(fd, "w") as f:
         toml.dump({"auth": {"username": username, "password": password}}, f)
         logger.info(f"Generated configuration at: {config_file}")
 
