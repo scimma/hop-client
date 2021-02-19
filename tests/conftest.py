@@ -1,5 +1,8 @@
 from collections import defaultdict
+from contextlib import contextmanager
 import io
+import os
+import stat
 from unittest.mock import MagicMock
 
 import pytest
@@ -360,3 +363,52 @@ def message_parameters_dict():
             "model_text": MESSAGE_BLOB,
         },
     }
+
+
+@contextmanager
+def temp_environ(**vars):
+    """
+    A simple context manager for temporarily setting environment variables
+
+    Kwargs:
+        variables to be set and their values
+
+    Returns:
+        None
+    """
+    from os import environ
+    original = dict(environ)
+    os.environ.update(vars)
+    try:
+        yield  # no value needed
+    finally:
+        # restore original data
+        os.environ.clear()
+        os.environ.update(original)
+
+
+@contextmanager
+def temp_config(tmpdir, data, perms=stat.S_IRUSR | stat.S_IWUSR):
+    """
+    A context manager which creates a temporary config file with specified data and permissions
+
+    Args:
+        data: the data to be written to the file
+        perms: the permissions which should be set on the file.
+            The default value is to use the standard, safe permissions
+
+    Returns:
+        The path to the config directory for hop to use this config file, as a string
+    """
+
+    config_path = f"{tmpdir}/hop/config.toml"
+    os.makedirs(os.path.dirname(config_path), exist_ok=True)
+    config_file = open(config_path, mode='w')
+    os.chmod(config_path, perms)
+    config_file.write(data)
+    config_file.close()
+    try:
+        yield str(tmpdir)
+    finally:
+        # remove file
+        os.remove(config_path)

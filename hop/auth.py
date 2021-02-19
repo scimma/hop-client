@@ -52,6 +52,12 @@ def load_auth(config_file=None):
         config_file = configure.get_config_path()
     if not os.path.exists(config_file):
         raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), config_file)
+    # check that the config file has suitable permissions
+    config_props = os.stat(config_file)
+    dangerous_perm_mask = 0o7077
+    if (config_props.st_mode & dangerous_perm_mask) != 0:
+        raise RuntimeError(f"{config_file} has unsafe permissions: {config_props.st_mode:o}\n"
+                           "Please correct it to 0600")
 
     # load config
     with open(config_file, "r") as f:
