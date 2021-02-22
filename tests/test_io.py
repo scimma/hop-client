@@ -148,6 +148,7 @@ def test_stream_auth(auth_config, tmpdir):
         a2 = s2.auth
         assert a2._config["sasl.username"] == "username"
         assert a2._config["sasl.password"] == "password"
+        assert a2.username == "username"
 
     # turning on authentication should fail when the default file does not exist
     with temp_environ(XDG_CONFIG_HOME=str(tmpdir)), pytest.raises(FileNotFoundError):
@@ -159,7 +160,7 @@ def test_stream_auth(auth_config, tmpdir):
     assert s4.auth == "blarg"
 
 
-def test_stream_open():
+def test_stream_open(auth_config, tmpdir):
     stream = io.Stream(auth=False)
 
     # verify only read/writes are allowed
@@ -169,13 +170,28 @@ def test_stream_open():
 
     # verify that URLs with no scheme are rejected
     with pytest.raises(ValueError) as err:
-        stream.open("bad://exmple.com/topic", "r")
+        stream.open("bad://example.com/topic", "r")
     assert "invalid kafka URL: must start with 'kafka://'" in err.value.args
 
     # verify that URLs with no topic are rejected
     with pytest.raises(ValueError) as err:
-        stream.open("kafka://exmple.com/", "r")
+        stream.open("kafka://example.com/", "r")
     assert "no topic(s) specified in kafka URL" in err.value.args
+
+    # verify that complete URLs are accepted
+    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir), \
+            patch("adc.consumer.Consumer.subscribe", MagicMock()) as subscribe:
+        stream = io.Stream()
+        # opening a valid URL for reading should succeed
+        consumer = stream.open("kafka://example.com/topic", "r")
+        # an appropriate consumer group name should be derived from the username in the auth
+        assert consumer._consumer.conf.group_id.startswith(stream.auth.username)
+        # the target topic should be subscribed to
+        subscribe.assert_called_once_with("topic")
+
+        # opening a valid URL for writing should succeed
+        producer = stream.open("kafka://example.com/topic", "w")
+        producer.write("data")
 
 
 def test_unpack(circular_msg, circular_text):

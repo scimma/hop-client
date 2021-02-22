@@ -12,7 +12,8 @@ from conftest import temp_environ, temp_config
 
 def test_load_auth(auth_config, tmpdir):
     with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
-        auth.load_auth()
+        auth_data = auth.load_auth()
+        assert auth_data.username == "username"
 
 
 def test_load_auth_non_existent(auth_config, tmpdir):

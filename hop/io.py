@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from functools import lru_cache
-import getpass
 from enum import Enum
 import json
 import logging
@@ -99,7 +98,8 @@ class Stream(object):
             return Producer(broker_addresses, topics[0], auth=self.auth)
         elif mode == "r":
             if group_id is None:
-                group_id = _generate_group_id(10)
+                username = self.auth.username if hasattr(self.auth, "username") else None
+                group_id = _generate_group_id(username, 10)
                 logger.info(f"group ID not specified, generating a random group ID: {group_id}")
             return Consumer(
                 group_id,
@@ -199,11 +199,12 @@ Deserializer = Enum(
 )
 
 
-def _generate_group_id(n):
+def _generate_group_id(user, n):
     """Generate a random Kafka group ID.
 
     Args:
-        n: Length of randomly generated string.
+        user: Username associated with the credential being used
+        n: Length of randomly generated string suffix.
 
     Returns:
         The generated group ID.
@@ -211,7 +212,9 @@ def _generate_group_id(n):
     """
     alphanum = string.ascii_uppercase + string.digits
     rand_str = ''.join(random.SystemRandom().choice(alphanum) for _ in range(n))
-    return '-'.join((getpass.getuser(), rand_str))
+    if user is None:
+        return rand_str
+    return '-'.join((user, rand_str))
 
 
 @dataclass(frozen=True)

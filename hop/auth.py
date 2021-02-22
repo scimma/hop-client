@@ -32,6 +32,11 @@ class Auth(auth.SASLAuth):
 
     def __init__(self, user, password, ssl=True, method=SASLMethod.SCRAM_SHA_512, **kwargs):
         super().__init__(user, password, ssl=ssl, method=method, **kwargs)
+        self._username = user
+
+    @property
+    def username(self):
+        return self._username
 
 
 def load_auth(config_file=None):
