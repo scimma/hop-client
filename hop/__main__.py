@@ -8,6 +8,7 @@ from . import configure
 from . import publish
 from . import subscribe
 from . import version
+from . import list_topics
 from .utils import cli as cli_utils
 
 
@@ -49,6 +50,9 @@ def set_up_cli():
     subscribe._add_parser_args(p)
 
     p = cli_utils.append_subparser(subparser, "version", version._main)
+
+    p = cli_utils.append_subparser(subparser, "list-topics", list_topics._main)
+    list_topics._add_parser_args(p)
 
     return parser
 
