@@ -5,6 +5,7 @@ from io import StringIO
 import io
 
 from hop import __version__
+from conftest import temp_environ, temp_config
 
 
 @pytest.mark.script_launch_mode("subprocess")
@@ -136,6 +137,112 @@ def test_cli_subscribe(script_runner):
 
         # verify broker url was processed
         mock_stream.assert_called_with(broker_url, "r")
+
+
+def dummy_topic_info(topic, error=None):
+    info = MagicMock()
+    info.error = error
+    info.partitions = {}
+    if error is None:
+        info.partitions[0] = MagicMock()
+    return info
+
+
+def make_consumer_mock(expected_topics):
+    metadata = MagicMock()
+    metadata.topics = expected_topics
+    list_topics = MagicMock(return_value=metadata)
+    consumer = MagicMock()
+    consumer.list_topics = list_topics
+    return MagicMock(return_value=consumer)
+
+
+def test_cli_list_topics(script_runner, auth_config, tmpdir):
+    ret = script_runner.run("hop", "list-topics", "--help")
+    assert ret.success
+
+    broker_url = "kafka://hostname:port/"
+
+    # general listing when no topics are returned
+    with patch("confluent_kafka.Consumer", make_consumer_mock({})) as mock_consumer:
+        ret = script_runner.run("hop", "list-topics", broker_url, "--no-auth")
+
+        assert ret.success
+        assert ret.stderr == ""
+        assert "No accessible topics" in ret.stdout
+
+        mock_consumer.assert_called()
+        mock_consumer.return_value.list_topics.assert_called_with()
+
+    expected_topics = ["foo", "bar"]
+    unexpected_topics = ["baz"]
+    topic_results = {}
+    for topic in expected_topics:
+        topic_results[topic] = dummy_topic_info(topic)
+    for topic in unexpected_topics:
+        topic_results[topic] = dummy_topic_info(topic, "an error")
+
+    # general listing when some topics are returned
+    with patch("confluent_kafka.Consumer", make_consumer_mock(topic_results)) as mock_consumer:
+        ret = script_runner.run("hop", "--debug", "list-topics", broker_url, "--no-auth")
+
+        assert ret.success
+        assert ret.stderr == ""
+        assert "Accessible topics" in ret.stdout
+        for topic in expected_topics:
+            assert topic in ret.stdout
+        for topic in unexpected_topics:
+            assert topic not in ret.stdout
+
+        mock_consumer.assert_called()
+        mock_consumer.return_value.list_topics.assert_called_with()
+
+    query_topics = ["foo", "bar", "baz"]
+    # listing of specific topics, none of which exist
+    with patch("confluent_kafka.Consumer", make_consumer_mock({})) as mock_consumer:
+        ret = script_runner.run("hop", "list-topics", broker_url + ",".join(query_topics),
+                                "--no-auth")
+
+        assert ret.success
+        assert ret.stderr == ""
+        assert "No accessible topics" in ret.stdout
+
+        mock_consumer.assert_called()
+        for topic in query_topics:
+            mock_consumer.return_value.list_topics.assert_any_call(topic=topic)
+
+    # listing of specific topics, some of which exist and some of which do not
+    with patch("confluent_kafka.Consumer", make_consumer_mock(topic_results)) as mock_consumer:
+        ret = script_runner.run("hop", "list-topics", broker_url + ",".join(query_topics),
+                                "--no-auth")
+
+        assert ret.success
+        assert ret.stderr == ""
+        assert "Accessible topics" in ret.stdout
+        for topic in expected_topics:
+            assert topic in ret.stdout
+        for topic in unexpected_topics:
+            assert topic not in ret.stdout
+
+        mock_consumer.assert_called()
+        for topic in query_topics:
+            mock_consumer.return_value.list_topics.assert_any_call(topic=topic)
+
+    # general listing with authentication
+    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir), \
+            patch("confluent_kafka.Consumer", make_consumer_mock(topic_results)) as mock_consumer:
+        ret = script_runner.run("hop", "--debug", "list-topics", broker_url)
+
+        assert ret.success
+        assert ret.stderr == ""
+        assert "Accessible topics" in ret.stdout
+        for topic in expected_topics:
+            assert topic in ret.stdout
+        for topic in unexpected_topics:
+            assert topic not in ret.stdout
+
+        mock_consumer.assert_called()
+        mock_consumer.return_value.list_topics.assert_called_with()
 
 
 def test_cli_auth(script_runner):
