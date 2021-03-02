@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2021-03-02
+### Changed
+- Generally increase user readability of error messages.
+- Fix issue in `hop subscribe` when printing JSON-formatted output.
+- Better handling of unstructured messages, avoiding excessive nesting
+  when serializing messages.
+- Treat input from stdin as JSON for `hop publish`.
+- Create credential files with safe permissions by default.
+- Require that credential files have proper permissions, refusing to
+  open configuration files which have over-broad permissions.
+- Modify how consumer group names are generated. When using proper
+  authentication, prefix the group name with the credential username,
+  instead of the local username.
+
+### Added
+- Add documentation for optional parameters passed down to lower-level
+  Kafka libraries when using `Stream`.
+
 ## [0.2] - 2020-09-16
 ### Changed
 - Change `hop auth` to `hop configure`.
@@ -80,7 +98,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial Release.
 
-[Unreleased]: https://github.com/scimma/hop-client/compare/v0.2...HEAD
+[Unreleased]: https://github.com/scimma/hop-client/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/scimma/hop-client/releases/tag/v0.3.0
 [0.2]: https://github.com/scimma/hop-client/releases/tag/v0.2
 [0.1]: https://github.com/scimma/hop-client/releases/tag/v0.1
 [0.0.5]: https://github.com/scimma/hop-client/releases/tag/v0.0.5
