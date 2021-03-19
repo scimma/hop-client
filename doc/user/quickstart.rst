@@ -37,6 +37,16 @@ Consume messages
 This will read messages from the gcn topic from the earliest offset
 and read messages until an end of stream (EOS) is received.
 
+View Available Topics
+^^^^^^^^^^^^^^^^^^^^^
+
+.. code:: bash
+
+    hop list-topics kafka://hostname:port/
+
+This will list all of the topics on the given server which you are currently
+authorized to read or write. 
+
 Using the Python API
 ----------------------
 
