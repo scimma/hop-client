@@ -17,8 +17,9 @@ def check_config_file(config_path, username, password):
 
 def test_get_config_path(tmpdir):
     with temp_environ(HOME=str(tmpdir)):
-        # this change will revert at the end of the with block
-        del os.environ["XDG_CONFIG_HOME"]
+        if "XDG_CONFIG_HOME" in os.environ:
+            # this change will revert at the end of the with block
+            del os.environ["XDG_CONFIG_HOME"]
 
         # with HOME set but not XDG_CONFIG_HOME the config location should resolve to inside
         # ${HOME}/.config
