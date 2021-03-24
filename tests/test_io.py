@@ -122,7 +122,7 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
 
         # verify warning is raised when groupid is set in write mode
         with pytest.warns(UserWarning):
-            stream.open("kafka://group@localhost:9092/topic1", "w")
+            stream.open("kafka://localhost:9092/topic1", "w", group_id="group")
 
         mock_broker.reset()
         with stream.open(broker_url, "w") as s:
@@ -145,7 +145,7 @@ def test_stream_auth(auth_config, tmpdir):
     # turning on authentication should give an auth object with the data read from the default file
     with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
         s2 = io.Stream(auth=True)
-        a2 = s2.auth
+        a2 = s2.auth[0]
         assert a2._config["sasl.username"] == "username"
         assert a2._config["sasl.password"] == "password"
         assert a2.username == "username"
@@ -178,6 +178,11 @@ def test_stream_open(auth_config, tmpdir):
         stream.open("kafka://example.com/", "r")
     assert "no topic(s) specified in kafka URL" in err.value.args
 
+    # verify that URLs with too many hostnames
+    with pytest.raises(ValueError) as err:
+        stream.open("kafka://example.com,example.net/topic", "r")
+        assert "Multiple broker addresses are not supported" in err.value.args
+
     # verify that complete URLs are accepted
     with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir), \
             patch("adc.consumer.Consumer.subscribe", MagicMock()) as subscribe:
@@ -185,7 +190,7 @@ def test_stream_open(auth_config, tmpdir):
         # opening a valid URL for reading should succeed
         consumer = stream.open("kafka://example.com/topic", "r")
         # an appropriate consumer group name should be derived from the username in the auth
-        assert consumer._consumer.conf.group_id.startswith(stream.auth.username)
+        assert consumer._consumer.conf.group_id.startswith(stream.auth[0].username)
         # the target topic should be subscribed to
         subscribe.assert_called_once_with("topic")
 

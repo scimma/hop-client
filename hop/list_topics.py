@@ -1,5 +1,6 @@
 from . import cli
 from .auth import load_auth
+from .auth import select_matching_auth
 from .io import _generate_group_id
 import adc.kafka
 import adc.errors
@@ -10,12 +11,15 @@ def _main(args):
     """List available topics.
 
     """
-    group_id, broker_addresses, query_topics = adc.kafka.parse_kafka_url(args.url)
+    username, broker_addresses, query_topics = adc.kafka.parse_kafka_url(args.url)
+    if len(broker_addresses) > 1:
+        raise ValueError("Multiple broker addresses are not supported")
     user_auth = None
     if not args.no_auth:
-        user_auth = load_auth()
+        credentials = load_auth()
+        user_auth = select_matching_auth(credentials, broker_addresses[0], username)
+    group_id = args.group_id
     if group_id is None:
-        username = user_auth.username if hasattr(user_auth, "username") else None
         group_id = _generate_group_id(username, 10)
     config = {
         "bootstrap.servers": ",".join(broker_addresses),
@@ -45,3 +49,9 @@ def _main(args):
 
 def _add_parser_args(parser):
     cli.add_client_opts(parser)
+
+    parser.add_argument(
+        "-g", "--group-id",
+        default=None,
+        help="Consumer group ID. If unset, a random ID will be generated."
+    )

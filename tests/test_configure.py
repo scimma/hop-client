@@ -1,6 +1,7 @@
 import pytest
 import os
 from unittest.mock import patch, MagicMock
+from conftest import temp_environ
 
 from hop import configure
 
@@ -12,6 +13,24 @@ def check_config_file(config_path, username, password):
     config_file_text = cf.read()
     assert username in config_file_text
     assert password in config_file_text
+
+
+def test_get_config_path(tmpdir):
+    with temp_environ(HOME=str(tmpdir)):
+        # this change will revert at the end of the with block
+        del os.environ["XDG_CONFIG_HOME"]
+
+        # with HOME set but not XDG_CONFIG_HOME the config location should resolve to inside
+        # ${HOME}/.config
+        expected_path = os.path.join(tmpdir, ".config", "hop", "config.toml")
+        config_loc = configure.get_config_path()
+        assert config_loc == expected_path
+
+        with temp_environ(XDG_CONFIG_HOME=str(tmpdir)):
+            # with XDG_CONFIG_HOME set, no .config path component should be assumed
+            expected_path = os.path.join(tmpdir, "hop", "config.toml")
+            config_loc = configure.get_config_path()
+            assert config_loc == expected_path
 
 
 def test_write_config_file(tmpdir):

@@ -168,10 +168,19 @@ VOEVENT_XML = """\
 
 MESSAGE_BLOB = "This is a sample blob message. It is unstructured and does not require special parsing."
 
-AUTH_CONFIG = """\
+# This was the original configuration structure, which permitted only a single credential
+AUTH_CONFIG_LEGACY = """\
 [auth]
 username = "username"
 password = "password"
+"""
+
+# This is the new configuration structure, which contains a list of credentials
+AUTH_CONFIG = """
+auth = [{
+         username="username",
+         password="password"
+         }]
 """
 
 
@@ -291,6 +300,11 @@ def mock_kafka_message():
     message.timestamp.return_value = (0, 1234567890)
     message.key.return_value = "test-key"
     return message
+
+
+@pytest.fixture(scope="session")
+def legacy_auth_config():
+    return AUTH_CONFIG_LEGACY
 
 
 @pytest.fixture(scope="session")

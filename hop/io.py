@@ -14,7 +14,9 @@ import pluggy
 from adc import consumer, errors, kafka, producer
 
 from .configure import get_config_path
+from .auth import Auth
 from .auth import load_auth
+from .auth import select_matching_auth
 from . import models
 from . import plugins
 
@@ -40,7 +42,7 @@ class Stream(object):
     """
 
     def __init__(self, auth=True, start_at=StartPosition.LATEST, persist=False):
-        self._auth = auth
+        self._auth = [auth] if isinstance(auth, Auth) else auth
         self.start_at = start_at
         self.persist = persist
 
@@ -68,37 +70,47 @@ class Stream(object):
         else:
             return self._auth
 
-    def open(self, url, mode="r"):
+    def open(self, url, mode="r", group_id=None):
         """Opens a connection to an event stream.
 
         Args:
             url: Sets the broker URL to connect to.
             mode: Read ('r') or write ('w') from the stream.
+            group_id: The consumer group ID from which to read.
+                      Generated automatically if not specified.
 
         Returns:
             An open connection to the client, either a :class:`Producer` instance
             in write mode or a :class:`Consumer` instance in read mode.
 
         Raises:
-            ValueError: If the mode is not set to read/write or if more than
-                one topic is specified in write mode.
+            ValueError: If the mode is not set to read/write, if more than
+                one topic is specified in write mode, or if more than one broker is specified
 
         """
-        group_id, broker_addresses, topics = kafka.parse_kafka_url(url)
-        logger.debug("connecting to addresses=%s  group_id=%s  topics=%s",
+        username, broker_addresses, topics = kafka.parse_kafka_url(url)
+        if len(broker_addresses) > 1:
+            raise ValueError("Multiple broker addresses are not supported")
+        logger.debug("connecting to addresses=%s  username=%s  topics=%s",
                      broker_addresses, group_id, topics)
 
         if topics is None:
             raise ValueError("no topic(s) specified in kafka URL")
+
+        if self.auth is not None:
+            credential = select_matching_auth(self.auth, broker_addresses[0], username)
+        else:
+            credential = None
+
         if mode == "w":
             if len(topics) != 1:
                 raise ValueError("must specify exactly one topic in write mode")
             if group_id is not None:
                 warnings.warn("group ID has no effect when opening a stream in write mode")
-            return Producer(broker_addresses, topics[0], auth=self.auth)
+            return Producer(broker_addresses, topics[0], auth=credential)
         elif mode == "r":
             if group_id is None:
-                username = self.auth.username if hasattr(self.auth, "username") else None
+                username = credential.username if credential is not None else None
                 group_id = _generate_group_id(username, 10)
                 logger.info(f"group ID not specified, generating a random group ID: {group_id}")
             return Consumer(
@@ -106,7 +118,7 @@ class Stream(object):
                 broker_addresses,
                 topics,
                 start_at=self.start_at,
-                auth=self.auth,
+                auth=credential,
                 read_forever=self.persist,
             )
         else:
