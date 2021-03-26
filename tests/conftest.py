@@ -415,7 +415,7 @@ def temp_config(tmpdir, data, perms=stat.S_IRUSR | stat.S_IWUSR):
         The path to the config directory for hop to use this config file, as a string
     """
 
-    config_path = f"{tmpdir}/hop/config.toml"
+    config_path = f"{tmpdir}/hop/auth.toml"
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     config_file = open(config_path, mode='w')
     os.chmod(config_path, perms)

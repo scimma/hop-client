@@ -10,14 +10,30 @@ import toml
 logger = logging.getLogger("hop")
 
 
-def get_config_path():
+def get_config_path(type: str = "general"):
     """Determines the default location for auth configuration.
 
+    Args:
+        type: The type of configuration data for which the path should be looked up.
+              Recognized types are 'general' and 'auth'.
+
     Returns:
-        The path to the authentication configuration file.
+        The path to the requested configuration file.
+
+    Raises:
+        ValueError: Unrecognized config type requested.
 
     """
-    auth_filepath = os.path.join("hop", "config.toml")
+
+    file_for_type = {
+        "general": "config.toml",
+        "auth": "auth.toml",
+    }
+
+    if type not in file_for_type:
+        raise ValueError(f"Unknown configuration type: '{type}'")
+
+    auth_filepath = os.path.join("hop", file_for_type[type])
     if "XDG_CONFIG_HOME" in os.environ:
         return os.path.join(os.getenv("XDG_CONFIG_HOME"), auth_filepath)
     else:
@@ -86,7 +102,7 @@ def _main(args):
     """Configuration utilities.
 
     """
-    config_file = get_config_path()
+    config_file = get_config_path("auth")
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s | %(name)s : %(levelname)s : %(message)s",
     )

@@ -61,8 +61,8 @@ class Stream(object):
                     return load_auth()
                 except FileNotFoundError:
                     logger.error(
-                        "configuration set to True and configuration file"
-                        f"not found at {get_config_path()} to authenticate"
+                        "configuration set to True and configuration file "
+                        f"not found at {get_config_path('auth')} to authenticate"
                     )
                     raise
             else:
