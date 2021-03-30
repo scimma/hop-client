@@ -18,9 +18,7 @@ def _main(args):
     if not args.no_auth:
         credentials = load_auth()
         user_auth = select_matching_auth(credentials, broker_addresses[0], username)
-    group_id = args.group_id
-    if group_id is None:
-        group_id = _generate_group_id(username, 10)
+    group_id = _generate_group_id(username, 10)
     config = {
         "bootstrap.servers": ",".join(broker_addresses),
         "error_cb": adc.errors.log_client_errors,
@@ -49,9 +47,3 @@ def _main(args):
 
 def _add_parser_args(parser):
     cli.add_client_opts(parser)
-
-    parser.add_argument(
-        "-g", "--group-id",
-        default=None,
-        help="Consumer group ID. If unset, a random ID will be generated."
-    )
