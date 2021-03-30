@@ -81,12 +81,11 @@ Kafka topics, and takes the form:
 
 .. code:: bash
 
-   kafka://[groupid@]broker/topic[,topic2[,...]]
+   kafka://[username@]broker/topic[,topic2[,...]]
 
 The broker takes the form :code:`hostname[:port]` and gives the URL to connect to a
-Kafka broker. Optionally, a :code:`groupid` is provided which is used to keep track
-of which messages have been read from a topic with a given group ID. This allows a long-lived
-process reading messages to pick up where they left off after a restart, for example.
+Kafka broker. Optionally, a :code:`username` can be provided, which is used to select 
+among available credentials to use when communicating with the broker. 
 Finally, one can publish to a topic or subscribe to one or more topics to consume messages
 from.
 
@@ -106,7 +105,7 @@ A workflow to do this is shown below:
 
     from hop import stream
 
-    with stream.open("kafka://mygroup@hostname:port/topic1", "r") as s:
+    with stream.open("kafka://hostname:port/topic1", "r", "mygroup") as s:
         for message, metadata in s.read(metadata=True, autocommit=False):
              print(message, metadata.topic)
              s.mark_done(metadata)

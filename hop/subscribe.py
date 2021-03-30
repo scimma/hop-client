@@ -42,6 +42,11 @@ def _add_parser_args(parser):
              "Otherwise, will stop listening when EOS is received.",
     )
     parser.add_argument(
+        "-g", "--group-id",
+        default=None,
+        help="Consumer group ID. If unset, a random ID will be generated."
+    )
+    parser.add_argument(
         "-j", "--json", help="Request message output as raw json", action="store_true",
     )
 
@@ -53,6 +58,6 @@ def _main(args):
     start_at = io.StartPosition[args.start_at]
     stream = io.Stream(auth=(not args.no_auth), start_at=start_at, persist=args.persist)
 
-    with stream.open(args.url, "r") as s:
+    with stream.open(args.url, "r", group_id=args.group_id) as s:
         for message in s:
             print_message(message, args.json)

@@ -168,10 +168,19 @@ VOEVENT_XML = """\
 
 MESSAGE_BLOB = "This is a sample blob message. It is unstructured and does not require special parsing."
 
-AUTH_CONFIG = """\
+# This was the original configuration structure, which permitted only a single credential
+AUTH_CONFIG_LEGACY = """\
 [auth]
 username = "username"
 password = "password"
+"""
+
+# This is the new configuration structure, which contains a list of credentials
+AUTH_CONFIG = """
+auth = [{
+         username="username",
+         password="password"
+         }]
 """
 
 
@@ -294,6 +303,11 @@ def mock_kafka_message():
 
 
 @pytest.fixture(scope="session")
+def legacy_auth_config():
+    return AUTH_CONFIG_LEGACY
+
+
+@pytest.fixture(scope="session")
 def auth_config():
     return AUTH_CONFIG
 
@@ -401,7 +415,7 @@ def temp_config(tmpdir, data, perms=stat.S_IRUSR | stat.S_IWUSR):
         The path to the config directory for hop to use this config file, as a string
     """
 
-    config_path = f"{tmpdir}/hop/config.toml"
+    config_path = f"{tmpdir}/hop/auth.toml"
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     config_file = open(config_path, mode='w')
     os.chmod(config_path, perms)

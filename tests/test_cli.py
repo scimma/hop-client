@@ -1,6 +1,7 @@
 from unittest.mock import patch, mock_open, MagicMock
 import sys
 import pytest
+import json
 from io import StringIO
 import io
 
@@ -137,7 +138,28 @@ def test_cli_subscribe(script_runner):
         assert ret.stderr == ""
 
         # verify broker url was processed
-        mock_stream.assert_called_with(broker_url, "r")
+        mock_stream.assert_called_with(broker_url, "r", group_id=None)
+
+        ret = script_runner.run("hop", "subscribe", broker_url, "--no-auth", "--group-id", "group")
+
+        # verify CLI output
+        assert ret.success
+        assert ret.stderr == ""
+
+        # verify consumer group ID was used
+        mock_stream.assert_called_with(broker_url, "r", group_id="group")
+
+    message_body = "some-message"
+    message_data = {"format": "blob", "content": message_body}
+    fake_message = MagicMock()
+    fake_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
+    mock_instance = MagicMock()
+    mock_instance.stream = MagicMock(return_value=[fake_message])
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+        ret = script_runner.run("hop", "--debug", "subscribe", broker_url, "--no-auth")
+        assert ret.success
+        assert ret.stderr == ""
+        assert message_body in ret.stdout
 
 
 def dummy_topic_info(topic, error=None):
@@ -232,7 +254,7 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
     # general listing with authentication
     with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir), \
             patch("confluent_kafka.Consumer", make_consumer_mock(topic_results)) as mock_consumer:
-        ret = script_runner.run("hop", "--debug", "list-topics", broker_url)
+        ret = script_runner.run("hop", "list-topics", broker_url)
 
         assert ret.success
         assert ret.stderr == ""
@@ -244,6 +266,11 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
 
         mock_consumer.assert_called()
         mock_consumer.return_value.list_topics.assert_called_with()
+
+    # attempting to use multiple brokers should provoke an error
+    ret = script_runner.run("hop", "list-topics", "kafka://example.com,example.net")
+    assert not ret.success
+    assert "Multiple broker addresses are not supported" in ret.stderr
 
 
 def test_cli_auth(script_runner, auth_config, tmpdir):
