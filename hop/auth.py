@@ -3,7 +3,7 @@ from . import configure
 import os
 import errno
 import toml
-from collections import Mapping
+from collections.abc import Mapping
 
 SASLMethod = auth.SASLMethod
 
@@ -73,7 +73,7 @@ def load_auth(config_file=None):
             if os.path.exists(main_config_file):
                 try:
                     return load_auth(main_config_file)
-                except KeyError:
+                except RuntimeError:
                     # if the main config file does not contain auth data, rewrite the error into a
                     # complaint that the auth config file does not exist, since that is what should
                     # be fixed
@@ -92,7 +92,12 @@ def load_auth(config_file=None):
 
     # load config
     with open(config_file, "r") as f:
-        auth_data = toml.loads(f.read())["auth"]
+        try:
+            auth_data = toml.loads(f.read())["auth"]
+        except KeyError:
+            raise RuntimeError("configuration file has no auth section")
+        except Exception as ex:
+            raise RuntimeError(f"configuration file is not configured correctly: {ex}")
 
     return _interpret_auth_data(auth_data)
 
@@ -139,8 +144,9 @@ def _interpret_auth_data(auth_data):
             else:
                 mechanism = "SCRAM_SHA_512"
 
-        except KeyError:
-            raise KeyError("configuration file is not configured correctly")
+        except KeyError as ke:
+            raise RuntimeError("configuration file is not configured correctly: "
+                               f"missing auth property {ke}")
         else:
             auth.append(Auth(user, password, host=host, ssl=ssl, method=SASLMethod[mechanism],
                              **extra_kwargs))
