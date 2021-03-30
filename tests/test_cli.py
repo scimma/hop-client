@@ -9,15 +9,16 @@ from conftest import temp_environ, temp_config
 
 
 @pytest.mark.script_launch_mode("subprocess")
-def test_cli_hop(script_runner):
+def test_cli_hop(script_runner, auth_config, tmpdir):
     ret = script_runner.run("hop", "--help")
     assert ret.success
 
-    ret = script_runner.run("hop", "--version")
-    assert ret.success
+    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run("hop", "--version")
+        assert ret.success
 
-    assert ret.stdout == f"hop version {__version__}\n"
-    assert ret.stderr == ""
+        assert f"hop version {__version__}\n" in ret.stdout
+        assert ret.stderr == ""
 
 
 @pytest.mark.parametrize("message_format", ["voevent", "circular", "blob"])
@@ -245,24 +246,28 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
         mock_consumer.return_value.list_topics.assert_called_with()
 
 
-def test_cli_auth(script_runner):
-    ret1 = script_runner.run("hop", "configure", "--help")
-    assert ret1.success
-    assert ret1.stderr == ""
+def test_cli_auth(script_runner, auth_config, tmpdir):
+    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret1 = script_runner.run("hop", "configure", "--help")
+        assert ret1.success
+        assert ret1.stderr == ""
 
-    ret = script_runner.run("hop", "configure", "locate")
-    assert ret.success
-    assert ret.stderr == ""
+        ret = script_runner.run("hop", "configure", "locate")
+        assert ret.success
+        assert config_dir in ret.stdout
+        assert ret.stderr == ""
 
 
-def test_cli_version(script_runner):
-    ret = script_runner.run("hop", "version", "--help")
-    assert ret.success
-    assert ret.stderr == ""
+def test_cli_version(script_runner, auth_config, tmpdir):
+    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run("hop", "version", "--help")
+        assert ret.success
+        assert ret.stderr == ""
 
-    ret = script_runner.run("hop", "version")
-    assert ret.success
-    assert ret.stderr == ""
+        ret = script_runner.run("hop", "version")
+        assert ret.success
+        assert f"hop-client=={__version__}\n" in ret.stdout
+        assert ret.stderr == ""
 
 
 def test_error_verbosity(script_runner):
@@ -276,3 +281,46 @@ def test_error_verbosity(script_runner):
     assert not detailed.success
     assert detailed.stdout == ""
     assert "Traceback (most recent call last)" in detailed.stderr
+
+
+def test_config_advice(script_runner, auth_config, tmpdir):
+    advice_tag = "No valid credential data found"
+    # nonexistent config file
+    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)):
+        ret = script_runner.run("hop")
+        assert advice_tag in ret.stdout
+
+    # wrong credential file permissions
+    import stat
+    with temp_config(tmpdir, "", stat.S_IROTH) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run("hop")
+        assert advice_tag in ret.stdout
+        assert "unsafe permissions" in ret.stderr
+
+    # syntactically invalid TOML in credential file
+    garbage = "JVfwteouh '652b"
+    with temp_config(tmpdir, garbage) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run("hop")
+        assert advice_tag in ret.stdout
+        assert "not configured correctly" in ret.stderr
+
+    # syntactically valid TOML without an [auth] section
+    toml_no_auth = """title = "TOML Example"
+    [owner]
+    name = "Tom Preston-Werner"
+    dob = 1979-05-27T07:32:00-08:00
+    """
+    with temp_config(tmpdir, toml_no_auth) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run("hop")
+        assert advice_tag in ret.stdout
+        assert "configuration file has no auth section" in ret.stderr
+
+    # syntactically valid TOML an incomplete [auth] section
+    toml_bad_auth = """[auth]
+    foo = "bar"
+    """
+    with temp_config(tmpdir, toml_bad_auth) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run("hop")
+        assert advice_tag in ret.stdout
+        assert "missing auth property" in ret.stderr

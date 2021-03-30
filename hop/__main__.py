@@ -10,6 +10,7 @@ from . import subscribe
 from . import version
 from . import list_topics
 from .utils import cli as cli_utils
+from .auth import load_auth
 
 
 def set_up_cli():
@@ -57,11 +58,34 @@ def set_up_cli():
     return parser
 
 
+def check_auth_data(prog_name):
+    """Advise the user on getting/configuring credential data
+    """
+
+    advice = """
+No valid credential data found
+You can get a credential from https://my.hop.scimma.org
+To load your credential, run `hop config setup`
+"""
+
+    try:
+        load_auth()
+    except FileNotFoundError:
+        print(advice)
+    except Exception as ex:
+        print(prog_name + ":", ex, file=sys.stderr)
+        print(advice)
+
+
 def main():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     parser = set_up_cli()
-    args = parser.parse_args()
+    try:
+        args = parser.parse_args()
+    except SystemExit:
+        check_auth_data(parser.prog)
+        raise
     try:
         args.func(args)
     except Exception as ex:

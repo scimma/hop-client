@@ -30,6 +30,13 @@ def test_load_auth_bad_perms(auth_config, tmpdir):
             auth.load_auth()
 
 
+def test_load_auth_invalid_toml(tmpdir):
+    garbage = "KHFBGKJSBVJKbdfb ,s ,msb vks bs"
+    with temp_config(tmpdir, garbage) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir), pytest.raises(RuntimeError):
+        auth.load_auth()
+
+
 def test_load_auth_malformed(tmpdir):
     missing_username = """
                        [auth]
@@ -37,7 +44,7 @@ def test_load_auth_malformed(tmpdir):
                        extra = "stuff"
                        """
     with temp_config(tmpdir, missing_username) as config_dir, \
-            temp_environ(XDG_CONFIG_HOME=config_dir), pytest.raises(KeyError):
+            temp_environ(XDG_CONFIG_HOME=config_dir), pytest.raises(RuntimeError):
         auth.load_auth()
 
     missing_password = """
@@ -46,7 +53,7 @@ def test_load_auth_malformed(tmpdir):
                        extra = "stuff"
                    """
     with temp_config(tmpdir, missing_password) as config_dir, \
-            temp_environ(XDG_CONFIG_HOME=config_dir), pytest.raises(KeyError):
+            temp_environ(XDG_CONFIG_HOME=config_dir), pytest.raises(RuntimeError):
         auth.load_auth()
 
 

@@ -66,7 +66,12 @@ def load_auth(config_file=None):
 
     # load config
     with open(config_file, "r") as f:
-        config = toml.loads(f.read())["auth"]
+        try:
+            config = toml.loads(f.read())["auth"]
+        except KeyError:
+            raise RuntimeError("configuration file has no auth section")
+        except Exception as ex:
+            raise RuntimeError(f"configuration file is not configured correctly: {ex}")
 
     # translate config options
     ssl = True
@@ -87,7 +92,8 @@ def load_auth(config_file=None):
         else:
             mechanism = "SCRAM_SHA_512"
 
-    except KeyError:
-        raise KeyError("configuration file is not configured correctly")
+    except KeyError as ke:
+        raise RuntimeError("configuration file is not configured correctly: "
+                           f"missing auth property {ke}")
     else:
         return Auth(user, password, ssl=ssl, method=SASLMethod[mechanism], **extra_kwargs)
