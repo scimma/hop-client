@@ -3,6 +3,7 @@ from . import configure
 import os
 import errno
 import toml
+from collections import Mapping
 
 SASLMethod = auth.SASLMethod
 
@@ -109,7 +110,7 @@ def _interpret_auth_data(auth_data):
         KeyError: A required key is missing from a credential entry.
 
     """
-    if type(auth_data) is dict:
+    if isinstance(auth_data, Mapping):
         # upgrade old-style single dict configs to new-style list-of-dicts (with one item)
         auth_data = [auth_data]
 
