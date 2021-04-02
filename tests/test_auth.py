@@ -164,6 +164,79 @@ def test_load_auth_muliple_creds(tmpdir):
         assert creds[1].hostname == "host2"
 
 
+def check_no_auth_data(file_path):
+    """Check that a config file contains no auth data, but is otherwise valid TOML
+
+    Returns:
+        The configuration which was read from the file
+    """
+    import toml
+    with open(file_path, "r") as f:
+        config_data = toml.loads(f.read())
+        assert "auth" not in config_data
+        return config_data
+
+
+def test_prune_outdated_empty(tmpdir):
+    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)):
+        # when the config file does not exist, this function should successfully do nothing
+        auth.prune_outdated_auth()
+
+        config_path = configure.get_config_path()
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        with open(config_path, "w") as f:
+            pass
+        # should also work when the file exists but is empty
+        auth.prune_outdated_auth()
+        check_no_auth_data(config_path)
+
+
+def test_prune_outdated_malformed(tmpdir):
+    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)):
+        config_path = configure.get_config_path()
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        with open(config_path, "w") as f:
+            f.write("not valid TOML IGIUF T J2(YHFOh q3pi8hoU *AHou7w3ht")
+        # a RuntimeError should be raised when the file is unparseable garbage
+        with pytest.raises(RuntimeError) as err:
+            auth.prune_outdated_auth()
+        assert f"configuration file {config_path} is malformed" in err.value.args[0]
+
+
+def test_prune_outdated_auth(tmpdir):
+    config_data = """
+        foo = "bar"
+        auth = [{
+        username = "username",
+        password = "password",
+        hostname = "example.com"
+        }]
+        baz = "quux"
+        """
+    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)):
+        config_path = configure.get_config_path()
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        with open(config_path, "w") as f:
+            f.write(config_data)
+        auth.prune_outdated_auth()
+        # the auth data should be gone
+        new_config_data = check_no_auth_data(config_path)
+        # all other data should remain untouched
+        assert "foo" in new_config_data
+        assert "baz" in new_config_data
+
+        # the same should work for files in non-default locations
+        alt_config_path = f"{os.path.dirname(config_path)}/other.toml"
+        with open(alt_config_path, "w") as f:
+            f.write(config_data)
+        auth.prune_outdated_auth(alt_config_path)
+        # the auth data should be gone
+        new_config_data = check_no_auth_data(alt_config_path)
+        # all other data should remain untouched
+        assert "foo" in new_config_data
+        assert "baz" in new_config_data
+
+
 def test_select_auth_no_match(auth_config, tmpdir):
     no_match = "No matching credential found"
 
@@ -316,7 +389,7 @@ def test_setup_auth(script_runner, tmpdir):
         # check on new configuration file is written using credential file
         ret1 = script_runner.run("hop", "configure", "setup", "--import", str(credentials_file))
         assert ret1.success
-        assert "hop : INFO : Generated configuration at:" in ret1.stderr
+        assert "hop : INFO : Wrote configuration to:" in ret1.stderr
         configuration_file = configure.get_config_path("auth")
         cf = open(configuration_file, "r")
         config_file_text = cf.read()

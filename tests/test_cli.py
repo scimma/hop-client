@@ -285,6 +285,31 @@ def test_cli_auth(script_runner, auth_config, tmpdir):
         assert ret.stderr == ""
 
 
+def test_list_credentials(script_runner, auth_config, tmpdir):
+    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run("hop", "configure", "list-creds")
+        assert ret.success
+        assert "username" in ret.stdout
+        assert ret.stderr == ""
+
+
+def test_add_credential(script_runner, auth_config, tmpdir):
+    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        csv_file = str(tmpdir) + "/new_cred.csv"
+        with open(csv_file, "w") as f:
+            f.write("username,password\nnew_user,new_pass")
+        ret = script_runner.run("hop", "configure", "add-cred", csv_file)
+        assert ret.success
+        assert "Wrote configuration to" in ret.stderr
+
+
+def test_delete_credential(script_runner, auth_config, tmpdir):
+    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run("hop", "configure", "delete-cred", "username")
+        assert ret.success
+        assert "Wrote configuration to" in ret.stderr
+
+
 def test_cli_version(script_runner, auth_config, tmpdir):
     with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
         ret = script_runner.run("hop", "version", "--help")

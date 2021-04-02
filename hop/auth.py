@@ -47,6 +47,13 @@ class Auth(auth.SASLAuth):
     def hostname(self):
         return self._hostname
 
+    def __eq__(self, other):
+        return self._username == other._username and \
+            self._config["sasl.password"] == other._config["sasl.password"] and \
+            self.hostname == other.hostname and \
+            self._config["security.protocol"] == other._config["security.protocol"] and \
+            self._config["sasl.mechanism"] == other._config["sasl.mechanism"]
+
 
 def load_auth(config_file=None):
     """Configures an Auth instance given a configuration file.
@@ -62,6 +69,8 @@ def load_auth(config_file=None):
         RuntimeError: The config file exists, but has unsafe permissions
                       and will not be read until they are corrected.
         KeyError: An error occurred parsing the configuration file.
+        FileNotFoundError: The configuration file, either as specified
+                           explicitly or found automatically, does not exist
 
     """
     if config_file is None:
@@ -100,6 +109,39 @@ def load_auth(config_file=None):
             raise RuntimeError(f"configuration file is not configured correctly: {ex}")
 
     return _interpret_auth_data(auth_data)
+
+
+def prune_outdated_auth(config_file=None):
+    """Remove auth data from a general configuration file.
+
+    This can be needed when updating auth data which was read from the general config for backwards
+    compatibility, but is then written out to the correct new location in a separate auth config,
+    as is now proper. With no further action, this would leave a vestigial copy from befoer the
+    update in the general config file, which would not be rewritten, so this function exists to
+    perform the necessary rewrite.
+
+    Args:
+        config_file: Path to a configuration file, rewriting
+            the default location if not given.
+
+    Raises:
+        RuntimeError: The config file is malformed.
+
+    """
+    if config_file is None:
+        config_file = configure.get_config_path("general")
+    if not os.path.exists(config_file):
+        return  # nothing to do!
+    with open(config_file, "r") as f:
+        try:
+            config_data = toml.loads(f.read())
+        except Exception as ex:
+            raise RuntimeError(f"configuration file {config_file} is malformed: {ex}")
+    if "auth" in config_data:
+        del config_data["auth"]
+        # only overwrite if we made a change
+        with open(config_file, "w") as f:
+            toml.dump(config_data, f)
 
 
 def _interpret_auth_data(auth_data):

@@ -30,6 +30,22 @@ Using Credentials
 Authentication is enabled by default and will read credentials from the
 path resolved by :code:`hop configure locate`.
 
+Multiple credentials may be stored together using this mechanism. 
+Additional creentials may be added using `hop configure add-cred`, while the currently available
+credentials may be displayed with `hop configure list-creds` and unwanted credentials can be removed
+with `hop configure delete-cred`. Credentials can be added either interactively or from CSV files.
+For removal credentials are specified by username, or username@hostname in case of ambiguity. 
+
+When using the `hop` CLI to connect to connect to a kafka server, a credential will be selected
+according to the following rules:
+
+1. A credential with a matching hostname will be selected, unless no stored credential has a 
+   matching hostname, in which case a credential with no specific hostname can be selected.
+2. If a username is specified as part of the authority component of the URL (e.g. 
+   `kafka://username@example.com/topic`) only credentials with that username will be considered.
+3. If no username is specified and there is only one credential, which is not specifically 
+   associated with any hostname, it will be used for all hosts. 
+
 For the python API, one can modify various authentication options by passing
 in an :code:`Auth` instance with credentials to a :code:`Stream` instance.
 This provides a similar interface to authenticating as with the requests library.
