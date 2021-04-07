@@ -48,11 +48,11 @@ class Auth(auth.SASLAuth):
         return self._hostname
 
     def __eq__(self, other):
-        return self._username == other._username and \
-            self._config["sasl.password"] == other._config["sasl.password"] and \
-            self.hostname == other.hostname and \
-            self._config["security.protocol"] == other._config["security.protocol"] and \
-            self._config["sasl.mechanism"] == other._config["sasl.mechanism"]
+        return (self._username == other._username
+                and self._config["sasl.password"] == other._config["sasl.password"]
+                and self.hostname == other.hostname
+                and self._config["security.protocol"] == other._config["security.protocol"]
+                and self._config["sasl.mechanism"] == other._config["sasl.mechanism"])
 
 
 def load_auth(config_file=None):

@@ -6,6 +6,7 @@ from hop import auth
 from hop import configure
 import os
 import stat
+import toml
 
 from conftest import temp_environ, temp_config
 
@@ -170,7 +171,6 @@ def check_no_auth_data(file_path):
     Returns:
         The configuration which was read from the file
     """
-    import toml
     with open(file_path, "r") as f:
         config_data = toml.loads(f.read())
         assert "auth" not in config_data
@@ -184,7 +184,7 @@ def test_prune_outdated_empty(tmpdir):
 
         config_path = configure.get_config_path()
         os.makedirs(os.path.dirname(config_path), exist_ok=True)
-        with open(config_path, "w") as f:
+        with open(config_path, "w"):
             pass
         # should also work when the file exists but is empty
         auth.prune_outdated_auth()
