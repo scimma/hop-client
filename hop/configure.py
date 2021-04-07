@@ -207,6 +207,35 @@ def add_credential(args):
     auth.prune_outdated_auth()
 
 
+def _construct_ambiguous_deletion_message(username, hostname, matches):
+    """Create an error message for an ambiguous request to delete a credential.
+
+    This function should only be used by `delete_credential`.
+
+    Args:
+        username: The username for the credential targeted for deletion.
+        hostname: The hostname for the credential targeted for deletion, if any.
+        matches: the collection of possibly matching credentials found by delete_credential.
+
+    Returns:
+        An error message string.
+
+    """
+    err = f"Ambiguous credentials found for username '{username}'"
+    if hostname is not None:
+        err += f" with hostname '{hostname}'\n"
+    else:
+        err += " with no hostname specified\n"
+    err += "Matched credentials:"
+    for match in matches:
+        err += f"\n  {match.username}"
+        if len(match.hostname) == 0:
+            err += " which has no associated hostname"
+        else:
+            err += f" for {match.hostname}"
+    return err
+
+
 def delete_credential(name: str):
     """Delete a credential from the persistent configuration.
 
@@ -252,15 +281,7 @@ def delete_credential(name: str):
             err += f" with hostname '{hostname}'"
         raise RuntimeError(err)
     elif len(matches) > 1:
-        err = f"Ambiguous credentials found for username '{username}'"
-        err += f" with hostname '{hostname}'" if hostname is not None \
-            else " with no hostname specified"
-        err += "Matched credentials:"
-        for match in matches:
-            err += f"\n  {match.username}"
-            err += " which has no associated hostname" if len(match.hostname) == 0 \
-                else f" for {match.hostname}"
-        raise RuntimeError(err)
+        raise RuntimeError(_construct_ambiguous_deletion_message(username, hostname, matches))
 
     # At this point we should have exactly one match, which we can delete
     del creds[match_indices[0]]

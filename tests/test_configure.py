@@ -382,3 +382,24 @@ def test_delete_credential_ambiguous(tmpdir):
     assert delete_input_creds[2].username in err.value.args[0]
     assert delete_input_creds[2].hostname in err.value.args[0]
     assert delete_input_creds[3].hostname in err.value.args[0]
+
+
+def test_delete_credential_ambiguous_with_host(tmpdir):
+    creds = [delete_input_creds[2], delete_input_creds[2]]
+    with temp_environ(HOME=str(tmpdir)), \
+            patch("hop.auth.load_auth", MagicMock(return_value=creds)), \
+            pytest.raises(RuntimeError) as err:
+        configure.delete_credential("user3@example.com")
+    assert "Ambiguous credentials found" in err.value.args[0]
+    assert creds[0].username in err.value.args[0]
+    assert creds[0].hostname in err.value.args[0]
+
+
+def test_delete_credential_ambiguous_creds_without_hosts(tmpdir):
+    creds = [auth.Auth("user1", "pass1"), auth.Auth("user1", "pass2")]
+    with temp_environ(HOME=str(tmpdir)), \
+            patch("hop.auth.load_auth", MagicMock(return_value=creds)), \
+            pytest.raises(RuntimeError) as err:
+        configure.delete_credential("user1")
+    assert "Ambiguous credentials found" in err.value.args[0]
+    assert creds[0].username in err.value.args[0]
