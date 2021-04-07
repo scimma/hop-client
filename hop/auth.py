@@ -116,7 +116,7 @@ def prune_outdated_auth(config_file=None):
 
     This can be needed when updating auth data which was read from the general config for backwards
     compatibility, but is then written out to the correct new location in a separate auth config,
-    as is now proper. With no further action, this would leave a vestigial copy from befoer the
+    as is now proper. With no further action, this would leave a vestigial copy from before the
     update in the general config file, which would not be rewritten, so this function exists to
     perform the necessary rewrite.
 

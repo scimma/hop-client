@@ -31,7 +31,7 @@ Authentication is enabled by default and will read credentials from the
 path resolved by :code:`hop configure locate`.
 
 Multiple credentials may be stored together using this mechanism. 
-Additional creentials may be added using `hop configure add-cred`, while the currently available
+Additional credentials may be added using `hop configure add-cred`, while the currently available
 credentials may be displayed with `hop configure list-creds` and unwanted credentials can be removed
 with `hop configure delete-cred`. Credentials can be added either interactively or from CSV files.
 For removal credentials are specified by username, or username@hostname in case of ambiguity. 
