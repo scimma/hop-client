@@ -22,6 +22,19 @@ def test_cli_hop(script_runner, auth_config, tmpdir):
         assert ret.stderr == ""
 
 
+@pytest.mark.script_launch_mode("subprocess")
+def test_cli_hop_module(script_runner, auth_config, tmpdir):
+    ret = script_runner.run("python", "-m", "hop", "--help")
+    assert ret.success
+
+    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run("python", "-m", "hop", "--version")
+        assert ret.success
+
+        assert f"hop version {__version__}\n" in ret.stdout
+        assert ret.stderr == ""
+
+
 @pytest.mark.parametrize("message_format", ["voevent", "circular", "blob"])
 def test_cli_publish(script_runner, message_format, message_parameters_dict):
     if sys.version_info < (3, 7, 4):
@@ -273,7 +286,7 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
     assert "Multiple broker addresses are not supported" in ret.stderr
 
 
-def test_cli_auth(script_runner, auth_config, tmpdir):
+def test_cli_configure(script_runner, auth_config, tmpdir):
     with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
         ret1 = script_runner.run("hop", "configure", "--help")
         assert ret1.success
@@ -283,6 +296,43 @@ def test_cli_auth(script_runner, auth_config, tmpdir):
         assert ret.success
         assert config_dir in ret.stdout
         assert ret.stderr == ""
+
+
+def test_cli_auth(script_runner, auth_config, tmpdir):
+    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret1 = script_runner.run("hop", "auth", "--help")
+        assert ret1.success
+        assert ret1.stderr == ""
+
+        ret = script_runner.run("hop", "auth", "locate")
+        assert ret.success
+        assert config_dir in ret.stdout
+        assert ret.stderr == ""
+
+
+def test_list_credentials(script_runner, auth_config, tmpdir):
+    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run("hop", "auth", "list")
+        assert ret.success
+        assert "username" in ret.stdout
+        assert ret.stderr == ""
+
+
+def test_add_credential(script_runner, auth_config, tmpdir):
+    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        csv_file = str(tmpdir) + "/new_cred.csv"
+        with open(csv_file, "w") as f:
+            f.write("username,password\nnew_user,new_pass")
+        ret = script_runner.run("hop", "auth", "add", csv_file)
+        assert ret.success
+        assert "Wrote configuration to" in ret.stderr
+
+
+def test_delete_credential(script_runner, auth_config, tmpdir):
+    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run("hop", "auth", "remove", "username")
+        assert ret.success
+        assert "Wrote configuration to" in ret.stderr
 
 
 def test_cli_version(script_runner, auth_config, tmpdir):

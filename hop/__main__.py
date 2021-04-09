@@ -5,12 +5,12 @@ import traceback
 
 from . import __version__
 from . import configure
+from . import auth
 from . import publish
 from . import subscribe
 from . import version
 from . import list_topics
 from .utils import cli as cli_utils
-from .auth import load_auth
 
 
 def set_up_cli():
@@ -44,6 +44,9 @@ def set_up_cli():
     )
     configure._add_parser_args(p)
 
+    p = cli_utils.append_subparser(subparser, "auth", auth._main)
+    auth._add_parser_args(p)
+
     p = cli_utils.append_subparser(subparser, "publish", publish._main)
     publish._add_parser_args(p)
 
@@ -65,11 +68,11 @@ def check_auth_data(prog_name):
     advice = """
 No valid credential data found
 You can get a credential from https://my.hop.scimma.org
-To load your credential, run `hop config setup`
+To load your credential, run `hop auth add`
 """
 
     try:
-        load_auth()
+        auth.load_auth()
     except FileNotFoundError:
         print(advice)
     except Exception as ex:

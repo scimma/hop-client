@@ -8,18 +8,31 @@ Commands
 
 **hop-client** provides a command line interface for various tasks:
 
-* :code:`hop configure`: Authentication utilities
+* :code:`hop auth`: Authentication utilities
+* :code:`hop list-topics`: SHow accessible Kafka topics
 * :code:`hop publish`: Publish messages such as GCN circulars and notices
 * :code:`hop subscribe`: Listen to messages such as GCN circulars and notices
 * :code:`hop version`: Show version dependencies of :code:`hop-client`
 
-:code:`hop configure`
+:code:`hop auth`
 ~~~~~~~~~~~~~~~~~~~~~~
 
-This command allows a user to handle auth-based configuration.
+This command allows a user to configure credentials for authentication.
 
-.. program-output:: hop configure --help
+.. program-output:: hop auth --help
    :nostderr:
+
+:code:`hop list-topics`
+~~~~~~~~~~~~~~~~~~~~~~~
+
+This command allows a user to view the topics that are available for subscribing or publishing on
+a given Hopskotch server. 
+
+Note that other topics may exist which the current user does not have permission to access. 
+
+.. program-output:: hop list-topics --help
+    :nostderr:
+
 
 :code:`hop publish`
 ~~~~~~~~~~~~~~~~~~~~~~
