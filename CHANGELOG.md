@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2021-04-10
+### Changed
+- Consumer group IDs can no longer be specified as part of a broker URL,
+  as the userinfo is used as a credential username.
+- Multiple brokers cannot be specified in a single URL, as this creates
+  ambiguity in selecting credentials by hostname.
+
+### Added
+- Give user directions when user has no configuration set up.
+- Add CLI subcommand `hop list-topics` to list available topics.
+- Allow multiple credentials in auth configuration.
+- Add command line interfaces for managing multiple credentials within
+  `hop auth`.
+
 ## [0.3.0] - 2021-03-02
 ### Changed
 - Generally increase user readability of error messages.
@@ -98,7 +112,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial Release.
 
-[Unreleased]: https://github.com/scimma/hop-client/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/scimma/hop-client/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/scimma/hop-client/releases/tag/v0.4.0
 [0.3.0]: https://github.com/scimma/hop-client/releases/tag/v0.3.0
 [0.2]: https://github.com/scimma/hop-client/releases/tag/v0.2
 [0.1]: https://github.com/scimma/hop-client/releases/tag/v0.1
