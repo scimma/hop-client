@@ -21,6 +21,7 @@ jobs:
       env:
         PACK_NAME: 'hop'
       run: |
+        env | awk -F= '{print $1}'
         python -m pytest --cov-report term --cov-report xml:coverage.xml --cov $PACK_NAME
     - name: Upload results to Codecov
       uses: codecov/codecov-action@v1.0.13
