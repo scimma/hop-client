@@ -322,6 +322,7 @@ def read_new_credential(csv_file=None):
                       empty.
 
     """
+    options = {}
     if csv_file is None:
         logger.info("Generating configuration with user-specified username + password")
         username = input("Username: ")
@@ -339,9 +340,15 @@ def read_new_credential(csv_file=None):
                 username = cred["username"]
                 password = cred["password"]
                 hostname = cred["hostname"] if "hostname" in cred else ""
+                if "mechanism" in cred:
+                    options["method"] = cred["mechanism"].replace("-", "_")
+                if "protocol" in cred:
+                    options["ssl"] = cred["protocol"] != "SASL_PLAINTEXT"
+                if "ssl_ca_location" in cred:
+                    options["ssl_ca_location"] = cred["ssl_ca_location"]
         else:
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), csv_file)
-    return Auth(username, password, hostname)
+    return Auth(username, password, hostname, **options)
 
 
 def write_auth_data(config_file, credentials):
@@ -356,9 +363,12 @@ def write_auth_data(config_file, credentials):
     """
     cred_list = []
     for cred in credentials:
-        cred_dict = {"username": cred.username, "password": cred.password}
+        cred_dict = {"username": cred.username, "password": cred.password,
+                     "protocol": cred.protocol, "mechanism": cred.mechanism}
         if len(cred.hostname) > 0:
             cred_dict["hostname"] = cred.hostname
+        if cred.ssl_ca_location is not None:
+            cred_dict["ssl_ca_location"] = cred.ssl_ca_location
 
         cred_list.append(cred_dict)
 

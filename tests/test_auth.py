@@ -451,6 +451,34 @@ def test_read_new_credential_csv(tmpdir):
     assert new_cred.password == "pass2"
     assert new_cred.hostname == "example.com"
 
+    # read from a csv file with a mechanism
+    with open(csv_file, "w") as f:
+        f.write("username,password,mechanism\n")
+        f.write("user3,pass3,SCRAM-SHA-256")
+    new_cred = auth.read_new_credential(csv_file)
+    assert new_cred.username == "user3"
+    assert new_cred.password == "pass3"
+    assert new_cred.mechanism == "SCRAM_SHA_256"
+
+    # read from a csv file with a mechanism
+    with open(csv_file, "w") as f:
+        f.write("username,password,protocol\n")
+        f.write("user4,pass4,SASL_PLAINTEXT")
+    new_cred = auth.read_new_credential(csv_file)
+    assert new_cred.username == "user4"
+    assert new_cred.password == "pass4"
+    assert not new_cred.ssl
+    assert new_cred.protocol == "SASL_PLAINTEXT"
+
+    # read from a csv file with an SSL CA data location
+    with open(csv_file, "w") as f:
+        f.write("username,password,ssl_ca_location\n")
+        f.write("user5,pass5,foo/bar")
+    new_cred = auth.read_new_credential(csv_file)
+    assert new_cred.username == "user5"
+    assert new_cred.password == "pass5"
+    assert new_cred.ssl_ca_location == "foo/bar"
+
 
 def test_read_new_credential_csv_malformed(tmpdir):
     csv_file = tmpdir + "/cred.csv"
@@ -506,12 +534,28 @@ def test_read_new_credential_interactive_invalid(tmpdir):
     assert err.value.args[0] == "Password may not be empty"
 
 
+def credential_write_read_round_trip(orig_cred, file_path):
+    auth.write_auth_data(file_path, [orig_cred])
+    read_creds = auth.load_auth(file_path)
+    assert len(read_creds) == 1
+    assert read_creds[0] == orig_cred
+
+
 def test_write_config_data(tmpdir):
     config_file = tmpdir + "/config"
     username = "scimma"
     password = "scimmapass"
     auth.write_auth_data(config_file, [auth.Auth(username, password)])
     check_credential_file(config_file, auth.Auth(username, password))
+
+    credential_write_read_round_trip(auth.Auth(username, password), config_file)
+    credential_write_read_round_trip(auth.Auth(username, password, host="example.com"), config_file)
+    credential_write_read_round_trip(auth.Auth(username, password, ssl=False), config_file)
+    credential_write_read_round_trip(auth.Auth(username, password,
+                                               method=auth.SASLMethod.SCRAM_SHA_256),
+                                     config_file)
+    credential_write_read_round_trip(auth.Auth(username, password, ssl_ca_location="ca.cert"),
+                                     config_file)
 
 
 def test_list_credentials(tmpdir, capsys):
