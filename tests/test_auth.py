@@ -17,9 +17,51 @@ def check_credential_file(config_path, cred):
     cf = open(config_path, "r")
     config_file_text = cf.read()
     assert cred.username in config_file_text
-    assert cred._config["sasl.password"] in config_file_text
+    assert cred.password in config_file_text
     if len(cred.hostname) > 0:
         assert cred.hostname in config_file_text
+
+
+def test_auth_username():
+    a = auth.Auth("foo", "bar")
+    assert a.username == "foo"
+
+
+def test_auth_password():
+    a = auth.Auth("foo", "bar")
+    assert a.password == "bar"
+
+
+def test_auth_hostname():
+    a = auth.Auth("foo", "bar")  # use default hostname
+    assert a.hostname == ""
+    a = auth.Auth("foo", "bar", "example.com")
+    assert a.hostname == "example.com"
+
+
+def test_auth_mechanism():
+    a = auth.Auth("foo", "bar")  # use default mechanism
+    assert a.mechanism == str(auth.SASLMethod.SCRAM_SHA_512)
+    a = auth.Auth("foo", "bar", method=auth.SASLMethod.SCRAM_SHA_256)
+    assert a.mechanism == str(auth.SASLMethod.SCRAM_SHA_256)
+
+
+def test_auth_protocol():
+    a = auth.Auth("foo", "bar")  # use default security
+    assert a.ssl
+    assert a.protocol == "SASL_SSL"
+    a = auth.Auth("foo", "bar", ssl=False)
+    assert not a.ssl
+    assert a.protocol == "SASL_PLAINTEXT"
+
+
+def test_auth_ca_location():
+    a = auth.Auth("foo", "bar", ssl=False)
+    assert not a.ssl
+    assert a.ssl_ca_location is None
+    a = auth.Auth("foo", "bar", ssl_ca_location="foo/bar")
+    assert a.ssl
+    assert a.ssl_ca_location == "foo/bar"
 
 
 def test_load_auth_legacy(legacy_auth_config, tmpdir):
@@ -169,10 +211,10 @@ def test_load_auth_muliple_creds(tmpdir):
         creds = auth.load_auth()
         assert len(creds) == 2
         assert creds[0].username == "user1"
-        assert creds[0]._config["sasl.password"] == "pass1"
+        assert creds[0].password == "pass1"
         assert creds[0].hostname == "host1"
         assert creds[1].username == "user2"
-        assert creds[1]._config["sasl.password"] == "pass2"
+        assert creds[1].password == "pass2"
         assert creds[1].hostname == "host2"
 
 
@@ -397,7 +439,7 @@ def test_read_new_credential_csv(tmpdir):
         f.write("user,pass")
     new_cred = auth.read_new_credential(csv_file)
     assert new_cred.username == "user"
-    assert new_cred._config["sasl.password"] == "pass"
+    assert new_cred.password == "pass"
     assert new_cred.hostname == ""
 
     # read from a csv file with a hostname
@@ -406,7 +448,7 @@ def test_read_new_credential_csv(tmpdir):
         f.write("user2,pass2,example.com")
     new_cred = auth.read_new_credential(csv_file)
     assert new_cred.username == "user2"
-    assert new_cred._config["sasl.password"] == "pass2"
+    assert new_cred.password == "pass2"
     assert new_cred.hostname == "example.com"
 
 
@@ -440,7 +482,7 @@ def test_read_new_credential_interactive(tmpdir):
                 patch("hop.auth.input", MagicMock(side_effect=[username, hostname])):
             new_cred = auth.read_new_credential()
             assert new_cred.username == username
-            assert new_cred._config["sasl.password"] == password
+            assert new_cred.password == password
             assert new_cred.hostname == hostname
 
 
@@ -492,7 +534,7 @@ def test_list_credentials(tmpdir, capsys):
         auth.list_credentials()
         captured = capsys.readouterr()
         assert short_cred.username in captured.out
-        assert short_cred._config["sasl.password"] not in captured.out
+        assert short_cred.password not in captured.out
         assert "for" not in captured.out
 
     with patch("hop.auth.load_auth", MagicMock(return_value=[short_cred, long_cred])):
@@ -500,7 +542,7 @@ def test_list_credentials(tmpdir, capsys):
         captured = capsys.readouterr()
         assert short_cred.username in captured.out
         assert long_cred.username in captured.out
-        assert long_cred._config["sasl.password"] not in captured.out
+        assert long_cred.password not in captured.out
         assert long_cred.hostname in captured.out
 
 
