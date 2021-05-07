@@ -48,18 +48,52 @@ class Auth(auth.SASLAuth):
 
     @property
     def username(self):
+        """The username for this credential"""
         return self._username
 
     @property
+    def password(self):
+        """The password for this credential"""
+        return self._config["sasl.password"]
+
+    @property
     def hostname(self):
+        """The hostname with which this creential is associated,
+            or the empty string if the credential did not contain this information
+        """
         return self._hostname
+
+    @property
+    def mechanism(self):
+        """The authentication mechanism to use"""
+        return self._config["sasl.mechanism"]
+
+    @property
+    def protocol(self):
+        """The communication protocol to use"""
+        return self._config["security.protocol"]
+
+    @property
+    def ssl(self):
+        """Whether communication should be secured with SSL"""
+        return self.protocol != "SASL_PLAINTEXT"
+
+    @property
+    def ssl_ca_location(self):
+        """The location of the Certfificate Authority data used for SSL,
+            or None if SSL is not enabled
+        """
+        if "ssl.ca.location" not in self._config:
+            return None
+        return self._config["ssl.ca.location"]
 
     def __eq__(self, other):
         return (self._username == other._username
-                and self._config["sasl.password"] == other._config["sasl.password"]
+                and self.password == other.password
                 and self.hostname == other.hostname
-                and self._config["security.protocol"] == other._config["security.protocol"]
-                and self._config["sasl.mechanism"] == other._config["sasl.mechanism"])
+                and self.mechanism == other.mechanism
+                and self.protocol == other.protocol
+                and self.ssl_ca_location == other.ssl_ca_location)
 
 
 def load_auth(config_file=None):
@@ -288,6 +322,7 @@ def read_new_credential(csv_file=None):
                       empty.
 
     """
+    options = {}
     if csv_file is None:
         logger.info("Generating configuration with user-specified username + password")
         username = input("Username: ")
@@ -305,9 +340,15 @@ def read_new_credential(csv_file=None):
                 username = cred["username"]
                 password = cred["password"]
                 hostname = cred["hostname"] if "hostname" in cred else ""
+                if "mechanism" in cred:
+                    options["method"] = cred["mechanism"].replace("-", "_")
+                if "protocol" in cred:
+                    options["ssl"] = cred["protocol"] != "SASL_PLAINTEXT"
+                if "ssl_ca_location" in cred:
+                    options["ssl_ca_location"] = cred["ssl_ca_location"]
         else:
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), csv_file)
-    return Auth(username, password, hostname)
+    return Auth(username, password, hostname, **options)
 
 
 def write_auth_data(config_file, credentials):
@@ -322,9 +363,13 @@ def write_auth_data(config_file, credentials):
     """
     cred_list = []
     for cred in credentials:
-        cred_dict = {"username": cred.username, "password": cred._config["sasl.password"]}
+        cred_dict = {"username": cred.username, "password": cred.password,
+                     "protocol": cred.protocol, "mechanism": cred.mechanism}
         if len(cred.hostname) > 0:
             cred_dict["hostname"] = cred.hostname
+        if cred.ssl_ca_location is not None:
+            cred_dict["ssl_ca_location"] = cred.ssl_ca_location
+
         cred_list.append(cred_dict)
 
     os.makedirs(os.path.dirname(config_file), exist_ok=True)
