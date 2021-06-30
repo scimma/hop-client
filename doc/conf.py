@@ -97,7 +97,7 @@ html_theme = 'default'
 
 
 def setup(app):
-    app.add_stylesheet('css/my_theme.css')
+    app.add_css_file('css/my_theme.css')
 
 
 # Add any paths that contain custom static files (such as style sheets) here,
