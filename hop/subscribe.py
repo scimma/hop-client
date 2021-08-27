@@ -35,11 +35,11 @@ def _add_parser_args(parser):
         help="Set the message offset offset to start at. Default: LATEST.",
     )
     parser.add_argument(
-        "-p",
-        "--persist",
+        "-e",
+        "--until-eos",
         action="store_true",
-        help="If set, persist or listen to messages indefinitely. "
-             "Otherwise, will stop listening when EOS is received.",
+        help="If set, only subscribe until EOS is received (end of stream). "
+             "Otherwise, listen to messages indefinitely.",
     )
     parser.add_argument(
         "-g", "--group-id",
@@ -56,7 +56,7 @@ def _main(args):
 
     """
     start_at = io.StartPosition[args.start_at]
-    stream = io.Stream(auth=(not args.no_auth), start_at=start_at, persist=args.persist)
+    stream = io.Stream(auth=(not args.no_auth), start_at=start_at, until_eos=args.until_eos)
 
     with stream.open(args.url, "r", group_id=args.group_id) as s:
         for message in s:

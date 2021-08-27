@@ -36,15 +36,15 @@ class Stream(object):
             loading from :meth:`auth.load_auth <hop.auth.load_auth>` if set to
             True. To disable authentication, set to False.
         start_at: The message offset to start at in read mode. Defaults to LATEST.
-        persist: Whether to listen to new messages forever or stop
-            when EOS is received in read mode. Defaults to False.
+        until_eos: Whether to listen to new messages forever (False) or stop
+            when EOS is received in read mode (True). Defaults to False.
 
     """
 
-    def __init__(self, auth=True, start_at=StartPosition.LATEST, persist=False):
+    def __init__(self, auth=True, start_at=StartPosition.LATEST, until_eos=False):
         self._auth = [auth] if isinstance(auth, Auth) else auth
         self.start_at = start_at
-        self.persist = persist
+        self.until_eos = until_eos
 
     @property
     @lru_cache(maxsize=1)
@@ -119,7 +119,7 @@ class Stream(object):
                 topics,
                 start_at=self.start_at,
                 auth=credential,
-                read_forever=self.persist,
+                read_forever=not self.until_eos,
             )
         else:
             raise ValueError("mode must be either 'w' or 'r'")

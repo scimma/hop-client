@@ -19,13 +19,14 @@ Let's open up a stream and show the :code:`Stream` object in action:
 
     from hop import Stream
 
-    stream = Stream(persist=True)
+    stream = Stream(until_eos=True)
     with stream.open("kafka://hostname:port/topic", "r") as s:
         for message in s:
              print(message)
 
-The :code:`persist` option allows one to listen to messages forever
-and keeps the connection open after an end of stream (EOS) is received.
+The :code:`until_eos` option allows one to listen to messages until
+the no more messages are available (EOS or end of stream). By default
+the connection is kept open indefinitely.
 This is to allow long-lived connections where one may set up a service
 to process incoming GCNs, for example.
 
@@ -44,7 +45,7 @@ A complete list of configurable options in :code:`Stream` are:
 
 * :code:`auth`: A `bool` or :code:`auth.Auth` instance to provide authentication
 * :code:`start_at`: The message offset to start at, by passing in an :code:`io.StartPosition`
-* :code:`persist`: Whether to keep a long-live connection to the client beyond EOS
+* :code:`until_eos`: Whether to stop processing messages after an EOS is received
 
 One doesn't have to use the context manager protocol (:code:`with` block)
 to open up a stream as long as the stream is explicitly closed afterwards:
