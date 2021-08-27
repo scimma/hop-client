@@ -1,3 +1,4 @@
+from collections import Counter
 from dataclasses import fields
 import json
 import logging
@@ -103,6 +104,34 @@ def test_stream_read(circular_msg):
         assert messages == 1
 
 
+def test_stream_read_multiple(circular_msg):
+    group_id = "test-group"
+    topic1 = "gcn1"
+    topic2 = "gcn2"
+    start_at = io.StartPosition.EARLIEST
+
+    message_data = {"format": "circular", "content": circular_msg}
+    topic1_message = MagicMock()
+    topic1_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
+    topic1_message.topic = MagicMock(return_value=topic1)
+    topic2_message = MagicMock()
+    topic2_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
+    topic2_message.topic = MagicMock(return_value=topic2)
+    mock_instance = MagicMock()
+    mock_instance.stream = MagicMock(return_value=[topic1_message, topic2_message])
+    stream = io.Stream(persist=False, start_at=start_at, auth=False)
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+        broker_url = f"kafka://{group_id}@hostname:port/{topic1},{topic2}"
+
+        messages = Counter()
+        with stream.open(broker_url, "r") as s:
+            for msg, meta in s.read(metadata=True):
+                messages[meta.topic] += 1
+
+        assert messages[topic1] == 1
+        assert messages[topic2] == 1
+
+
 def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
     topic = "gcn"
     mock_adc_producer = mock_producer(mock_broker, topic)
@@ -192,7 +221,7 @@ def test_stream_open(auth_config, tmpdir):
         # an appropriate consumer group name should be derived from the username in the auth
         assert consumer._consumer.conf.group_id.startswith(stream.auth[0].username)
         # the target topic should be subscribed to
-        subscribe.assert_called_once_with("topic")
+        subscribe.assert_called_once_with(["topic"])
 
         # opening a valid URL for writing should succeed
         producer = stream.open("kafka://example.com/topic", "w")

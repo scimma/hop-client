@@ -285,8 +285,7 @@ class Consumer:
             group_id=group_id,
             **kwargs,
         ))
-        for t in topics:
-            self._consumer.subscribe(t)
+        self._consumer.subscribe(topics)
 
     def read(self, metadata=False, autocommit=True, **kwargs):
         """Read messages from a stream.
