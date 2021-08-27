@@ -418,3 +418,57 @@ class Producer:
 
     def __exit__(self, *exc):
         return self._producer.__exit__(*exc)
+
+
+def list_topics(url: str, auth: Union[bool, Auth] = True):
+    """List the accessible topics on the Kafka broker referred to by url.
+
+    Args:
+        url: The Kafka broker URL. Only one broker may be specified. Topics
+            may be specified, in which case only topics in the intersection
+            of the set specified by the URL and actually present on the broker
+            will be returned. If a userinfo component is present in the URL and
+            auth is True, it will be treated as a hint to the automatic auth
+            lookup.
+        auth: A `bool` or :class:`Auth <hop.auth.Auth>` instance. Defaults to
+            loading from :meth:`auth.load_auth <hop.auth.load_auth>` if set to
+            True. To disable authentication, set to False. If a username is
+            specified as part of url but auth is a :class:`Auth <hop.auth.Auth>`
+            instance the url information will be ignored.
+
+    Returns:
+        A dictionary mapping topic names to
+        :class:`confluent_kafka.admin.TopicMetadata` instances.
+
+    Raises:
+        ValueError: If more than one broker is specified.
+    """
+    username, broker_addresses, query_topics = kafka.parse_kafka_url(url)
+    if len(broker_addresses) > 1:
+        raise ValueError("Multiple broker addresses are not supported")
+    user_auth = None
+    if auth is True:
+        credentials = load_auth()
+        user_auth = select_matching_auth(credentials, broker_addresses[0], username)
+    elif auth is not False:
+        user_auth = auth
+    group_id = _generate_group_id(username, 10)
+    config = {
+        "bootstrap.servers": ",".join(broker_addresses),
+        "error_cb": errors.log_client_errors,
+        "group.id": group_id,
+    }
+    if user_auth is not None:
+        config.update(user_auth())
+    consumer = confluent_kafka.Consumer(config)
+    valid_topics = {}
+    if query_topics is not None:
+        for topic in query_topics:
+            topic_data = consumer.list_topics(topic=topic).topics
+            for topic in topic_data.keys():
+                if topic_data[topic].error is None:
+                    valid_topics[topic] = topic_data[topic]
+    else:
+        topic_data = consumer.list_topics().topics
+        valid_topics = {t: d for t, d in topic_data.items() if d.error is None}
+    return valid_topics
