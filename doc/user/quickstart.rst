@@ -35,7 +35,8 @@ Consume messages
     hop subscribe kafka://hostname:port/gcn -s EARLIEST
 
 This will read messages from the gcn topic from the earliest offset
-and read messages until an end of stream (EOS) is received.
+and read messages as they arrive. By default this will listen to
+messages until the user stops the program (Ctrl+C to stop).
 
 View Available Topics
 ^^^^^^^^^^^^^^^^^^^^^
@@ -109,7 +110,7 @@ One can consume messages through the python API as follows:
              print(message)
 
 This will listen to the Hop broker, listening to new messages and printing them to
-stdout as they arrive until there are no more messages in the stream.
+stdout as they arrive.
 By default, this will only process new messages since the connection was opened.
 The :code:`start_at` option lets you control where in the stream you can start listening
 from. For example, if you'd like to listen to all messages stored in a topic, you can do:

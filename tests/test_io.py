@@ -86,7 +86,7 @@ def test_stream_read(circular_msg):
     fake_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
     mock_instance = MagicMock()
     mock_instance.stream = MagicMock(return_value=[fake_message])
-    stream = io.Stream(persist=False, start_at=start_at, auth=False)
+    stream = io.Stream(start_at=start_at, until_eos=True, auth=False)
     with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
         broker_url1 = f"kafka://hostname:port/{topic}"
         broker_url2 = f"kafka://{group_id}@hostname:port/{topic}"
@@ -119,7 +119,7 @@ def test_stream_read_multiple(circular_msg):
     topic2_message.topic = MagicMock(return_value=topic2)
     mock_instance = MagicMock()
     mock_instance.stream = MagicMock(return_value=[topic1_message, topic2_message])
-    stream = io.Stream(persist=False, start_at=start_at, auth=False)
+    stream = io.Stream(start_at=start_at, until_eos=True, auth=False)
     with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
         broker_url = f"kafka://{group_id}@hostname:port/{topic1},{topic2}"
 
@@ -141,9 +141,9 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
         broker_url = f"kafka://localhost:port/{topic}"
         auth = Auth("user", "password")
         start_at = io.StartPosition.EARLIEST
-        persist = False
+        until_eos = True
 
-        stream = io.Stream(start_at=start_at, persist=persist, auth=auth)
+        stream = io.Stream(start_at=start_at, until_eos=until_eos, auth=auth)
 
         # verify only 1 topic is allowed in write mode
         with pytest.raises(ValueError):
@@ -248,7 +248,7 @@ def test_mark_done(circular_msg):
     mock_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
     mock_instance = MagicMock()
     mock_instance.stream = MagicMock(return_value=[mock_message])
-    stream = io.Stream(persist=False, start_at=start_at, auth=False)
+    stream = io.Stream(until_eos=True, start_at=start_at, auth=False)
 
     with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
         with stream.open("kafka://hostname:port/gcn", "r") as s:

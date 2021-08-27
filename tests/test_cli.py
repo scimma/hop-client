@@ -108,7 +108,7 @@ def test_cli_publish_blob_types(mock_broker, mock_producer, mock_consumer):
             assert mock_broker.has_message("topic", expected_msg)
 
             # reading from the broker should yield messages which match the originals
-            with io.Stream(persist=False, start_at=None, auth=False).open(read_url, "r") as s:
+            with io.Stream(start_at=None, auth=False).open(read_url, "r") as s:
                 extracted_msgs = []
                 for extracted_msg in s:
                     extracted_msgs.append(extracted_msg)
