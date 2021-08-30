@@ -414,3 +414,136 @@ def test_plugin_loading(caplog):
         assert "VOEVENT" in registered
         assert "CIRCULAR" in registered
         assert "BLOB" in registered
+
+
+def make_mock_listing_consumer(topics=[]):
+    """Create a mock object suitable for replacing confluent_kafka.Consumer
+        which has a list_topics method which acts as if a predetermined set of
+        topics exist.
+    """
+    def get_topics(topic=None):
+        nonlocal topics
+        result = {}
+        if topic is None:
+            for topic in topics:
+                result[topic] = MagicMock()  # don't care much what value is
+                result[topic].error = None  # but it should claim no errors
+        elif topic in topics:
+            result[topic] = MagicMock()
+            result[topic].error = None
+        # wrap in a fake metadata object
+        metadata = MagicMock()
+        metadata.topics = result
+        return metadata
+    consumer = MagicMock()
+    consumer.list_topics = get_topics
+    return MagicMock(return_value=consumer)
+
+
+def test_list_topics():
+    # when there are some topics, they are all listed
+    with patch("confluent_kafka.Consumer", make_mock_listing_consumer(["foo", "bar"])) as Consumer:
+        listing = io.list_topics("kafka://example.com", auth=False)
+        assert(len(listing) == 2)
+        assert("foo" in listing)
+        assert("bar" in listing)
+
+        # when auth=False, no auth related properties are set
+        Consumer.assert_called_once()
+        cons_args = Consumer.call_args[0]
+        assert(len(cons_args) == 1)
+        assert("sasl.username" not in cons_args[0])
+        assert("sasl.password" not in cons_args[0])
+
+    # when there are no topics, the result is empty
+    with patch("confluent_kafka.Consumer", make_mock_listing_consumer([])) as Consumer:
+        listing = io.list_topics("kafka://example.com", auth=False)
+        assert(len(listing) == 0)
+
+    # result topics should be the intersection of ones which exist and which were requested
+    with patch("confluent_kafka.Consumer", make_mock_listing_consumer(["foo", "bar"])) as Consumer:
+        listing = io.list_topics("kafka://example.com/bar,baz", auth=False)
+        assert(len(listing) == 1)
+        assert("bar" in listing)
+
+
+def test_list_topics_too_many_brokers():
+    # If the URL specifies too many brokers, an error is raised
+    with patch("confluent_kafka.Consumer", make_mock_listing_consumer([])):
+        with pytest.raises(ValueError):
+            listing = io.list_topics("kafka://example.com,example.net", auth=False)
+
+
+def test_list_topics_auth(auth_config, tmpdir):
+    # when auth=True, auth related properties should be set
+    with temp_config(tmpdir, auth_config) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir), \
+            patch("confluent_kafka.Consumer", make_mock_listing_consumer([])) as Consumer:
+        listing = io.list_topics("kafka://example.com", auth=True)
+
+        # when auth=True, auth related properties should be set
+        Consumer.assert_called_once()
+        cons_args = Consumer.call_args[0]
+        assert(len(cons_args) == 1)
+        assert("sasl.username" in cons_args[0])
+        assert("sasl.password" in cons_args[0])
+        assert(cons_args[0]["sasl.username"] == "username")
+        assert(cons_args[0]["sasl.password"] == "password")
+
+    # when an Auth object is set, it should take precedence over automatic lookup
+    with temp_config(tmpdir, auth_config) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir), \
+            patch("confluent_kafka.Consumer", make_mock_listing_consumer([])) as Consumer:
+        auth = Auth("someone_else", "other_password")
+        listing = io.list_topics("kafka://example.com", auth=auth)
+
+        # when auth=Auth(...), auth related properties should be set correctly
+        Consumer.assert_called_once()
+        cons_args = Consumer.call_args[0]
+        assert(len(cons_args) == 1)
+        assert("sasl.username" in cons_args[0])
+        assert("sasl.password" in cons_args[0])
+        assert(cons_args[0]["sasl.username"] == auth.username)
+        assert(cons_args[0]["sasl.password"] == auth.password)
+
+    # when an Auth object is set, it should take precedence over automatic lookup,
+    # even with userinfo in the URL
+    with temp_config(tmpdir, auth_config) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir), \
+            patch("confluent_kafka.Consumer", make_mock_listing_consumer([])) as Consumer:
+        auth = Auth("someone_else", "other_password")
+        listing = io.list_topics("kafka://username@example.com", auth=auth)
+
+        # when auth=Auth(...), auth related properties should be set correctly
+        Consumer.assert_called_once()
+        cons_args = Consumer.call_args[0]
+        assert(len(cons_args) == 1)
+        assert("sasl.username" in cons_args[0])
+        assert("sasl.password" in cons_args[0])
+        assert(cons_args[0]["sasl.username"] == auth.username)
+        assert(cons_args[0]["sasl.password"] == auth.password)
+
+    # when auth=True and userinfo, the correct credential should be automatically
+    # looked up
+    multi_cred = """
+        auth = [{
+            username="user1",
+            password="pass1"
+            },
+            {
+            username="user2",
+            password="pass2"
+            }]
+        """
+    with temp_config(tmpdir, multi_cred) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir), \
+            patch("confluent_kafka.Consumer", make_mock_listing_consumer([])) as Consumer:
+        listing = io.list_topics("kafka://user2@example.com", auth=True)
+
+        Consumer.assert_called_once()
+        cons_args = Consumer.call_args[0]
+        assert(len(cons_args) == 1)
+        assert("sasl.username" in cons_args[0])
+        assert("sasl.password" in cons_args[0])
+        assert(cons_args[0]["sasl.username"] == "user2")
+        assert(cons_args[0]["sasl.password"] == "pass2")
