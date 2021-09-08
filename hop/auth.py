@@ -1,4 +1,3 @@
-from adc import auth
 from . import configure
 import os
 import getpass
@@ -8,8 +7,7 @@ import errno
 import stat
 import toml
 from collections.abc import Mapping
-
-SASLMethod = auth.SASLMethod
+import certifi
 
 
 logger = logging.getLogger("hop")
@@ -17,7 +15,7 @@ logger = logging.getLogger("hop")
 
 # thin wrapper over adc's SASLAuth to define
 # different defaults used within Hopskotch
-class Auth(auth.SASLAuth):
+class Auth(object):
     """Attach SASL-based authentication to a client.
 
     Returns client-based auth options when called.
@@ -32,19 +30,30 @@ class Auth(auth.SASLAuth):
         The name of the host for which this authentication is valid.
     ssl : `bool`, optional
         Whether to enable SSL (enabled by default).
-    method : `SASLMethod`, optional
-        The SASL method to authenticate, default = SASLMethod.SCRAM_SHA_512.
-        See valid SASL methods in SASLMethod.
+    mechanism : `str`, optional
+        The SASL method to authenticate, default = "SCRAM-SHA-512".
+        Valid values are "PLAIN", "GSSAPI", "OAUTHBEARER", "SCRAM-SHA-256", and
+        "SCRAM-SHA-512".
     ssl_ca_location : `str`, optional
         If using SSL via a self-signed cert, a path/location
         to the certificate.
     """
 
-    def __init__(self, user, password, host="", ssl=True, method=SASLMethod.SCRAM_SHA_512,
+    def __init__(self, user, password, host="", ssl=True, mechanism="SCRAM-SHA-512",
                  **kwargs):
-        super().__init__(user, password, ssl=ssl, method=method, **kwargs)
         self._username = user
+        self._password = password
         self._hostname = host
+        self._sasl_mechanism = mechanism
+        if ssl:
+            self._security_protocol = "SASL_SSL"
+            if "ssl_ca_location" in kwargs:
+                self._ssl_cafile = kwargs["ssl_ca_location"]
+            else:
+                self._ssl_cafile = certifi.where()
+        else:
+            self._security_protocol = "SASL_PLAINTEXT"
+            self._ssl_cafile = None
 
     @property
     def username(self):
@@ -54,7 +63,7 @@ class Auth(auth.SASLAuth):
     @property
     def password(self):
         """The password for this credential"""
-        return self._config["sasl.password"]
+        return self._password
 
     @property
     def hostname(self):
@@ -66,12 +75,12 @@ class Auth(auth.SASLAuth):
     @property
     def mechanism(self):
         """The authentication mechanism to use"""
-        return self._config["sasl.mechanism"]
+        return self._sasl_mechanism
 
     @property
     def protocol(self):
         """The communication protocol to use"""
-        return self._config["security.protocol"]
+        return self._security_protocol
 
     @property
     def ssl(self):
@@ -83,9 +92,7 @@ class Auth(auth.SASLAuth):
         """The location of the Certfificate Authority data used for SSL,
             or None if SSL is not enabled
         """
-        if "ssl.ca.location" not in self._config:
-            return None
-        return self._config["ssl.ca.location"]
+        return self._ssl_cafile
 
     def __eq__(self, other):
         return (self._username == other._username
@@ -94,6 +101,20 @@ class Auth(auth.SASLAuth):
                 and self.mechanism == other.mechanism
                 and self.protocol == other.protocol
                 and self.ssl_ca_location == other.ssl_ca_location)
+
+    def __call__(self):
+        """Return a dictionary suitable for expanding into keyword arguments for
+            kafka-python classes.
+        """
+        config = {
+            "sasl_plain_username" : self._username,
+            "sasl_plain_password" : self._password,
+            "sasl_mechanism" : self._sasl_mechanism,
+            "security_protocol": self._security_protocol,
+        }
+        if self.ssl:
+            config["ssl_cafile"] = self._ssl_cafile
+        return config
 
 
 def load_auth(config_file=None):
@@ -223,15 +244,15 @@ def _interpret_auth_data(auth_data):
                 host = config["hostname"]
 
             if "mechanism" in config:
-                mechanism = config["mechanism"].replace("-", "_")
+                mechanism = config["mechanism"].replace("_", "-")
             else:
-                mechanism = "SCRAM_SHA_512"
+                mechanism = "SCRAM-SHA-512"
 
         except KeyError as ke:
             raise RuntimeError("configuration file is not configured correctly: "
                                f"missing auth property {ke}")
         else:
-            auth.append(Auth(user, password, host=host, ssl=ssl, method=SASLMethod[mechanism],
+            auth.append(Auth(user, password, host=host, ssl=ssl, mechanism=mechanism,
                              **extra_kwargs))
     return auth
 

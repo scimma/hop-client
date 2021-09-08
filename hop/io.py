@@ -7,11 +7,13 @@ import random
 import string
 from typing import Union
 import warnings
+from collections import MutableSet
 
-import confluent_kafka
+import kafka
 import pluggy
 
-from adc import consumer, errors, kafka, producer
+#from adc import consumer, errors, kafka, producer
+from kafka import KafkaConsumer, KafkaProducer, TopicPartition
 
 from .configure import get_config_path
 from .auth import Auth
@@ -22,8 +24,44 @@ from . import plugins
 
 logger = logging.getLogger("hop")
 
-StartPosition = consumer.ConsumerStartPosition
+class StartPosition(Enum):
+    EARLIEST = 1
+    LATEST = 2
 
+    def __str__(self):
+        return self.name.lower()
+
+
+from urllib.parse import urlparse
+
+
+def parse_kafka_url(val):
+    """Extracts the group ID, broker addresses, and topic names from a Kafka URL.
+
+        The URL should be in this form:
+        ``kafka://[groupid@]broker[,broker2[,...]]/topic[,topic2[,...]]``
+
+        The returned group ID and topic may be None if they aren't in the URL.
+
+        """
+    parsed = urlparse(val)
+    if parsed.scheme != "kafka":
+        raise ValueError("invalid kafka URL: must start with 'kafka://'")
+
+    split_netloc = parsed.netloc.split("@", maxsplit=1)
+    if len(split_netloc) == 2:
+        group_id = split_netloc[0]
+        broker_addresses = split_netloc[1].split(",")
+    else:
+        group_id = None
+        broker_addresses = split_netloc[0].split(",")
+
+    topics = parsed.path.lstrip("/")
+    if len(topics) == 0:
+        split_topics = None
+    else:
+        split_topics = topics.split(",")
+    return group_id, broker_addresses, split_topics
 
 class Stream(object):
     """Defines an event stream.
@@ -70,7 +108,7 @@ class Stream(object):
         else:
             return self._auth
 
-    def open(self, url, mode="r", group_id=None):
+    def open(self, url, mode="r", group_id=None, **kwargs):
         """Opens a connection to an event stream.
 
         Args:
@@ -88,7 +126,7 @@ class Stream(object):
                 one topic is specified in write mode, or if more than one broker is specified
 
         """
-        username, broker_addresses, topics = kafka.parse_kafka_url(url)
+        username, broker_addresses, topics = parse_kafka_url(url)
         if len(broker_addresses) > 1:
             raise ValueError("Multiple broker addresses are not supported")
         logger.debug("connecting to addresses=%s  username=%s  topics=%s",
@@ -107,7 +145,7 @@ class Stream(object):
                 raise ValueError("must specify exactly one topic in write mode")
             if group_id is not None:
                 warnings.warn("group ID has no effect when opening a stream in write mode")
-            return Producer(broker_addresses, topics[0], auth=credential)
+            return Producer(broker_addresses, topics[0], auth=credential, **kwargs)
         elif mode == "r":
             if group_id is None:
                 username = credential.username if credential is not None else None
@@ -120,6 +158,7 @@ class Stream(object):
                 start_at=self.start_at,
                 auth=credential,
                 read_forever=self.persist,
+                **kwargs
             )
         else:
             raise ValueError("mode must be either 'w' or 'r'")
@@ -240,16 +279,16 @@ class Metadata:
     offset: int
     timestamp: int
     key: Union[str, bytes]
-    _raw: confluent_kafka.Message
+    _raw: object #TODO: precise type
 
     @classmethod
-    def from_message(cls, msg: confluent_kafka.Message) -> 'Metadata':
+    def from_message(cls, msg) -> 'Metadata':
         return cls(
-            topic=msg.topic(),
-            partition=msg.partition(),
-            offset=msg.offset(),
-            timestamp=msg.timestamp()[1],
-            key=msg.key(),
+            topic=msg.topic,
+            partition=msg.partition,
+            offset=msg.offset,
+            #timestamp=msg.timestamp()[1],
+            key=msg.key,
             _raw=msg,
         )
 
@@ -270,7 +309,7 @@ class Consumer:
                 after reading the last currently available message.
             start_at: The position in the topic stream at which to start
                 reading, specified as a StartPosition object.
-            auth: An adc.auth.SASLAuth object specifying client authentication
+            auth: An Auth object specifying client authentication
                 to use.
             error_callback: A callback which will be called with any
                 confluent_kafka.KafkaError objects produced representing internal
@@ -280,13 +319,49 @@ class Consumer:
 
         :meta private:
         """
-        self._consumer = consumer.Consumer(consumer.ConsumerConfig(
-            broker_urls=broker_addresses,
-            group_id=group_id,
-            **kwargs,
-        ))
-        for t in topics:
-            self._consumer.subscribe(t)
+        config = {}
+        if group_id is not None:
+            config["group_id"] = group_id
+        # kafka-python requires explicit ports in addresses
+        addresses_with_ports = []
+        default_port_str = ":9092"
+        for broker in broker_addresses:
+            if ':' not in broker:
+                addresses_with_ports.append(broker+default_port_str)
+            else:
+                addresses_with_ports.append(broker)
+        #print("Will try to connect to brokers:",addresses_with_ports)
+        config["bootstrap_servers"] = addresses_with_ports
+        if "auth" in kwargs:
+            config.update(kwargs["auth"]())
+            del kwargs["auth"]
+        if "read_forever" in kwargs:
+            self.read_forever = kwargs["read_forever"]
+            if self.read_forever:
+                config["consumer_timeout_ms"] = float('inf') # standard value to never timeout
+            else:
+                config["consumer_timeout_ms"] = 10000 # wait at most this long for more messages to arrive
+            del kwargs["read_forever"]
+        if "start_at" in kwargs:
+            start_at = kwargs["start_at"]
+            if start_at == StartPosition.EARLIEST:
+                config["auto_offset_reset"] = "earliest"
+            elif start_at == StartPosition.LATEST:
+                config["auto_offset_reset"] = "latest"
+            del kwargs["start_at"]
+        if "error_callback" in kwargs:
+            logger.warning(f"error_callback is not currently supported in Consumer")
+            del kwargs["error_callback"]
+        if "offset_commit_interval" in kwargs:
+            config["auto_commit_interval_ms"] = int(kwargs["offset_commit_interval"].total_seconds() * 1000)
+            del kwargs["offset_commit_interval"]
+
+        config["api_version"] = (1,0)
+
+        config.update(kwargs)
+
+        self.topics = topics
+        self._consumer = KafkaConsumer(*topics, **config)
 
     def read(self, metadata=False, autocommit=True, **kwargs):
         """Read messages from a stream.
@@ -305,8 +380,62 @@ class Consumer:
                 If specified, this argument should be a datetime.timedelta
                 object.
         """
-        for message in self._consumer.stream(autocommit=autocommit, **kwargs):
+        partitions = []
+        ends = []
+        got_partitions = False
+
+        def get_partitions():
+            nonlocal partitions, got_partitions, ends
+            if got_partitions:
+                return
+            partitions = set(self._consumer.assignment())
+            ends = self._consumer.end_offsets(partitions)
+            # We may already be at the ends of some partitions, and we need to 
+            # filter them out up front, since we will never read a message from
+            # them (in non-read_forever mode), so we won't otherwise discover
+            # that we're done with them
+            for partition in ends.keys():
+                if self._consumer.position(partition) == ends[partition]:
+                    partitions.discard(partition)
+            #print("  non-empty partitions:", partitions)
+            got_partitions = True
+
+        def update_partitions(message):
+            nonlocal partitions, ends
+            partition = TopicPartition(message.topic, message.partition)
+            if partition in ends and message.offset+1 == ends[partition]:
+                #print("   Reached end of",partition)
+                partitions.discard(partition)
+                #print("   Remaining partitions:",partitions)
+            return len(partitions) == 0
+
+        # call poll once to force partition assignements to become known,
+        # using a minimal timeout to avoid blocking in case we turn out to 
+        # already be at the end of all partitions
+        data=self._consumer.poll(timeout_ms=0, max_records=1)
+        for topic, messages in data:
+            for message in messages:
+                yield self._unpack(message, metadata=metadata)
+                if autocommit:
+                    self._consumer.commit_async()
+                if not self.read_forever:
+                    # just call update_partitions without considering breaking 
+                    # out of the loop beacuse we should definitely yield all 
+                    # mesasges we already have 
+                    update_partitions(message)
+
+        # after poll, we should be able to get real partition data
+        get_partitions()
+        # and we may have also have already consumed everything
+        if not self.read_forever and len(partitions) == 0:
+            return
+            
+        for message in self._consumer:
             yield self._unpack(message, metadata=metadata)
+            if autocommit:
+                self._consumer.commit_async()
+            if not self.read_forever and update_partitions(message):
+                break
 
     @staticmethod
     def _unpack(message, metadata=False):
@@ -316,7 +445,7 @@ class Consumer:
             message: The message to deserialize and unpack.
             metadata: Whether to receive message metadata alongside messages.
         """
-        payload = json.loads(message.value().decode("utf-8"))
+        payload = json.loads(message.value.decode("utf-8"))
         payload = Deserializer.deserialize(payload)
         if metadata:
             return (payload, Metadata.from_message(message))
@@ -372,21 +501,40 @@ class Producer:
 
         :meta private:
         """
-        self._producer = producer.Producer(producer.ProducerConfig(
-            broker_urls=broker_addresses,
-            topic=topic,
-            delivery_callback=errors.raise_delivery_errors,
-            **kwargs,
-        ))
+        config = {}
+        # kafka-python requires explicit ports in addresses
+        addresses_with_ports = []
+        default_port_str = ":9092"
+        for broker in broker_addresses:
+            if ':' not in broker:
+                addresses_with_ports.append(broker+default_port_str)
+            else:
+                addresses_with_ports.append(broker)
 
-    def write(self, message):
+        config["bootstrap_servers"] = addresses_with_ports
+        if "auth" in kwargs:
+            config.update(kwargs["auth"]())
+            del kwargs["auth"]
+        # TODO: set `acks`; very important for robustness/throughput!
+        # TODO: set retries (does something only when acks!=0)
+        # TODO: set batch_size (important for robustness/throughput)
+        # TODO: set linger_ms (important for robustness/throughput)
+
+        config.update(kwargs)
+
+        self._producer = KafkaProducer(**config)
+        self._topic = topic
+
+    def write(self, message, headers = None):
         """Write messages to a stream.
 
         Args:
             message: The message to write.
 
         """
-        self._producer.write(self._pack(message))
+        if type(headers) == dict:
+            headers = list(headers.items())
+        return self._producer.send(self._topic, self._pack(message), headers=headers)
 
     @staticmethod
     def _pack(message):
@@ -413,9 +561,12 @@ class Producer:
 
         """
         return self._producer.close()
+    
+    def flush(self, timeout = None):
+        self._producer.flush(timeout)
 
     def __enter__(self):
         return self
 
     def __exit__(self, *exc):
-        return self._producer.__exit__(*exc)
+        return self.close()
