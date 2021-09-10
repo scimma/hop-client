@@ -41,9 +41,9 @@ def test_auth_hostname():
 
 def test_auth_mechanism():
     a = auth.Auth("foo", "bar")  # use default mechanism
-    assert a.mechanism == str(auth.SASLMethod.SCRAM_SHA_512)
-    a = auth.Auth("foo", "bar", method=auth.SASLMethod.SCRAM_SHA_256)
-    assert a.mechanism == str(auth.SASLMethod.SCRAM_SHA_256)
+    assert a.mechanism == "SCRAM-SHA-512"
+    a = auth.Auth("foo", "bar", mechanism="SCRAM-SHA-256")
+    assert a.mechanism == "SCRAM-SHA-256"
 
 
 def test_auth_protocol():
@@ -146,7 +146,7 @@ def test_load_auth_options(auth_config, tmpdir):
         auth.load_auth()
         assert auth_mock.called_with(ssl=True)
         from adc.auth import SASLMethod
-        assert auth_mock.called_with(mechanism=SASLMethod.SCRAM_SHA_512)
+        assert auth_mock.called_with(mechanism="SCRAM-SHA-512")
 
     # But it should be possible to disable SSL
     use_plaintext = """auth = [{
@@ -458,7 +458,7 @@ def test_read_new_credential_csv(tmpdir):
     new_cred = auth.read_new_credential(csv_file)
     assert new_cred.username == "user3"
     assert new_cred.password == "pass3"
-    assert new_cred.mechanism == "SCRAM_SHA_256"
+    assert new_cred.mechanism == "SCRAM-SHA-256"
 
     # read from a csv file with a mechanism
     with open(csv_file, "w") as f:
@@ -551,8 +551,7 @@ def test_write_config_data(tmpdir):
     credential_write_read_round_trip(auth.Auth(username, password), config_file)
     credential_write_read_round_trip(auth.Auth(username, password, host="example.com"), config_file)
     credential_write_read_round_trip(auth.Auth(username, password, ssl=False), config_file)
-    credential_write_read_round_trip(auth.Auth(username, password,
-                                               method=auth.SASLMethod.SCRAM_SHA_256),
+    credential_write_read_round_trip(auth.Auth(username, password, mechanism="SCRAM-SHA-256"),
                                      config_file)
     credential_write_read_round_trip(auth.Auth(username, password, ssl_ca_location="ca.cert"),
                                      config_file)

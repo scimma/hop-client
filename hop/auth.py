@@ -362,7 +362,7 @@ def read_new_credential(csv_file=None):
                 password = cred["password"]
                 hostname = cred["hostname"] if "hostname" in cred else ""
                 if "mechanism" in cred:
-                    options["method"] = cred["mechanism"].replace("-", "_")
+                    options["mechanism"] = cred["mechanism"].replace("_", "-")
                 if "protocol" in cred:
                     options["ssl"] = cred["protocol"] != "SASL_PLAINTEXT"
                 if "ssl_ca_location" in cred:
