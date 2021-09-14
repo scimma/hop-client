@@ -93,14 +93,14 @@ def test_cli_publish_blob_types(mock_broker, mock_producer, mock_consumer):
     start_at = io.StartPosition.EARLIEST
     read_url = "kafka://group@hostname:port/topic"
 
-    mock_adc_producer = mock_producer(mock_broker, "topic")
-    mock_adc_consumer = mock_consumer(mock_broker, "topic", "group")
+    mock_kafka_producer = mock_producer(mock_broker)
+    mock_kafka_consumer = mock_consumer(mock_broker, "topic", "group")
     msgs = ["a string", ["a", "list", "of", "values"],
             {"a": "dict", "with": ["multiple", "values"]}]
     for msg in msgs:
         with patch("sys.stdin", StringIO(json.dumps(msg))) as mock_stdin, \
-                patch("hop.io.producer.Producer", return_value=mock_adc_producer), \
-                patch("hop.io.consumer.Consumer", return_value=mock_adc_consumer):
+                patch("hop.io.KafkaProducer", return_value=mock_kafka_producer), \
+                patch("hop.io.KafkaConsumer", return_value=mock_kafka_consumer):
             publish._main(args)
 
             # each published message should be on the broker
@@ -126,18 +126,18 @@ def test_cli_publish_bad_blob(mock_broker, mock_producer):
     args.url = "kafka://hostname:port/topic"
     args.format = io.Deserializer.BLOB.name
 
-    mock_adc_producer = mock_producer(mock_broker, "topic")
+    mock_adc_producer = mock_producer(mock_broker)
     msgs = ["not quoted", '{"unclosed:"brace"',
             "invalid\tcharacters\\\b"]
     for msg in msgs:
         # note that we do not serialize the messages as JSON
         with patch("sys.stdin", StringIO(msg)) as mock_stdin, \
-                patch("hop.io.producer.Producer", return_value=mock_adc_producer), \
+                patch("hop.io.KafkaProducer", return_value=mock_adc_producer), \
                 pytest.raises(ValueError):
             publish._main(args)
 
 
-def test_cli_subscribe(script_runner):
+def test_cli_subscribe(mock_broker, mock_consumer, script_runner):
     ret = script_runner.run("hop", "subscribe", "--help")
     assert ret.success
 
@@ -164,32 +164,21 @@ def test_cli_subscribe(script_runner):
 
     message_body = "some-message"
     message_data = {"format": "blob", "content": message_body}
-    fake_message = MagicMock()
-    fake_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
-    mock_instance = MagicMock()
-    mock_instance.stream = MagicMock(return_value=[fake_message])
-    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+    
+    mock_broker.write("topic", json.dumps(message_data).encode("utf-8"), {})
+    mock_kafka_consumer = mock_consumer(mock_broker, "topic", "group")
+
+    with patch("hop.io.KafkaConsumer", MagicMock(return_value=mock_kafka_consumer)):
         ret = script_runner.run("hop", "--debug", "subscribe", broker_url, "--no-auth")
         assert ret.success
         assert ret.stderr == ""
         assert message_body in ret.stdout
 
 
-def dummy_topic_info(topic, error=None):
-    info = MagicMock()
-    info.error = error
-    info.partitions = {}
-    if error is None:
-        info.partitions[0] = MagicMock()
-    return info
-
-
 def make_consumer_mock(expected_topics):
-    metadata = MagicMock()
-    metadata.topics = expected_topics
-    list_topics = MagicMock(return_value=metadata)
+    list_topics = MagicMock(return_value=expected_topics)
     consumer = MagicMock()
-    consumer.list_topics = list_topics
+    consumer.topics = list_topics
     return MagicMock(return_value=consumer)
 
 
@@ -197,10 +186,10 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
     ret = script_runner.run("hop", "list-topics", "--help")
     assert ret.success
 
-    broker_url = "kafka://hostname:port/"
+    broker_url = "kafka://hostname:9092/"
 
     # general listing when no topics are returned
-    with patch("confluent_kafka.Consumer", make_consumer_mock({})) as mock_consumer:
+    with patch("hop.list_topics.KafkaConsumer", make_consumer_mock({})) as mock_consumer:
         ret = script_runner.run("hop", "list-topics", broker_url, "--no-auth")
 
         assert ret.success
@@ -208,18 +197,13 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
         assert "No accessible topics" in ret.stdout
 
         mock_consumer.assert_called()
-        mock_consumer.return_value.list_topics.assert_called_with()
+        mock_consumer.return_value.topics.assert_called_with()
 
     expected_topics = ["foo", "bar"]
     unexpected_topics = ["baz"]
-    topic_results = {}
-    for topic in expected_topics:
-        topic_results[topic] = dummy_topic_info(topic)
-    for topic in unexpected_topics:
-        topic_results[topic] = dummy_topic_info(topic, "an error")
 
     # general listing when some topics are returned
-    with patch("confluent_kafka.Consumer", make_consumer_mock(topic_results)) as mock_consumer:
+    with patch("hop.list_topics.KafkaConsumer", make_consumer_mock(expected_topics)) as mock_consumer:
         ret = script_runner.run("hop", "--debug", "list-topics", broker_url, "--no-auth")
 
         assert ret.success
@@ -231,11 +215,11 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
             assert topic not in ret.stdout
 
         mock_consumer.assert_called()
-        mock_consumer.return_value.list_topics.assert_called_with()
+        mock_consumer.return_value.topics.assert_called_with()
 
-    query_topics = ["foo", "bar", "baz"]
+    query_topics = ["foo", "baz"]
     # listing of specific topics, none of which exist
-    with patch("confluent_kafka.Consumer", make_consumer_mock({})) as mock_consumer:
+    with patch("hop.list_topics.KafkaConsumer", make_consumer_mock([])) as mock_consumer:
         ret = script_runner.run("hop", "list-topics", broker_url + ",".join(query_topics),
                                 "--no-auth")
 
@@ -244,11 +228,10 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
         assert "No accessible topics" in ret.stdout
 
         mock_consumer.assert_called()
-        for topic in query_topics:
-            mock_consumer.return_value.list_topics.assert_any_call(topic=topic)
+        mock_consumer.return_value.topics.assert_called_with()
 
     # listing of specific topics, some of which exist and some of which do not
-    with patch("confluent_kafka.Consumer", make_consumer_mock(topic_results)) as mock_consumer:
+    with patch("hop.list_topics.KafkaConsumer", make_consumer_mock(expected_topics)) as mock_consumer:
         ret = script_runner.run("hop", "list-topics", broker_url + ",".join(query_topics),
                                 "--no-auth")
 
@@ -261,12 +244,11 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
             assert topic not in ret.stdout
 
         mock_consumer.assert_called()
-        for topic in query_topics:
-            mock_consumer.return_value.list_topics.assert_any_call(topic=topic)
+        mock_consumer.return_value.topics.assert_called_with()
 
     # general listing with authentication
     with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir), \
-            patch("confluent_kafka.Consumer", make_consumer_mock(topic_results)) as mock_consumer:
+            patch("hop.list_topics.KafkaConsumer", make_consumer_mock(expected_topics)) as mock_consumer:
         ret = script_runner.run("hop", "list-topics", broker_url)
 
         assert ret.success
@@ -278,7 +260,7 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
             assert topic not in ret.stdout
 
         mock_consumer.assert_called()
-        mock_consumer.return_value.list_topics.assert_called_with()
+        mock_consumer.return_value.topics.assert_called_with()
 
     # attempting to use multiple brokers should provoke an error
     ret = script_runner.run("hop", "list-topics", "kafka://example.com,example.net")

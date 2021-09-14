@@ -1,6 +1,4 @@
 import json
-import sys
-from time import sleep
 
 from . import cli
 from . import io
@@ -23,8 +21,6 @@ def print_message(message, json_dump=False):
         else:
             message = json.dumps(message)
     print(message)
-#    sys.stdout.flush()
-#    sleep(0.2)
 
 
 def _add_parser_args(parser):

@@ -7,6 +7,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from kafka import TopicPartition
+
 from hop import models
 from hop.io import StartPosition
 
@@ -199,11 +201,26 @@ class MockBroker:
         self._messages = defaultdict(list)
         self._offsets = defaultdict(dict)
 
-    def write(self, topic, msg):
+    def write(self, topic, msg, headers):
         self._messages[topic].append(msg)
 
     def has_message(self, topic, message):
         return message in self._messages[topic]
+    
+    def partitions(self, topic):
+        # pretend that every topic has just one partition
+        return [TopicPartition(topic, 0)]
+    
+    def end_offset(self, partition):
+        if partition.topic not in self._messages or partition.partition != 0:
+            return 0
+        return len(self._messages[partition.topic])
+            
+    def position(self, groupid, partition):
+        if partition.topic not in self._offsets or groupid not in self._offsets[partition.topic] \
+                or partition.partition != 0:
+            return 0
+        return self._offsets[partition.topic][groupid]
 
     def read(self, topic, groupid, start_at=StartPosition.EARLIEST, **kwargs):
         if topic not in self._offsets or groupid not in self._offsets[topic]:
@@ -227,14 +244,13 @@ def mock_broker():
 
 @pytest.fixture(scope="session")
 def mock_producer():
-    def _mock_producer(mock_broker, topic):
+    def _mock_producer(mock_broker):
         class ProducerBrokerWrapper:
-            def __init__(self, broker, topic):
+            def __init__(self, broker):
                 self.broker = broker
-                self.topic = topic
 
-            def write(self, msg):
-                self.broker.write(self.topic, msg)
+            def send(self, topic, msg, headers=None):
+                self.broker.write(topic, msg, headers=headers)
 
             def close(self):
                 pass
@@ -245,7 +261,7 @@ def mock_producer():
             def __exit__(self, *exc):
                 pass
 
-        producer = ProducerBrokerWrapper(mock_broker, topic)
+        producer = ProducerBrokerWrapper(mock_broker)
         return producer
 
     return _mock_producer
@@ -264,17 +280,56 @@ def mock_consumer():
             def subscribe(self, topic):
                 # TODO: Support multiple topics?
                 assert topic == self.topic
+            
+            def poll(self, **kwargs):
+                return {}  # return an empty mapping of topics to lists of messages
+            
+            def assignment(self):
+                # just claim all partitions on the selected topic
+                return self.broker.partitions(topic)
+            
+            def position(self, partition):
+                return self.broker.position(self.group_id, partition)
+            
+            def end_offsets(self, partitions):
+                results = {}
+                for partition in partitions:
+                    results[partition] = self.broker.end_offset(partition)
+                return results
+            
+            def commit_async(self):
+                pass
 
             def stream(self, *args, **kwargs):
                 class Message:
-                    def __init__(self, value):
+                    def __init__(self, value, topic, partition, offset):
                         self._value = value
+                        self._topic = topic
+                        self._partition = partition
+                        self._offset = offset
 
+                    @property
                     def value(self):
                         return self._value
+                    
+                    @property
+                    def topic(self):
+                        return self._topic
+                    
+                    @property
+                    def partition(self):
+                        return self._partition
+                    
+                    @property
+                    def offset(self):
+                        return self._offset
 
+                partition = TopicPartition(self.topic, 0)
                 for message in self.broker.read(self.topic, self.group_id, self.start_at, **kwargs):
-                    yield Message(message)
+                    yield Message(message, self.topic, partition.partition, self.broker.position(self.group_id, partition))
+
+            def __iter__(self):
+                yield from self.stream()
 
             def close(self):
                 pass

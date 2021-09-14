@@ -10,6 +10,8 @@ from hop.auth import Auth
 from hop import io
 from hop.models import GCNCircular, VOEvent, Blob
 
+from kafka import TopicPartition
+
 from conftest import temp_environ, temp_config
 
 logger = logging.getLogger("hop")
@@ -76,38 +78,38 @@ def test_deserialize(message, message_parameters_dict, caplog):
 
 
 def test_stream_read(circular_msg):
+    port = 9092
     topic = "gcn"
-    group_id = "test-group"
+    cred_name = "other-cred"
     start_at = io.StartPosition.EARLIEST
-
     message_data = {"format": "circular", "content": circular_msg}
-    fake_message = MagicMock()
-    fake_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
-    mock_instance = MagicMock()
-    mock_instance.stream = MagicMock(return_value=[fake_message])
-    stream = io.Stream(persist=False, start_at=start_at, auth=False)
-    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
-        broker_url1 = f"kafka://hostname:port/{topic}"
-        broker_url2 = f"kafka://{group_id}@hostname:port/{topic}"
 
-        messages = 0
-        with stream.open(broker_url1, "r") as s:
-            for msg in s:
-                messages += 1
-        assert messages == 1
-
-        messages = 0
-        with stream.open(broker_url2, "r") as s:
-            for msg in s:
-                messages += 1
-        assert messages == 1
+    for broker_url in [f"kafka://hostname:{port}/{topic}",
+                       f"kafka://{cred_name}@hostname:{port}/{topic}"]:
+        fake_message = MagicMock()
+        fake_message.value = json.dumps(message_data).encode("utf-8")
+        fake_message.topic = topic
+        fake_message.partition = 0
+        mock_instance = MagicMock()
+        partition = TopicPartition(topic, 0)
+        mock_instance.assignment = MagicMock(return_value=[partition])
+        mock_instance.end_offsets = MagicMock(return_value={partition: 1})
+        mock_instance.poll = MagicMock(return_value={})
+        mock_instance.__iter__ = MagicMock(return_value=iter([fake_message]))
+        stream = io.Stream(persist=False, start_at=start_at, auth=False)
+        with patch("hop.io.KafkaConsumer", MagicMock(return_value=mock_instance)):
+            messages = 0
+            with stream.open(broker_url, "r") as s:
+                for msg in s:
+                    messages += 1
+            assert messages == 1
 
 
 def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
     topic = "gcn"
-    mock_adc_producer = mock_producer(mock_broker, topic)
+    mock_kafka_producer = mock_producer(mock_broker)
     expected_msg = json.dumps(Blob(circular_msg).serialize()).encode("utf-8")
-    with patch("hop.io.producer.Producer", autospec=True, return_value=mock_adc_producer):
+    with patch("hop.io.KafkaProducer", autospec=True, return_value=mock_kafka_producer):
 
         broker_url = f"kafka://localhost:port/{topic}"
         auth = Auth("user", "password")
@@ -146,9 +148,10 @@ def test_stream_auth(auth_config, tmpdir):
     with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
         s2 = io.Stream(auth=True)
         a2 = s2.auth[0]
-        assert a2._config["sasl.username"] == "username"
-        assert a2._config["sasl.password"] == "password"
         assert a2.username == "username"
+        assert a2.password == "password"
+        assert a2()["sasl_plain_username"] == "username"
+        assert a2()["sasl_plain_password"] == "password"
 
     # turning on authentication should fail when the default file does not exist
     with temp_environ(XDG_CONFIG_HOME=str(tmpdir)), pytest.raises(FileNotFoundError):
@@ -185,25 +188,41 @@ def test_stream_open(auth_config, tmpdir):
 
     # verify that complete URLs are accepted
     with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir), \
-            patch("adc.consumer.Consumer.subscribe", MagicMock()) as subscribe:
+            patch("hop.io.KafkaConsumer", MagicMock()) as KafkaConsumer, \
+            patch("hop.io.KafkaProducer", MagicMock()) as KafkaProducer:
         stream = io.Stream()
         # opening a valid URL for reading should succeed
         consumer = stream.open("kafka://example.com/topic", "r")
+        # an attempt should have been made to create a KafkaConsumer
+        KafkaConsumer.assert_called_once()
+        called_topics = KafkaConsumer.call_args[0]
+        # the correct topic should be subscribed to
+        assert len(called_topics) == 1
+        assert "topic" in called_topics
+        called_config = KafkaConsumer.call_args[1]
         # an appropriate consumer group name should be derived from the username in the auth
-        assert consumer._consumer.conf.group_id.startswith(stream.auth[0].username)
-        # the target topic should be subscribed to
-        subscribe.assert_called_once_with("topic")
+        assert "group_id" in called_config
+        assert called_config["group_id"].startswith(stream.auth[0].username)
 
         # opening a valid URL for writing should succeed
         producer = stream.open("kafka://example.com/topic", "w")
         producer.write("data")
+        called_config = KafkaProducer.call_args[1]
+        assert "bootstrap_servers" in called_config
+        called_brokers = called_config["bootstrap_servers"]
+        assert len(called_brokers) == 1
+        assert called_brokers[0].startswith("example.com")
+        assert producer._topic == "topic"
+        producer._producer.send.assert_called_once_with("topic",
+                                                        b'{"format": "blob", "content": "data"}',
+                                                        headers=None)
 
 
 def test_unpack(circular_msg, circular_text):
     wrapped_msg = {"format": "circular", "content": circular_msg}
 
     kafka_msg = MagicMock()
-    kafka_msg.value.return_value = json.dumps(wrapped_msg).encode("utf-8")
+    kafka_msg.value = json.dumps(wrapped_msg).encode("utf-8")
 
     unpacked_msg = io.Consumer._unpack(kafka_msg)
 
@@ -221,7 +240,7 @@ def test_mark_done(circular_msg):
     mock_instance.stream = MagicMock(return_value=[mock_message])
     stream = io.Stream(persist=False, start_at=start_at, auth=False)
 
-    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+    with patch("hop.io.KafkaConsumer", MagicMock(return_value=mock_instance)):
         with stream.open("kafka://hostname:port/gcn", "r") as s:
             for msg, metadata in s.read(metadata=True):
                 s.mark_done(metadata)
@@ -236,6 +255,7 @@ def test_pack(circular_msg, circular_text):
     # unstructured message
     message = {"hey": "you"}
     packed = io.Producer._pack(message)
+    assert packed == b'{"format": "blob", "content": {"hey": "you"}}'
 
 
 @pytest.mark.parametrize("message", [
@@ -264,7 +284,7 @@ def test_pack_unpack_roundtrip(message, message_parameters_dict, caplog):
 
     # mock a kafka message with value being the packed message
     kafka_msg = MagicMock()
-    kafka_msg.value.return_value = packed_msg
+    kafka_msg.value = packed_msg
 
     # unpack the message
     unpacked_msg = io.Consumer._unpack(kafka_msg)
@@ -284,7 +304,7 @@ def test_pack_unpack_roundtrip_unstructured():
     for orig_message in ["a string", ["a", "B", "c"], {"dict": True, "other_data": [5, 17]}]:
         packed_msg = io.Producer._pack(orig_message)
         kafka_msg = MagicMock()
-        kafka_msg.value.return_value = packed_msg
+        kafka_msg.value = packed_msg
         unpacked_msg = io.Consumer._unpack(kafka_msg)
         assert unpacked_msg == orig_message
 
@@ -321,11 +341,11 @@ def test_metadata(mock_kafka_message):
 
     # verify all properties are populated and match raw message
     assert metadata._raw == mock_kafka_message
-    assert metadata.topic == mock_kafka_message.topic()
-    assert metadata.partition == mock_kafka_message.partition()
-    assert metadata.offset == mock_kafka_message.offset()
-    assert metadata.timestamp == mock_kafka_message.timestamp()[1]
-    assert metadata.key == mock_kafka_message.key()
+    assert metadata.topic == mock_kafka_message.topic
+    assert metadata.partition == mock_kafka_message.partition
+    assert metadata.offset == mock_kafka_message.offset
+    assert metadata.timestamp == mock_kafka_message.timestamp
+    assert metadata.key == mock_kafka_message.key
 
 
 def test_plugin_loading(caplog):

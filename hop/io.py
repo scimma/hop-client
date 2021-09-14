@@ -7,13 +7,12 @@ import random
 import string
 from typing import Union
 import warnings
-from collections import MutableSet
 
-import kafka
 import pluggy
 
-#from adc import consumer, errors, kafka, producer
 from kafka import KafkaConsumer, KafkaProducer, TopicPartition
+
+from urllib.parse import urlparse
 
 from .configure import get_config_path
 from .auth import Auth
@@ -24,15 +23,13 @@ from . import plugins
 
 logger = logging.getLogger("hop")
 
+
 class StartPosition(Enum):
     EARLIEST = 1
     LATEST = 2
 
     def __str__(self):
         return self.name.lower()
-
-
-from urllib.parse import urlparse
 
 
 def parse_kafka_url(val):
@@ -62,6 +59,7 @@ def parse_kafka_url(val):
     else:
         split_topics = topics.split(",")
     return group_id, broker_addresses, split_topics
+
 
 class Stream(object):
     """Defines an event stream.
@@ -279,7 +277,7 @@ class Metadata:
     offset: int
     timestamp: int
     key: Union[str, bytes]
-    _raw: object #TODO: precise type
+    _raw: object
 
     @classmethod
     def from_message(cls, msg) -> 'Metadata':
@@ -287,7 +285,7 @@ class Metadata:
             topic=msg.topic,
             partition=msg.partition,
             offset=msg.offset,
-            #timestamp=msg.timestamp()[1],
+            timestamp=msg.timestamp,
             key=msg.key,
             _raw=msg,
         )
@@ -327,20 +325,22 @@ class Consumer:
         default_port_str = ":9092"
         for broker in broker_addresses:
             if ':' not in broker:
-                addresses_with_ports.append(broker+default_port_str)
+                addresses_with_ports.append(broker + default_port_str)
             else:
                 addresses_with_ports.append(broker)
-        #print("Will try to connect to brokers:",addresses_with_ports)
         config["bootstrap_servers"] = addresses_with_ports
         if "auth" in kwargs:
-            config.update(kwargs["auth"]())
+            if kwargs["auth"] is not None:
+                config.update(kwargs["auth"]())
             del kwargs["auth"]
         if "read_forever" in kwargs:
             self.read_forever = kwargs["read_forever"]
             if self.read_forever:
-                config["consumer_timeout_ms"] = float('inf') # standard value to never timeout
+                # standard value to never timeout
+                config["consumer_timeout_ms"] = float('inf')
             else:
-                config["consumer_timeout_ms"] = 10000 # wait at most this long for more messages to arrive
+                # wait at most this long for more messages to arrive
+                config["consumer_timeout_ms"] = 10000
             del kwargs["read_forever"]
         if "start_at" in kwargs:
             start_at = kwargs["start_at"]
@@ -353,10 +353,11 @@ class Consumer:
             logger.warning(f"error_callback is not currently supported in Consumer")
             del kwargs["error_callback"]
         if "offset_commit_interval" in kwargs:
-            config["auto_commit_interval_ms"] = int(kwargs["offset_commit_interval"].total_seconds() * 1000)
+            ms = int(kwargs["offset_commit_interval"].total_seconds() * 1000)
+            config["auto_commit_interval_ms"] = ms
             del kwargs["offset_commit_interval"]
 
-        config["api_version"] = (1,0)
+        config["api_version"] = (1, 0)
 
         config.update(kwargs)
 
@@ -390,7 +391,7 @@ class Consumer:
                 return
             partitions = set(self._consumer.assignment())
             ends = self._consumer.end_offsets(partitions)
-            # We may already be at the ends of some partitions, and we need to 
+            # We may already be at the ends of some partitions, and we need to
             # filter them out up front, since we will never read a message from
             # them (in non-read_forever mode), so we won't otherwise discover
             # that we're done with them
@@ -403,25 +404,25 @@ class Consumer:
         def update_partitions(message):
             nonlocal partitions, ends
             partition = TopicPartition(message.topic, message.partition)
-            if partition in ends and message.offset+1 == ends[partition]:
+            if partition in ends and message.offset + 1 == ends[partition]:
                 #print("   Reached end of",partition)
                 partitions.discard(partition)
                 #print("   Remaining partitions:",partitions)
             return len(partitions) == 0
 
         # call poll once to force partition assignements to become known,
-        # using a minimal timeout to avoid blocking in case we turn out to 
+        # using a minimal timeout to avoid blocking in case we turn out to
         # already be at the end of all partitions
-        data=self._consumer.poll(timeout_ms=0, max_records=1)
+        data = self._consumer.poll(timeout_ms=0, max_records=1)
         for topic, messages in data:
             for message in messages:
                 yield self._unpack(message, metadata=metadata)
                 if autocommit:
                     self._consumer.commit_async()
                 if not self.read_forever:
-                    # just call update_partitions without considering breaking 
-                    # out of the loop beacuse we should definitely yield all 
-                    # mesasges we already have 
+                    # just call update_partitions without considering breaking
+                    # out of the loop beacuse we should definitely yield all
+                    # mesasges we already have
                     update_partitions(message)
 
         # after poll, we should be able to get real partition data
@@ -429,7 +430,7 @@ class Consumer:
         # and we may have also have already consumed everything
         if not self.read_forever and len(partitions) == 0:
             return
-            
+
         for message in self._consumer:
             yield self._unpack(message, metadata=metadata)
             if autocommit:
@@ -507,13 +508,14 @@ class Producer:
         default_port_str = ":9092"
         for broker in broker_addresses:
             if ':' not in broker:
-                addresses_with_ports.append(broker+default_port_str)
+                addresses_with_ports.append(broker + default_port_str)
             else:
                 addresses_with_ports.append(broker)
 
         config["bootstrap_servers"] = addresses_with_ports
         if "auth" in kwargs:
-            config.update(kwargs["auth"]())
+            if kwargs["auth"] is not None:
+                config.update(kwargs["auth"]())
             del kwargs["auth"]
         # TODO: set `acks`; very important for robustness/throughput!
         # TODO: set retries (does something only when acks!=0)
@@ -525,7 +527,7 @@ class Producer:
         self._producer = KafkaProducer(**config)
         self._topic = topic
 
-    def write(self, message, headers = None):
+    def write(self, message, headers=None):
         """Write messages to a stream.
 
         Args:
@@ -561,8 +563,8 @@ class Producer:
 
         """
         return self._producer.close()
-    
-    def flush(self, timeout = None):
+
+    def flush(self, timeout=None):
         self._producer.flush(timeout)
 
     def __enter__(self):

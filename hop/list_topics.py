@@ -1,7 +1,7 @@
 from . import cli
 from .auth import load_auth
 from .auth import select_matching_auth
-from .io import _generate_group_id, parse_kafka_url
+from .io import parse_kafka_url
 from kafka import KafkaConsumer
 
 
@@ -16,7 +16,6 @@ def _main(args):
     if not args.no_auth:
         credentials = load_auth()
         user_auth = select_matching_auth(credentials, broker_addresses[0], username)
-    group_id = _generate_group_id(username, 10)
     config = {
         "bootstrap_servers": broker_addresses,
     }
@@ -27,7 +26,7 @@ def _main(args):
     if query_topics is not None:
         for topic in valid_topics:
             if topic not in query_topics:
-                del valid_topics[topic]
+                valid_topics.remove(topic)
 
     if len(valid_topics) == 0:
         print("No accessible topics")
