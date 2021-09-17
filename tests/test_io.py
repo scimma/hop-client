@@ -2,6 +2,7 @@ from dataclasses import fields
 import json
 import logging
 from pathlib import Path
+from datetime import timedelta
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -77,7 +78,7 @@ def test_deserialize(message, message_parameters_dict, caplog):
             assert test_model.missing_schema
 
 
-def test_stream_read(circular_msg):
+def test_stream_read(circular_msg, mock_broker, mock_consumer):
     port = 9092
     topic = "gcn"
     cred_name = "other-cred"
@@ -86,23 +87,36 @@ def test_stream_read(circular_msg):
 
     for broker_url in [f"kafka://hostname:{port}/{topic}",
                        f"kafka://{cred_name}@hostname:{port}/{topic}"]:
-        fake_message = MagicMock()
-        fake_message.value = json.dumps(message_data).encode("utf-8")
-        fake_message.topic = topic
-        fake_message.partition = 0
-        mock_instance = MagicMock()
-        partition = TopicPartition(topic, 0)
-        mock_instance.assignment = MagicMock(return_value=[partition])
-        mock_instance.end_offsets = MagicMock(return_value={partition: 1})
-        mock_instance.poll = MagicMock(return_value={})
-        mock_instance.__iter__ = MagicMock(return_value=iter([fake_message]))
+        mock_broker.write(topic, json.dumps(message_data).encode("utf-8"), {})
+        mock_kafka_consumer = mock_consumer(mock_broker, topic, "some_group", start_at)
         stream = io.Stream(persist=False, start_at=start_at, auth=False)
-        with patch("hop.io.KafkaConsumer", MagicMock(return_value=mock_instance)):
+        with patch("hop.io.KafkaConsumer", MagicMock(return_value=mock_kafka_consumer)):
             messages = 0
             with stream.open(broker_url, "r") as s:
                 for msg in s:
                     messages += 1
             assert messages == 1
+
+
+def test_stream_read_forever():
+    broker_url = "kafka://hostname:9092/atopic"
+
+    with patch("hop.io.KafkaConsumer", MagicMock()) as consumer_mock:
+        stream = io.Stream(persist=True, auth=False)
+        consumer = stream.open(broker_url, "r")
+        assert "consumer_timeout_ms" in consumer_mock.call_args[1]
+        assert consumer_mock.call_args[1]["consumer_timeout_ms"] == float('inf')
+
+
+def test_read_offset_commit_interval():
+    broker_url = "kafka://hostname:9092/atopic"
+
+    with patch("hop.io.KafkaConsumer", MagicMock()) as consumer_mock:
+        stream = io.Stream(persist=True, auth=False)
+        interval = timedelta(seconds=7, milliseconds=500)
+        consumer = stream.open(broker_url, "r", offset_commit_interval=interval)
+        assert "auto_commit_interval_ms" in consumer_mock.call_args[1]
+        assert consumer_mock.call_args[1]["auto_commit_interval_ms"] == 7500
 
 
 def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
