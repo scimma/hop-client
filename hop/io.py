@@ -398,16 +398,13 @@ class Consumer:
             for partition in ends.keys():
                 if self._consumer.position(partition) == ends[partition]:
                     partitions.discard(partition)
-            #print("  non-empty partitions:", partitions)
             got_partitions = True
 
         def update_partitions(message):
             nonlocal partitions, ends
             partition = TopicPartition(message.topic, message.partition)
             if partition in ends and message.offset + 1 == ends[partition]:
-                #print("   Reached end of",partition)
                 partitions.discard(partition)
-                #print("   Remaining partitions:",partitions)
             return len(partitions) == 0
 
         # call poll once to force partition assignements to become known,

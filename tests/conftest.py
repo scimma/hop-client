@@ -206,16 +206,16 @@ class MockBroker:
 
     def has_message(self, topic, message):
         return message in self._messages[topic]
-    
+
     def partitions(self, topic):
         # pretend that every topic has just one partition
         return [TopicPartition(topic, 0)]
-    
+
     def end_offset(self, partition):
         if partition.topic not in self._messages or partition.partition != 0:
             return 0
         return len(self._messages[partition.topic])
-            
+
     def position(self, groupid, partition):
         if partition.topic not in self._offsets or groupid not in self._offsets[partition.topic] \
                 or partition.partition != 0:
@@ -280,23 +280,23 @@ def mock_consumer():
             def subscribe(self, topic):
                 # TODO: Support multiple topics?
                 assert topic == self.topic
-            
+
             def poll(self, **kwargs):
                 return {}  # return an empty mapping of topics to lists of messages
-            
+
             def assignment(self):
                 # just claim all partitions on the selected topic
                 return self.broker.partitions(topic)
-            
+
             def position(self, partition):
                 return self.broker.position(self.group_id, partition)
-            
+
             def end_offsets(self, partitions):
                 results = {}
                 for partition in partitions:
                     results[partition] = self.broker.end_offset(partition)
                 return results
-            
+
             def commit_async(self):
                 pass
 
@@ -311,15 +311,15 @@ def mock_consumer():
                     @property
                     def value(self):
                         return self._value
-                    
+
                     @property
                     def topic(self):
                         return self._topic
-                    
+
                     @property
                     def partition(self):
                         return self._partition
-                    
+
                     @property
                     def offset(self):
                         return self._offset

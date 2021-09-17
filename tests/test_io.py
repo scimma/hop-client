@@ -11,8 +11,6 @@ from hop.auth import Auth
 from hop import io
 from hop.models import GCNCircular, VOEvent, Blob
 
-from kafka import TopicPartition
-
 from conftest import temp_environ, temp_config
 
 logger = logging.getLogger("hop")

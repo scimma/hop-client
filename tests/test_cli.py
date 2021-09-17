@@ -164,7 +164,7 @@ def test_cli_subscribe(mock_broker, mock_consumer, script_runner):
 
     message_body = "some-message"
     message_data = {"format": "blob", "content": message_body}
-    
+
     mock_broker.write("topic", json.dumps(message_data).encode("utf-8"), {})
     mock_kafka_consumer = mock_consumer(mock_broker, "topic", "group")
 
@@ -202,8 +202,9 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
     expected_topics = ["foo", "bar"]
     unexpected_topics = ["baz"]
 
+    consumer_patch_point = "hop.list_topics.KafkaConsumer"
     # general listing when some topics are returned
-    with patch("hop.list_topics.KafkaConsumer", make_consumer_mock(expected_topics)) as mock_consumer:
+    with patch(consumer_patch_point, make_consumer_mock(expected_topics)) as mock_consumer:
         ret = script_runner.run("hop", "--debug", "list-topics", broker_url, "--no-auth")
 
         assert ret.success
@@ -219,7 +220,7 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
 
     query_topics = ["foo", "baz"]
     # listing of specific topics, none of which exist
-    with patch("hop.list_topics.KafkaConsumer", make_consumer_mock([])) as mock_consumer:
+    with patch(consumer_patch_point, make_consumer_mock([])) as mock_consumer:
         ret = script_runner.run("hop", "list-topics", broker_url + ",".join(query_topics),
                                 "--no-auth")
 
@@ -231,7 +232,7 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
         mock_consumer.return_value.topics.assert_called_with()
 
     # listing of specific topics, some of which exist and some of which do not
-    with patch("hop.list_topics.KafkaConsumer", make_consumer_mock(expected_topics)) as mock_consumer:
+    with patch(consumer_patch_point, make_consumer_mock(expected_topics)) as mock_consumer:
         ret = script_runner.run("hop", "list-topics", broker_url + ",".join(query_topics),
                                 "--no-auth")
 
@@ -247,8 +248,9 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
         mock_consumer.return_value.topics.assert_called_with()
 
     # general listing with authentication
-    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir), \
-            patch("hop.list_topics.KafkaConsumer", make_consumer_mock(expected_topics)) as mock_consumer:
+    with temp_config(tmpdir, auth_config) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir), \
+            patch(consumer_patch_point, make_consumer_mock(expected_topics)) as mock_consumer:
         ret = script_runner.run("hop", "list-topics", broker_url)
 
         assert ret.success
