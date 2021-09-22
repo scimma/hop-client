@@ -70,7 +70,7 @@ class Stream(object):
         else:
             return self._auth
 
-    def open(self, url, mode="r", group_id=None):
+    def open(self, url, mode="r", group_id=None, **kwargs):
         """Opens a connection to an event stream.
 
         Args:
@@ -107,7 +107,7 @@ class Stream(object):
                 raise ValueError("must specify exactly one topic in write mode")
             if group_id is not None:
                 warnings.warn("group ID has no effect when opening a stream in write mode")
-            return Producer(broker_addresses, topics[0], auth=credential)
+            return Producer(broker_addresses, topics[0], auth=credential, **kwargs)
         elif mode == "r":
             if group_id is None:
                 username = credential.username if credential is not None else None
@@ -120,6 +120,7 @@ class Stream(object):
                 start_at=self.start_at,
                 auth=credential,
                 read_forever=not self.until_eos,
+                **kwargs,
             )
         else:
             raise ValueError("mode must be either 'w' or 'r'")
@@ -360,8 +361,6 @@ class Producer:
             topic: The name of the topic to which to write.
             auth: An adc.auth.SASLAuth object specifying client authentication
                 to use.
-            delivery_callback: A callback which will be called when each message
-                is either delivered or permenantly fails to be delivered.
             error_callback: A callback which will be called with any
                 confluent_kafka.KafkaError objects produced representing internal
                 Kafka errors.
@@ -374,18 +373,22 @@ class Producer:
         self._producer = producer.Producer(producer.ProducerConfig(
             broker_urls=broker_addresses,
             topic=topic,
-            delivery_callback=errors.raise_delivery_errors,
             **kwargs,
         ))
 
-    def write(self, message):
+    def write(self, message, headers=None, delivery_callback=errors.raise_delivery_errors):
         """Write messages to a stream.
 
         Args:
             message: The message to write.
+            headers: Any headers to attach to the message, either as a dictionary
+                mapping strings to strings, or as a list of 2-tuples of strings.
+            delivery_callback: A callback which will be called when each message
+                is either delivered or permenantly fails to be delivered.
 
         """
-        self._producer.write(self._pack(message))
+        self._producer.write(self._pack(message), headers=headers,
+                             delivery_callback=delivery_callback)
 
     @staticmethod
     def _pack(message):

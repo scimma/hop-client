@@ -199,11 +199,11 @@ class MockBroker:
         self._messages = defaultdict(list)
         self._offsets = defaultdict(dict)
 
-    def write(self, topic, msg):
-        self._messages[topic].append(msg)
+    def write(self, topic, msg, headers=None):
+        self._messages[topic].append((msg, headers))
 
-    def has_message(self, topic, message):
-        return message in self._messages[topic]
+    def has_message(self, topic, message, headers=None):
+        return (message, headers) in self._messages[topic]
 
     def read(self, topics, groupid, start_at=StartPosition.EARLIEST, **kwargs):
         if isinstance(topics, str):
@@ -237,8 +237,8 @@ def mock_producer():
                 self.broker = broker
                 self.topic = topic
 
-            def write(self, msg):
-                self.broker.write(self.topic, msg)
+            def write(self, msg, headers=None, delivery_callback=None):
+                self.broker.write(self.topic, msg, headers)
 
             def close(self):
                 pass
@@ -273,14 +273,18 @@ def mock_consumer():
 
             def stream(self, *args, **kwargs):
                 class Message:
-                    def __init__(self, value):
+                    def __init__(self, value, headers=None):
                         self._value = value
+                        self._headers = headers
 
                     def value(self):
                         return self._value
 
+                    def headers(self):
+                        return self._headers
+
                 for message in self.broker.read(self.topics, self.group_id, self.start_at, **kwargs):
-                    yield Message(message)
+                    yield Message(message[0], message[1])
 
             def close(self):
                 pass
