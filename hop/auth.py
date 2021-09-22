@@ -530,6 +530,9 @@ def _add_parser_args(parser):
                                            "specified either via a CSV file or interactively")
     add_cred_parser.add_argument("cred_file", type=str, default=None, nargs='?',
                                  help="Import credentials from CSV file")
+    add_cred_parser.add_argument("--force", action="store_true", default=False,
+                                 help="If set, overwrite any existing credential when a new one "
+                                 "with the same username and hostname is added")
 
     del_cred_parser = subparser.add_parser("remove", help="Delete a stored credential")
     del_cred_parser.add_argument("name", type=str,

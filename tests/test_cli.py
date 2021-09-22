@@ -328,6 +328,29 @@ def test_add_credential(script_runner, auth_config, tmpdir):
         assert "Wrote configuration to" in ret.stderr
 
 
+def test_add_credential_overwrite(script_runner, auth_config, tmpdir):
+    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        csv_file = str(tmpdir) + "/new_cred.csv"
+        with open(csv_file, "w") as f:
+            f.write("username,password\nnew_user,new_pass")
+        ret = script_runner.run("hop", "auth", "add", csv_file)
+        assert ret.success
+        assert "Wrote configuration to" in ret.stderr
+
+        with open(csv_file, "w") as f:
+            f.write("username,password\nnew_user,other_pass")
+
+        # try to overwrite the credential, without forcing
+        ret = script_runner.run("hop", "auth", "add", csv_file)
+        assert ret.success
+        assert "Credential already exists; overwrite with --force" in ret.stderr
+
+        # try again, with force
+        ret = script_runner.run("hop", "auth", "add", "--force", csv_file)
+        assert ret.success
+        assert "Wrote configuration to" in ret.stderr
+
+
 def test_delete_credential(script_runner, auth_config, tmpdir):
     with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
         ret = script_runner.run("hop", "auth", "remove", "username")
