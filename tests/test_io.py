@@ -356,6 +356,7 @@ def test_metadata(mock_kafka_message):
     assert metadata.offset == mock_kafka_message.offset()
     assert metadata.timestamp == mock_kafka_message.timestamp()[1]
     assert metadata.key == mock_kafka_message.key()
+    assert metadata.headers == mock_kafka_message.headers()
 
 
 def test_plugin_loading(caplog):

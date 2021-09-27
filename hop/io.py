@@ -5,7 +5,7 @@ import json
 import logging
 import random
 import string
-from typing import Union
+from typing import List, Tuple, Union
 import warnings
 
 import confluent_kafka
@@ -241,6 +241,7 @@ class Metadata:
     offset: int
     timestamp: int
     key: Union[str, bytes]
+    headers: List[Tuple[str, bytes]]
     _raw: confluent_kafka.Message
 
     @classmethod
@@ -251,6 +252,7 @@ class Metadata:
             offset=msg.offset(),
             timestamp=msg.timestamp()[1],
             key=msg.key(),
+            headers=msg.headers(),
             _raw=msg,
         )
 

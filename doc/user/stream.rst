@@ -110,3 +110,36 @@ A workflow to do this is shown below:
         for message, metadata in s.read(metadata=True, autocommit=False):
              print(message, metadata.topic)
              s.mark_done(metadata)
+
+Attatching Metadata to Messages
+-------------------------------
+
+Apache Kafka supports headers to associate metadata with messages, separate from the message body,
+and the hop python API supports this feature as well. Headers should generally be *small* and
+ideally optional information; most of a message's content should be in its body.
+
+Each header has a string key, and a binary or unicode value. A collection of headers may be provided
+either as a dictionary or as a list of (key, value) tuples. Duplicate header keys are permitted;
+the list representation is necessary to utilize this allowance.
+
+It is important to note that Hopskotch reserves all header names starting with an underscore (``_``)
+for internal use; users should not set their own headers with such names.
+
+Sending messages with headers and viewing the headers attached to received messages can be done as
+shown below:
+
+.. code:: python
+
+    from hop import stream
+
+    with stream.open("kafka://hostname:port/topic1", "w") as s:
+        s.write({"my": "message"}, headers={"priority": "1", "sender": "test"})
+        s.write({"my": "other message"}, headers=[("priority", "2"), ("sender", "test")])
+
+.. code:: python
+
+    from hop import stream
+
+    with stream.open("kafka://hostname:port/topic1", "r") as s:
+      for message, metadata in s.read(metadata=True):
+        print(message, metadata.headers)

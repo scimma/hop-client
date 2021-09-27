@@ -309,6 +309,7 @@ def mock_kafka_message():
     message.offset.return_value = 0
     message.timestamp.return_value = (0, 1234567890)
     message.key.return_value = "test-key"
+    message.headers.return_value = [("a header", "a value"), ("another header", "other value")]
     return message
 
 
