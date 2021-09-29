@@ -1,12 +1,18 @@
-import sys
 import json
+import logging
+import sys
 
 from . import cli
 from . import io
 
 
+logger = logging.getLogger("hop")
+
+
 def _add_parser_args(parser):
     cli.add_client_opts(parser)
+    cli.add_logging_opts(parser)
+
     parser.add_argument(
         "message", metavar="MESSAGE", nargs="*", help="Messages to publish.",
     )
@@ -23,10 +29,13 @@ def _main(args):
     """Publish messages.
 
     """
+    cli.set_up_logger(args)
+
     loader = io.Deserializer[args.format]
     stream = io.Stream(auth=(not args.no_auth))
 
     with stream.open(args.url, "w") as s:
+        logger.info("publishing messages to stream")
         for message_file in args.message:
             message = loader.load_file(message_file)
             s.write(message)

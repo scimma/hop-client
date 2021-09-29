@@ -58,7 +58,8 @@ def test_cli_publish(script_runner, message_format, message_parameters_dict):
 
         broker_url = "kafka://hostname:port/message"
         ret = script_runner.run(
-            "hop", "publish", broker_url, test_file, "-f", message_format.upper(), "--no-auth",
+            "hop", "publish", broker_url, test_file, "--quiet",
+            "-f", message_format.upper(), "--no-auth",
         )
 
         # verify CLI output
@@ -169,7 +170,7 @@ def test_cli_subscribe(script_runner):
     mock_instance = MagicMock()
     mock_instance.stream = MagicMock(return_value=[fake_message])
     with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
-        ret = script_runner.run("hop", "--debug", "subscribe", broker_url, "--no-auth")
+        ret = script_runner.run("hop", "--debug", "subscribe", broker_url, "--no-auth", "--quiet")
         assert ret.success
         assert ret.stderr == ""
         assert message_body in ret.stdout
