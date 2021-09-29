@@ -1,5 +1,5 @@
 import argparse
-import signal
+import logging
 import sys
 import traceback
 
@@ -11,6 +11,9 @@ from . import subscribe
 from . import version
 from . import list_topics
 from .utils import cli as cli_utils
+
+
+logger = logging.getLogger("hop")
 
 
 def set_up_cli():
@@ -81,9 +84,8 @@ To load your credential, run `hop auth add`
 
 
 def main():
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
-
     parser = set_up_cli()
+
     try:
         args = parser.parse_args()
     except SystemExit:
@@ -91,6 +93,8 @@ def main():
         raise
     try:
         args.func(args)
+    except KeyboardInterrupt:
+        logger.info("received keyboard interrupt, closing")
     except Exception as ex:
         if args.debug:
             traceback.print_exc(file=sys.stderr)
