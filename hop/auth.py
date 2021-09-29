@@ -1,13 +1,17 @@
-from adc import auth
-from . import configure
-import os
-import getpass
-import logging
+from collections.abc import Mapping
 import csv
 import errno
+import getpass
+import logging
+import os
 import stat
 import toml
-from collections.abc import Mapping
+
+from adc import auth
+
+from . import configure
+from . import cli
+
 
 SASLMethod = auth.SASLMethod
 
@@ -519,6 +523,8 @@ def delete_credential(name: str):
 
 
 def _add_parser_args(parser):
+    cli.add_logging_opts(parser)
+
     subparser = parser.add_subparsers(title="commands", metavar="<command>", dest="command")
     subparser.required = True
 
@@ -545,9 +551,7 @@ def _main(args):
     """Authentication configuration utilities.
 
     """
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s | %(name)s : %(levelname)s : %(message)s",
-    )
+    cli.set_up_logger(args)
 
     if args.command == "locate":
         print(configure.get_config_path("auth"))

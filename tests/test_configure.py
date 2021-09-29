@@ -50,7 +50,6 @@ def test_get_config_path_invalid(tmpdir):
 
 def test_no_command_configure(script_runner):
     warning_message = (
-        "usage: hop configure [-h] <command> ...\n"
         "hop configure: error: the following arguments are required: <command>"
     )
     ret = script_runner.run("hop", "configure")
