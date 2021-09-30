@@ -32,10 +32,10 @@ def add_logging_opts(parser):
     """
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
-        "--quiet", action="store_true", help="If set, only display warnings and errors."
+        "-q", "--quiet", action="store_true", help="If set, only display warnings and errors."
     )
     group.add_argument(
-        "--verbose", action="store_true", help="If set, display additional logging messages."
+        "-v", "--verbose", action="store_true", help="If set, display additional logging messages."
     )
 
 
