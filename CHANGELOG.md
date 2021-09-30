@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2021-09-30
+### Changed
+- Pin adc-streaming to 1.x.
+- Support Sphinx 4.x for documentation.
+
 ## [0.4.0] - 2021-04-10
 ### Changed
 - Consumer group IDs can no longer be specified as part of a broker URL,
@@ -112,7 +117,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial Release.
 
-[Unreleased]: https://github.com/scimma/hop-client/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/scimma/hop-client/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/scimma/hop-client/releases/tag/v0.4.1
 [0.4.0]: https://github.com/scimma/hop-client/releases/tag/v0.4.0
 [0.3.0]: https://github.com/scimma/hop-client/releases/tag/v0.3.0
 [0.2]: https://github.com/scimma/hop-client/releases/tag/v0.2
