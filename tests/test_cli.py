@@ -176,6 +176,34 @@ def test_cli_subscribe(script_runner):
         assert message_body in ret.stdout
 
 
+def test_cli_subscribe_logging(script_runner):
+    broker_url = "kafka://hostname:port/message"
+    message_body = "some-message"
+    message_data = {"format": "blob", "content": message_body}
+    fake_message = MagicMock()
+    fake_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
+    mock_instance = MagicMock()
+    mock_instance.stream = MagicMock(return_value=[fake_message])
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+        # check logging with --quiet (only warnings/errors)
+        ret = script_runner.run("hop", "--debug", "subscribe", broker_url, "--no-auth", "--quiet")
+        assert ret.success
+        assert "DEBUG" not in ret.stderr
+        assert "INFO" not in ret.stderr
+
+        # check default logging (INFO)
+        ret = script_runner.run("hop", "--debug", "subscribe", broker_url, "--no-auth")
+        assert ret.success
+        assert "INFO" in ret.stderr
+        assert "DEBUG" not in ret.stderr
+
+        # check verbose logging (DEBUG)
+        ret = script_runner.run("hop", "--debug", "subscribe", broker_url, "--no-auth", "-v")
+        assert ret.success
+        assert "INFO" in ret.stderr
+        assert "DEBUG" in ret.stderr
+
+
 def dummy_topic_info(topic, error=None):
     info = MagicMock()
     info.error = error
