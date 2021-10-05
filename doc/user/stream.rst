@@ -111,8 +111,8 @@ A workflow to do this is shown below:
              print(message, metadata.topic)
              s.mark_done(metadata)
 
-Attatching Metadata to Messages
--------------------------------
+Attaching Metadata to Messages
+------------------------------
 
 Apache Kafka supports headers to associate metadata with messages, separate from the message body,
 and the hop python API supports this feature as well. Headers should generally be *small* and
@@ -141,5 +141,5 @@ shown below:
     from hop import stream
 
     with stream.open("kafka://hostname:port/topic1", "r") as s:
-      for message, metadata in s.read(metadata=True):
-        print(message, metadata.headers)
+        for message, metadata in s.read(metadata=True):
+            print(message, metadata.headers)
