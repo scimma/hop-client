@@ -136,6 +136,7 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
     topic = "gcn"
     mock_adc_producer = mock_producer(mock_broker, topic)
     expected_msg = json.dumps(Blob(circular_msg).serialize()).encode("utf-8")
+    headers = {"some header": "some value"}
     with patch("hop.io.producer.Producer", autospec=True, return_value=mock_adc_producer):
 
         broker_url = f"kafka://localhost:port/{topic}"
@@ -155,15 +156,15 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
 
         mock_broker.reset()
         with stream.open(broker_url, "w") as s:
-            s.write(circular_msg)
-            assert mock_broker.has_message(topic, expected_msg)
+            s.write(circular_msg, headers)
+            assert mock_broker.has_message(topic, expected_msg, headers)
 
         # repeat, but with a manual close instead of context management
         mock_broker.reset()
         s = stream.open(broker_url, "w")
-        s.write(circular_msg)
+        s.write(circular_msg, headers)
         s.close()
-        assert mock_broker.has_message(topic, expected_msg)
+        assert mock_broker.has_message(topic, expected_msg, headers)
 
 
 def test_stream_auth(auth_config, tmpdir):
@@ -355,6 +356,7 @@ def test_metadata(mock_kafka_message):
     assert metadata.offset == mock_kafka_message.offset()
     assert metadata.timestamp == mock_kafka_message.timestamp()[1]
     assert metadata.key == mock_kafka_message.key()
+    assert metadata.headers == mock_kafka_message.headers()
 
 
 def test_plugin_loading(caplog):
