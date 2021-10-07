@@ -1,13 +1,17 @@
-from adc import auth
-from . import configure
-import os
-import getpass
-import logging
+from collections.abc import Mapping
 import csv
 import errno
+import getpass
+import logging
+import os
 import stat
 import toml
-from collections.abc import Mapping
+
+from adc import auth
+
+from . import configure
+from . import cli
+
 
 SASLMethod = auth.SASLMethod
 
@@ -519,6 +523,8 @@ def delete_credential(name: str):
 
 
 def _add_parser_args(parser):
+    cli.add_logging_opts(parser)
+
     subparser = parser.add_subparsers(title="commands", metavar="<command>", dest="command")
     subparser.required = True
 
@@ -530,6 +536,9 @@ def _add_parser_args(parser):
                                            "specified either via a CSV file or interactively")
     add_cred_parser.add_argument("cred_file", type=str, default=None, nargs='?',
                                  help="Import credentials from CSV file")
+    add_cred_parser.add_argument("--force", action="store_true", default=False,
+                                 help="If set, overwrite any existing credential when a new one "
+                                 "with the same username and hostname is added")
 
     del_cred_parser = subparser.add_parser("remove", help="Delete a stored credential")
     del_cred_parser.add_argument("name", type=str,
@@ -542,9 +551,7 @@ def _main(args):
     """Authentication configuration utilities.
 
     """
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s | %(name)s : %(levelname)s : %(message)s",
-    )
+    cli.set_up_logger(args)
 
     if args.command == "locate":
         print(configure.get_config_path("auth"))

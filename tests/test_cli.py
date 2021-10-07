@@ -58,7 +58,8 @@ def test_cli_publish(script_runner, message_format, message_parameters_dict):
 
         broker_url = "kafka://hostname:port/message"
         ret = script_runner.run(
-            "hop", "publish", broker_url, test_file, "-f", message_format.upper(), "--no-auth",
+            "hop", "publish", broker_url, test_file, "--quiet",
+            "-f", message_format.upper(), "--no-auth",
         )
 
         # verify CLI output
@@ -169,10 +170,38 @@ def test_cli_subscribe(script_runner):
     mock_instance = MagicMock()
     mock_instance.stream = MagicMock(return_value=[fake_message])
     with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
-        ret = script_runner.run("hop", "--debug", "subscribe", broker_url, "--no-auth")
+        ret = script_runner.run("hop", "--debug", "subscribe", broker_url, "--no-auth", "--quiet")
         assert ret.success
         assert ret.stderr == ""
         assert message_body in ret.stdout
+
+
+def test_cli_subscribe_logging(script_runner):
+    broker_url = "kafka://hostname:port/message"
+    message_body = "some-message"
+    message_data = {"format": "blob", "content": message_body}
+    fake_message = MagicMock()
+    fake_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
+    mock_instance = MagicMock()
+    mock_instance.stream = MagicMock(return_value=[fake_message])
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+        # check logging with --quiet (only warnings/errors)
+        ret = script_runner.run("hop", "--debug", "subscribe", broker_url, "--no-auth", "--quiet")
+        assert ret.success
+        assert "DEBUG" not in ret.stderr
+        assert "INFO" not in ret.stderr
+
+        # check default logging (INFO)
+        ret = script_runner.run("hop", "--debug", "subscribe", broker_url, "--no-auth")
+        assert ret.success
+        assert "INFO" in ret.stderr
+        assert "DEBUG" not in ret.stderr
+
+        # check verbose logging (DEBUG)
+        ret = script_runner.run("hop", "--debug", "subscribe", broker_url, "--no-auth", "-v")
+        assert ret.success
+        assert "INFO" in ret.stderr
+        assert "DEBUG" in ret.stderr
 
 
 def dummy_topic_info(topic, error=None):
@@ -324,6 +353,29 @@ def test_add_credential(script_runner, auth_config, tmpdir):
         with open(csv_file, "w") as f:
             f.write("username,password\nnew_user,new_pass")
         ret = script_runner.run("hop", "auth", "add", csv_file)
+        assert ret.success
+        assert "Wrote configuration to" in ret.stderr
+
+
+def test_add_credential_overwrite(script_runner, auth_config, tmpdir):
+    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        csv_file = str(tmpdir) + "/new_cred.csv"
+        with open(csv_file, "w") as f:
+            f.write("username,password\nnew_user,new_pass")
+        ret = script_runner.run("hop", "auth", "add", csv_file)
+        assert ret.success
+        assert "Wrote configuration to" in ret.stderr
+
+        with open(csv_file, "w") as f:
+            f.write("username,password\nnew_user,other_pass")
+
+        # try to overwrite the credential, without forcing
+        ret = script_runner.run("hop", "auth", "add", csv_file)
+        assert ret.success
+        assert "Credential already exists; overwrite with --force" in ret.stderr
+
+        # try again, with force
+        ret = script_runner.run("hop", "auth", "add", "--force", csv_file)
         assert ret.success
         assert "Wrote configuration to" in ret.stderr
 

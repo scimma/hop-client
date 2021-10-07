@@ -1,6 +1,9 @@
 import logging
 import os
 
+from . import cli
+
+
 logger = logging.getLogger("hop")
 
 
@@ -35,6 +38,8 @@ def get_config_path(type: str = "general"):
 
 
 def _add_parser_args(parser):
+    cli.add_logging_opts(parser)
+
     subparser = parser.add_subparsers(title="commands", metavar="<command>", dest="command")
     subparser.required = True
 
@@ -49,9 +54,7 @@ def _main(args):
     """Configuration utilities.
 
     """
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s | %(name)s : %(levelname)s : %(message)s",
-    )
+    cli.set_up_logger(args)
 
     if args.command == "locate":
         print(get_config_path(args.type))

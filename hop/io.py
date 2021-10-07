@@ -283,11 +283,13 @@ class Consumer:
 
         :meta private:
         """
+        logger.info(f"connecting to kafka://{','.join(broker_addresses)}")
         self._consumer = consumer.Consumer(consumer.ConsumerConfig(
             broker_urls=broker_addresses,
             group_id=group_id,
             **kwargs,
         ))
+        logger.info(f"subscribing to topics: {topics}")
         self._consumer.subscribe(topics)
 
     def read(self, metadata=False, autocommit=True, **kwargs):
@@ -307,8 +309,10 @@ class Consumer:
                 If specified, this argument should be a datetime.timedelta
                 object.
         """
+        logger.info("processing messages from stream")
         for message in self._consumer.stream(autocommit=autocommit, **kwargs):
             yield self._unpack(message, metadata=metadata)
+        logger.info("finished processing messages")
 
     @staticmethod
     def _unpack(message, metadata=False):
@@ -338,6 +342,7 @@ class Consumer:
         """End all subscriptions and shut down.
 
         """
+        logger.info("closing connection")
         self._consumer.close()
 
     def __iter__(self):
@@ -372,11 +377,13 @@ class Producer:
 
         :meta private:
         """
+        logger.info(f"connecting to kafka://{','.join(broker_addresses)}")
         self._producer = producer.Producer(producer.ProducerConfig(
             broker_urls=broker_addresses,
             topic=topic,
             **kwargs,
         ))
+        logger.info(f"publishing to topic: {topic}")
 
     def write(self, message, headers=None, delivery_callback=errors.raise_delivery_errors):
         """Write messages to a stream.
@@ -416,12 +423,14 @@ class Producer:
         """Wait for enqueued messages to be written and shut down.
 
         """
+        logger.info("closing connection")
         return self._producer.close()
 
     def __enter__(self):
         return self
 
     def __exit__(self, *exc):
+        self.close()
         return self._producer.__exit__(*exc)
 
 

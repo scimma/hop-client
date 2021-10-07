@@ -1,8 +1,13 @@
 import json
+import logging
+import sys
 
 from . import cli
 from . import io
 from . import models
+
+
+logger = logging.getLogger("hop")
 
 
 def print_message(message, json_dump=False):
@@ -20,11 +25,12 @@ def print_message(message, json_dump=False):
             message = json.dumps(message.asdict())
         else:
             message = json.dumps(message)
-    print(message)
+    print(message, file=sys.stdout, flush=True)
 
 
 def _add_parser_args(parser):
     cli.add_client_opts(parser)
+    cli.add_logging_opts(parser)
 
     # consumer options
     parser.add_argument(
@@ -55,6 +61,8 @@ def _main(args):
     """Subscribe to messages.
 
     """
+    cli.set_up_logger(args)
+
     start_at = io.StartPosition[args.start_at]
     stream = io.Stream(auth=(not args.no_auth), start_at=start_at, until_eos=args.until_eos)
 
