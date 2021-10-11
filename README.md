@@ -145,12 +145,20 @@ A Makefile is provided to ease in testing, deployment and generating documentati
 
 A list of commands can be listed with `make help`.
 
-In addition, two extras are provided when installing the scimma client that installs
+In addition, two extras are provided when installing the hop client that installs
 the required test and documentation libraries:
 
+* dev: dependencies required for testing, linting and packaging
+* docs: dependencies required for building documentation
+
+Assuming you've cloned the repository and are in the project's root directory, you can
+install hop-client alongside all the required development dependencies by running:
+
 ```
-pip install -U hop-client[dev,docs]
+pip install .[dev,docs]
 ```
+
+### Releases
 
 To mark a new version, use Github tags to mark your commit with a [semver](https://semver.org/) version:
 ```
