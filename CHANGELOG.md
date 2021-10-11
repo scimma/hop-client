@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2021-10-11
+### Changed
+- Fix issue where subscribing to multiple topics only returned messages from
+  a single topic.
+- Change naming for listening to messages forever from `--persist` to `--until-eos`.
+- Listen to messages forever by default within consumer (`until_eos=False`).
+- Change delivery callback to be on a per-message basis, rather than per stream.
+- Bump minimum adc-streaming version required to 2.x.
+- Remove correct conflicting cred in `add_credential()` when `--force` specified.
+
+### Added
+- Add consistent accessors for all Auth properties.
+- Support read/write of optional credential fields.
+- Add topic listing as part of the python API.
+- Support message headers within producer.
+- Add headers to metadata provided by consumer.
+- Add logging throughout library. Within CLI, logging level is controllable via
+  `--quiet` (no INFO) and `--verbose` (INFO + DEBUG).
+
 ## [0.4.1] - 2021-09-30
 ### Changed
 - Pin adc-streaming to 1.x.
@@ -117,7 +136,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial Release.
 
-[Unreleased]: https://github.com/scimma/hop-client/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/scimma/hop-client/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/scimma/hop-client/releases/tag/v0.5.0
 [0.4.1]: https://github.com/scimma/hop-client/releases/tag/v0.4.1
 [0.4.0]: https://github.com/scimma/hop-client/releases/tag/v0.4.0
 [0.3.0]: https://github.com/scimma/hop-client/releases/tag/v0.3.0
