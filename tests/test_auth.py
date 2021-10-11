@@ -672,10 +672,11 @@ def test_add_credential_conflict_no_host(tmpdir, caplog):
 def test_add_credential_conflict_with_host(tmpdir, caplog):
     old_cred = auth.Auth("username", "password", "example.com")
     new_cred = auth.Auth("username", "other_pass", "example.com")
+    unrelated_cred = auth.Auth("username", "unrelated_pass", "example.org")
 
     with temp_environ(HOME=str(tmpdir)), \
             patch("hop.auth.read_new_credential", MagicMock(return_value=new_cred)):
-        auth.write_auth_data(configure.get_config_path("auth"), [old_cred])
+        auth.write_auth_data(configure.get_config_path("auth"), [old_cred, unrelated_cred])
         args = MagicMock()
         args.cred_file = None
         args.force = False
@@ -688,6 +689,9 @@ def test_add_credential_conflict_with_host(tmpdir, caplog):
         auth.add_credential(args)
         # with the force option, the old credential should be overwritten
         check_credential_file(configure.get_config_path("auth"), new_cred)
+        # also check that unrelated credentials haven't been removed
+        creds = auth.load_auth(configure.get_config_path("auth"))
+        assert unrelated_cred in creds
 
 
 delete_input_creds = [

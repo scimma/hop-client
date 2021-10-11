@@ -430,7 +430,7 @@ def add_credential(args):
                 conflicting_cred_idx = idx
     if conflicting_cred_idx is not None:
         if args.force:
-            creds[idx] = new_cred
+            creds[conflicting_cred_idx] = new_cred
         else:
             logger.error("Credential already exists; overwrite with --force")
             return
