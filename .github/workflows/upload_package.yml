@@ -1,4 +1,4 @@
-name: Upload to Package Repositories
+name: Upload to PyPI
 
 on:
   push:
@@ -26,45 +26,3 @@ jobs:
       run: |
         python3 setup.py sdist bdist_wheel
         python3 -m twine upload --repository-url https://upload.pypi.org/legacy/ dist/* -u $TWINE_USERNAME -p $TWINE_PASSWORD
-
-  UploadConda:
-    runs-on: ubuntu-latest
-    container:
-      image: continuumio/miniconda3
-
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Install dependencies
-      run: |
-        conda install -y anaconda-client conda-build
-        conda install -y setuptools setuptools_scm
-
-    - name: Update recipe with version variable
-      run: |
-        VERSION=$(python setup.py --version)
-        LINE_STR='{% set version = "'${VERSION}'" %}'
-        RECIPE_PATH='recipe/meta.yaml'
-
-        #prepend version string before writing files (which would change local version from HEAD version)
-        echo $LINE_STR | cat - $RECIPE_PATH > temp && mv temp $RECIPE_PATH
-        
-    - name: Add channels for dependencies
-      env:
-        PROJECT: 'hop'
-        CHANNEL: 'scimma'
-      run: |
-        conda index ./$PROJECT  #for noarch support
-        conda config --env --add channels $CHANNEL  #for adc
-        conda config --env --add channels conda-forge
-
-    - name: Build package and upload to Anaconda
-      env:
-        CONDA_USERNAME: ${{ secrets.CONDA_USER_scimma }}
-        CONDA_PASSWORD: ${{ secrets.CONDA_PW_scimma }}
-        CONDA_ORG_NAME: 'scimma'
-      run: |
-        conda config --set anaconda_upload yes  #uploads on build
-        anaconda login --username $CONDA_USERNAME --password $CONDA_PASSWORD
-        conda build . --user $CONDA_ORG_NAME
-        anaconda logout

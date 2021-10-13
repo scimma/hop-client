@@ -14,11 +14,11 @@ To install with pip:
    pip install -U hop-client
 
 
-To install with conda, you must use the channel from the SCiMMA Anaconda organization:
+To install with conda:
 
 .. code:: bash
 
-    conda install --channel scimma hop-client
+    conda install -c conda-forge hop-client
 
 To install from source:
 

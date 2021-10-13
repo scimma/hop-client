@@ -10,7 +10,6 @@ help :
 	@echo '  make changelog             update changelog based on version'
 	@echo '  make pypi-dist             make binary and source packages for PyPI'
 	@echo '  make pypi-dist-check       verify binary and source packages for PyPI'
-	@echo '  make conda-build           make binary and source packages for conda-forge'
 	@echo
 
 VERSION ?= $(shell python setup.py --version)
@@ -47,7 +46,3 @@ pypi-dist :
 .PHONY: pypi-dist-check
 pypi-dist-check:
 	twine check dist/*
-
-.PHONY: conda-build
-conda-build:
-	conda build -c defaults -c conda-forge ./recipe
