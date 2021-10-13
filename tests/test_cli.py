@@ -204,6 +204,20 @@ def test_cli_subscribe_logging(script_runner):
         assert "DEBUG" in ret.stderr
 
 
+def test_cli_interrupt(script_runner):
+    mock_consumer = MagicMock()
+    interrupt = MagicMock(side_effect=KeyboardInterrupt())
+    mock_consumer.__enter__ = interrupt
+    mock_consumer.__iter__ = interrupt
+    mock_consumer.__exit__ = interrupt
+    with patch("hop.io.Stream.open", MagicMock(return_value=mock_consumer)):
+        broker_url = "kafka://hostname:port/topic"
+        ret = script_runner.run("hop", "subscribe", broker_url, "--no-auth")
+        assert ret.success
+        assert "INFO" in ret.stderr
+        assert "received keyboard interrupt, closing" in ret.stderr
+
+
 def dummy_topic_info(topic, error=None):
     info = MagicMock()
     info.error = error
