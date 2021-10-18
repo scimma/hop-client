@@ -386,7 +386,7 @@ class Producer:
         logger.info(f"publishing to topic: {topic}")
 
     def write(self, message, headers=None, delivery_callback=errors.raise_delivery_errors):
-        """Write messages to a stream.
+        """Write a message to the stream.
 
         Args:
             message: The message to write.
@@ -396,28 +396,74 @@ class Producer:
                 is either delivered or permenantly fails to be delivered.
 
         """
-        self._producer.write(self._pack(message), headers=headers,
-                             delivery_callback=delivery_callback)
+        message, headers = self.pack(message, headers)
+        self._producer.write(message, headers=headers, delivery_callback=delivery_callback)
+
+    def write_raw(self, packed_message, headers=None,
+                  delivery_callback=errors.raise_delivery_errors):
+        """Write a pre-encoded message to the stream.
+
+        This is an advanced interface; for most purposes it is preferrable to use
+        :meth:`Producer.write <hop.io.Producer.write>` instead.
+
+        Args:
+            packed_message: The message to write, which must already be correctly encoded by
+                            :meth:`Producer.pack <hop.io.Producer.pack>`
+            headers: Any headers to attach to the message, either as a dictionary
+                mapping strings to strings, or as a list of 2-tuples of strings.
+            delivery_callback: A callback which will be called when each message
+                is either delivered or permenantly fails to be delivered.
+
+        """
+        self._producer.write(packed_message, headers=headers, delivery_callback=delivery_callback)
 
     @staticmethod
-    def _pack(message):
-        """Pack and serialize messages.
+    def pack(message, headers=None):
+        """Pack and serialize a message.
+
+        This is an advanced interface, which most users should not need to call directly, as
+        :meth:`Producer.write <hop.io.Producer.write>` uses it automatically.
 
         Args:
             message: The message to pack and serialize.
+            headers: The set of headers requested to be sent with the message, either as a
+                     dictionary mapping strings to strings, or as a list of 2-tuples of strings.
 
-        :meta private:
+        Returns: A tuple containing the serialized message and the collection of headers which
+                 should be sent with it.
+
         """
+        # canonicalize headers to list form
+        if headers is None:
+            headers = []
+        if type(headers) == dict:
+            headers = list(headers.items())
+
+        # ensure all headers are encoded
+        def ensure_bytes_like(thing):
+            try:  # check whether thing is bytes-like
+                memoryview(thing)
+                return thing  # keep as-is
+            except TypeError:
+                return thing.encode("utf-8")
+        for i, header in enumerate(headers):
+            headers[i] = (ensure_bytes_like(header[0]),
+                          ensure_bytes_like(header[1]))
         try:
             payload = message.serialize()
         except AttributeError:
             payload = {"format": "blob", "content": message}
         try:
-            return json.dumps(payload).encode("utf-8")
+            return (json.dumps(payload).encode("utf-8"), headers)
         except TypeError:
             raise TypeError("Unable to pack a message of type "
                             + message.__class__.__name__
                             + " which cannot be serialized to JSON")
+
+    def flush(self):
+        """Request that any messages locally queued for sending be sent immediately.
+        """
+        self._producer.flush()
 
     def close(self):
         """Wait for enqueued messages to be written and shut down.
