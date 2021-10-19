@@ -4,6 +4,7 @@ import errno
 import getpass
 import logging
 import os
+import re
 import stat
 import toml
 
@@ -336,6 +337,15 @@ def read_new_credential(csv_file=None):
         if len(password) == 0:
             raise RuntimeError("Password may not be empty")
         hostname = input("Hostname (may be empty): ")
+        # check that the user entered a sensible hostname, possibly with a port
+        name_re = re.compile("^(kafka://)?([^:/]*(:[0-9]*)?)$")
+        match = name_re.match(hostname)
+        if match is None:
+            raise RuntimeError("Unable to parse hostname. "
+                               "Please enter either `hostname` or `hostname:port`.")
+        if match.group(1) is not None:
+            logger.info(f"Ignoring '{match.group(1)}' prefix on hostname")
+        hostname = match.group(2)
     else:
         if os.path.exists(csv_file):
             with open(csv_file, "r") as f:
