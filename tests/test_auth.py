@@ -534,31 +534,23 @@ def test_read_new_credential_interactive_invalid(tmpdir):
     assert err.value.args[0] == "Password may not be empty"
 
 
-def test_read_new_credential_hostname_variations(tmpdir):
+def test_hostname_validation():
     username = "foo"
     password = "bar"
     # good cases
     for hostname in ["example.com", "example.com:9092",
                      "kafka://example.com", "kafka://example.com:9092"]:
-        with patch("getpass.getpass", MagicMock(return_value=password)), \
-                patch("hop.auth.input",
-                      MagicMock(side_effect=[username, hostname])):
-            new_cred = auth.read_new_credential()
-            assert new_cred.username == username
-            assert new_cred.password == password
-            if "kafka://" in hostname:
-                assert new_cred.hostname == hostname[8:]
-            else:
-                assert new_cred.hostname == hostname
+        processed_hostname = auth._validate_hostname(hostname)
+        if "kafka://" in hostname:
+            assert processed_hostname == hostname[8:]
+        else:
+            assert processed_hostname == hostname
     # bad cases
     for hostname in ["http://example.com", "file:///usr/bin", "foo/bar",
                      "kafka://example.com/topic",
                      "kafka://example.com:9092/topic"]:
-        with patch("getpass.getpass", MagicMock(return_value=password)), \
-                patch("hop.auth.input",
-                      MagicMock(side_effect=[username, hostname])), \
-                pytest.raises(RuntimeError) as err:
-            new_cred = auth.read_new_credential()
+        with pytest.raises(RuntimeError) as err:
+            processed_hostname = auth._validate_hostname(hostname)
         assert "Unable to parse hostname" in err.value.args[0]
 
 

@@ -309,6 +309,34 @@ def select_matching_auth(creds, hostname, username=None):
     return matches[0]
 
 
+def _validate_hostname(input: str):
+    """Ensure that a value entered for a hostname looks plausible.
+
+    The user is supposed to enter a hostname, possibly with a port, not a URL.
+    However, since users are likely to enter something valid prefixed with a `kafka://` scheme,
+    accept that with a warning.
+    We do not use standard URL parsing since the input is not supposed to be a URL, and attempting
+    to parse it as such when no scheme is present mostly just leads to ambiguous results.
+
+    Args:
+        input: A string entered by the user when prompted for a hostname.
+
+    Returns:
+        The sanitized hostname.
+
+    Raises:
+        RuntimeError: If the user input is not acceptable.
+    """
+    name_re = re.compile("^(kafka://)?([^:/]*(:[0-9]*)?)$")
+    match = name_re.match(input)
+    if match is None:
+        raise RuntimeError("Unable to parse hostname. "
+                           "Please enter either `hostname` or `hostname:port`.")
+    if match.group(1) is not None:
+        logger.warning(f"Ignoring '{match.group(1)}' prefix on hostname")
+    return match.group(2)
+
+
 def read_new_credential(csv_file=None):
     """Import a credential from a CSV file or obtain it interactively from the user.
 
@@ -336,16 +364,7 @@ def read_new_credential(csv_file=None):
         password = getpass.getpass()
         if len(password) == 0:
             raise RuntimeError("Password may not be empty")
-        hostname = input("Hostname (may be empty): ")
-        # check that the user entered a sensible hostname, possibly with a port
-        name_re = re.compile("^(kafka://)?([^:/]*(:[0-9]*)?)$")
-        match = name_re.match(hostname)
-        if match is None:
-            raise RuntimeError("Unable to parse hostname. "
-                               "Please enter either `hostname` or `hostname:port`.")
-        if match.group(1) is not None:
-            logger.info(f"Ignoring '{match.group(1)}' prefix on hostname")
-        hostname = match.group(2)
+        hostname = _validate_hostname(input("Hostname (may be empty): "))
     else:
         if os.path.exists(csv_file):
             with open(csv_file, "r") as f:
