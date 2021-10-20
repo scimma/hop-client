@@ -534,6 +534,26 @@ def test_read_new_credential_interactive_invalid(tmpdir):
     assert err.value.args[0] == "Password may not be empty"
 
 
+def test_hostname_validation():
+    username = "foo"
+    password = "bar"
+    # good cases
+    for hostname in ["example.com", "example.com:9092",
+                     "kafka://example.com", "kafka://example.com:9092"]:
+        processed_hostname = auth._validate_hostname(hostname)
+        if "kafka://" in hostname:
+            assert processed_hostname == hostname[8:]
+        else:
+            assert processed_hostname == hostname
+    # bad cases
+    for hostname in ["http://example.com", "file:///usr/bin", "foo/bar",
+                     "kafka://example.com/topic",
+                     "kafka://example.com:9092/topic"]:
+        with pytest.raises(RuntimeError) as err:
+            processed_hostname = auth._validate_hostname(hostname)
+        assert "Unable to parse hostname" in err.value.args[0]
+
+
 def credential_write_read_round_trip(orig_cred, file_path):
     auth.write_auth_data(file_path, [orig_cred])
     read_creds = auth.load_auth(file_path)
