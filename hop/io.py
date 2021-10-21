@@ -455,11 +455,8 @@ class Producer:
             headers = []
         elif isinstance(headers, Mapping):
             headers = list(headers.items())
-
         # ensure all headers are encoded
-        for i, header in enumerate(headers):
-            headers[i] = (_ensure_bytes_like(header[0]),
-                          _ensure_bytes_like(header[1]))
+        headers = [(_ensure_bytes_like(k), _ensure_bytes_like(v)) for k, v in headers]
         try:
             payload = message.serialize()
         except AttributeError:
