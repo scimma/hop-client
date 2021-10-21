@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from enum import Enum
@@ -427,7 +428,7 @@ class Producer:
         Args:
             message: The message to pack and serialize.
             headers: The set of headers requested to be sent with the message, either as a
-                     dictionary mapping strings to strings, or as a list of 2-tuples of strings.
+                     mapping of strings to strings, or as a list of 2-tuples of strings.
 
         Returns: A tuple containing the serialized message and the collection of headers which
                  should be sent with it.
@@ -436,7 +437,7 @@ class Producer:
         # canonicalize headers to list form
         if headers is None:
             headers = []
-        if type(headers) == dict:
+        elif isinstance(headers, Mapping):
             headers = list(headers.items())
 
         # ensure all headers are encoded
