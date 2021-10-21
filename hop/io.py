@@ -356,6 +356,22 @@ class Consumer:
         self.close()
 
 
+def _ensure_bytes_like(thing):
+    """Force an object which may be string-like to be bytes-like
+
+    Args:
+        thing: something which might be a string or might already be encoded as bytes.
+
+    Return:
+        Either the original input object or the encoding of that object as bytes.
+    """
+    try:  # check whether thing is bytes-like
+        memoryview(thing)
+        return thing  # keep as-is
+    except TypeError:
+        return thing.encode("utf-8")
+
+
 class Producer:
     """
     An event stream opened for writing to a topic.
@@ -441,15 +457,9 @@ class Producer:
             headers = list(headers.items())
 
         # ensure all headers are encoded
-        def ensure_bytes_like(thing):
-            try:  # check whether thing is bytes-like
-                memoryview(thing)
-                return thing  # keep as-is
-            except TypeError:
-                return thing.encode("utf-8")
         for i, header in enumerate(headers):
-            headers[i] = (ensure_bytes_like(header[0]),
-                          ensure_bytes_like(header[1]))
+            headers[i] = (_ensure_bytes_like(header[0]),
+                          _ensure_bytes_like(header[1]))
         try:
             payload = message.serialize()
         except AttributeError:
