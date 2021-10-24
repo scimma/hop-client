@@ -122,7 +122,7 @@ class Stream(object):
                 start_at=self.start_at,
                 auth=credential,
                 read_forever=not self.until_eos,
-                ignoretest=ignoretest
+                ignoretest=ignoretest,
                 **kwargs,
             )
         else:
