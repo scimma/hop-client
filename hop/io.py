@@ -38,13 +38,15 @@ class Stream(object):
         start_at: The message offset to start at in read mode. Defaults to LATEST.
         until_eos: Whether to listen to new messages forever (False) or stop
             when EOS is received in read mode (True). Defaults to False.
+        test: When True, consume test messages in reade modex.
 
     """
 
-    def __init__(self, auth=True, start_at=StartPosition.LATEST, until_eos=False):
+    def __init__(self, auth=True, start_at=StartPosition.LATEST, until_eos=False, test=False):
         self._auth = [auth] if isinstance(auth, Auth) else auth
         self.start_at = start_at
         self.until_eos = until_eos
+        self.test = test
 
     @property
     @lru_cache(maxsize=1)
@@ -292,7 +294,7 @@ class Consumer:
         logger.info(f"subscribing to topics: {topics}")
         self._consumer.subscribe(topics)
 
-    def read(self, metadata=False, autocommit=True, **kwargs):
+    def read(self, metadata=False, autocommit=True, ignoretest=True, **kwargs):
         """Read messages from a stream.
 
         Args:
@@ -308,9 +310,13 @@ class Consumer:
                 cost of greater latency.
                 If specified, this argument should be a datetime.timedelta
                 object.
+            ignoretest: If True, ignore messages with the header key '_test'.
+                If False, process such messages normally.
         """
         logger.info("processing messages from stream")
         for message in self._consumer.stream(autocommit=autocommit, **kwargs):
+            if ignoretest and self.is_test(message):
+                continue
             yield self._unpack(message, metadata=metadata)
         logger.info("finished processing messages")
 
@@ -344,6 +350,16 @@ class Consumer:
         """
         logger.info("closing connection")
         self._consumer.close()
+
+    @staticmethod
+    def is_test(message):
+        """True if message is a test message (contains '_test' as a header key).
+
+        Args:
+            message: The message to test.
+        """
+        return bool([v for k,v in Metadata.from_message(message).headers if k == '_test']);
+        
 
     def __iter__(self):
         yield from self.read()
@@ -385,7 +401,7 @@ class Producer:
         ))
         logger.info(f"publishing to topic: {topic}")
 
-    def write(self, message, headers=None, delivery_callback=errors.raise_delivery_errors):
+    def write(self, message, headers=None, delivery_callback=errors.raise_delivery_errors, test=False):
         """Write messages to a stream.
 
         Args:
@@ -394,8 +410,15 @@ class Producer:
                 mapping strings to strings, or as a list of 2-tuples of strings.
             delivery_callback: A callback which will be called when each message
                 is either delivered or permenantly fails to be delivered.
+            test: Message should be marked as a test message by adding a header
+                with key '_test'.
 
         """
+        if test:
+            if headers is not None:
+                headers['_test'] = 'true'
+            else:
+                headers = [('_test','true')]
         self._producer.write(self._pack(message), headers=headers,
                              delivery_callback=delivery_callback)
 

@@ -10,7 +10,7 @@ from . import models
 logger = logging.getLogger("hop")
 
 
-def print_message(message, json_dump=False):
+def print_message(message, json_dump=False, test=False):
     """Print the content of a message.
 
     Args:
@@ -55,6 +55,9 @@ def _add_parser_args(parser):
     parser.add_argument(
         "-j", "--json", help="Request message output as raw json", action="store_true",
     )
+    parser.add_argument(
+        "-t", "--test", help="Print test messages instead of ignoring them.", action="store_true",
+    )
 
 
 def _main(args):
@@ -64,7 +67,7 @@ def _main(args):
     cli.set_up_logger(args)
 
     start_at = io.StartPosition[args.start_at]
-    stream = io.Stream(auth=(not args.no_auth), start_at=start_at, until_eos=args.until_eos)
+    stream = io.Stream(auth=(not args.no_auth), start_at=start_at, until_eos=args.until_eos, test=args.test)
 
     with stream.open(args.url, "r", group_id=args.group_id) as s:
         for message in s:
