@@ -38,15 +38,13 @@ class Stream(object):
         start_at: The message offset to start at in read mode. Defaults to LATEST.
         until_eos: Whether to listen to new messages forever (False) or stop
             when EOS is received in read mode (True). Defaults to False.
-        test: When True, consume test messages in reade modex.
 
     """
 
-    def __init__(self, auth=True, start_at=StartPosition.LATEST, until_eos=False, test=False):
+    def __init__(self, auth=True, start_at=StartPosition.LATEST, until_eos=False):
         self._auth = [auth] if isinstance(auth, Auth) else auth
         self.start_at = start_at
         self.until_eos = until_eos
-        self.test = test
 
     @property
     @lru_cache(maxsize=1)
@@ -72,7 +70,7 @@ class Stream(object):
         else:
             return self._auth
 
-    def open(self, url, mode="r", group_id=None, **kwargs):
+    def open(self, url, mode="r", group_id=None, ignoretest=True, **kwargs):
         """Opens a connection to an event stream.
 
         Args:
@@ -80,6 +78,8 @@ class Stream(object):
             mode: Read ('r') or write ('w') from the stream.
             group_id: The consumer group ID from which to read.
                       Generated automatically if not specified.
+            ignoretest: When true, read mode will consume test
+                  messages as well as non-test messages.
 
         Returns:
             An open connection to the client, either a :class:`Producer` instance
@@ -122,6 +122,7 @@ class Stream(object):
                 start_at=self.start_at,
                 auth=credential,
                 read_forever=not self.until_eos,
+                ignoretest=ignoretest
                 **kwargs,
             )
         else:
@@ -265,7 +266,7 @@ class Consumer:
     Instances of this class should be obtained from :meth:`Stream.open`.
     """
 
-    def __init__(self, group_id, broker_addresses, topics, **kwargs):
+    def __init__(self, group_id, broker_addresses, topics, ignoretest=True, **kwargs):
         """
         Args:
             group_id: The Kafka consumer group to join for reading messages.
@@ -282,6 +283,8 @@ class Consumer:
                 Kafka errors.
             offset_commit_interval: A datetime.timedelta specifying how often to
                 report progress to Kafka.
+            ignoretest: When True, ignore test messages. When False, process them
+                normally.
 
         :meta private:
         """
@@ -293,8 +296,9 @@ class Consumer:
         ))
         logger.info(f"subscribing to topics: {topics}")
         self._consumer.subscribe(topics)
+        self.ignoretest = ignoretest
 
-    def read(self, metadata=False, autocommit=True, ignoretest=True, **kwargs):
+    def read(self, metadata=False, autocommit=True, **kwargs):
         """Read messages from a stream.
 
         Args:
@@ -310,12 +314,11 @@ class Consumer:
                 cost of greater latency.
                 If specified, this argument should be a datetime.timedelta
                 object.
-            ignoretest: If True, ignore messages with the header key '_test'.
-                If False, process such messages normally.
+
         """
         logger.info("processing messages from stream")
         for message in self._consumer.stream(autocommit=autocommit, **kwargs):
-            if ignoretest and self.is_test(message):
+            if self.ignoretest and self.is_test(message):
                 continue
             yield self._unpack(message, metadata=metadata)
         logger.info("finished processing messages")

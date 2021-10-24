@@ -67,8 +67,8 @@ def _main(args):
     cli.set_up_logger(args)
 
     start_at = io.StartPosition[args.start_at]
-    stream = io.Stream(auth=(not args.no_auth), start_at=start_at, until_eos=args.until_eos, test=args.test)
+    stream = io.Stream(auth=(not args.no_auth), start_at=start_at, until_eos=args.until_eos)
 
-    with stream.open(args.url, "r", group_id=args.group_id) as s:
+    with stream.open(args.url, "r", group_id=args.group_id, ignoretest=(not args.test)) as s:
         for message in s:
             print_message(message, args.json)
