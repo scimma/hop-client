@@ -37,7 +37,7 @@ def _main(args):
     cli.set_up_logger(args)
 
     loader = io.Deserializer[args.format]
-    stream = io.Stream(auth=(not args.no_auth), test=args.test)
+    stream = io.Stream(auth=(not args.no_auth))
 
     with stream.open(args.url, "w") as s:
         logger.info("publishing messages to stream")
@@ -55,6 +55,7 @@ def _main(args):
 
                 try:
                     for message in messages:
+#                        s.write(loader.load(json.loads(message)), test=args.test)
                         s.write(loader.load(json.loads(message)))
                 except json.decoder.JSONDecodeError as err:
                     raise ValueError("Blob messages must be valid JSON") from err

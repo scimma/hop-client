@@ -361,8 +361,11 @@ class Consumer:
         Args:
             message: The message to test.
         """
-        return bool([v for k,v in Metadata.from_message(message).headers if k == '_test']);
-        
+        h = message.headers()
+        if h is not None:
+            return bool([v for k,v in h if k == '_test']);
+        else:
+            return False
 
     def __iter__(self):
         yield from self.read()
