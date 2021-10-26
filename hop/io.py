@@ -78,8 +78,8 @@ class Stream(object):
             mode: Read ('r') or write ('w') from the stream.
             group_id: The consumer group ID from which to read.
                       Generated automatically if not specified.
-            ignoretest: When true, read mode will consume test
-                  messages as well as non-test messages.
+            ignoretest: When True, read mode will silently discard
+                        test messages.
 
         Returns:
             An open connection to the client, either a :class:`Producer` instance
@@ -420,10 +420,13 @@ class Producer:
                 with key '_test'.
         """
         if test:
-            if headers is not None:
-                headers['_test'] = 'true'
-            else:
+            if headers is None:
                 headers = [('_test', 'true')]
+            elif type(headers) is list:
+                headers.append(('_test', 'true'))
+            elif type(headers) is dict:
+                headers['_test'] = 'true'
+
         self._producer.write(self._pack(message), headers=headers,
                              delivery_callback=delivery_callback)
 
