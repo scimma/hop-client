@@ -166,8 +166,11 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
     expected_msg = json.dumps(Blob(circular_msg).serialize()).encode("utf-8")
 
     headers = {"some header": "some value", "another header": b"other value"}
-    test_headers = {"some header": "some_value", "_test": "true"}
     canonical_headers = [(b"some header", b"some value"), (b"another header", b"other value")]
+    test_headers = canonical_headers.copy()
+    test_headers.append((b"_test", b"true"))
+    none_test_headers = []
+    none_test_headers.append((b"_test", b"true"))
 
     with patch("hop.io.producer.Producer", autospec=True, return_value=mock_adc_producer):
 
@@ -199,7 +202,7 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
         mock_broker.reset()
         with stream.open(broker_url, "w") as s:
             s.write(circular_msg, headers=None, test=True)
-            assert mock_broker.has_message(topic, expected_msg, [("_test", "true")])
+            assert mock_broker.has_message(topic, expected_msg, none_test_headers)
 
         # repeat, but with a manual close instead of context management
         mock_broker.reset()

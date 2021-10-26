@@ -435,9 +435,10 @@ class Producer:
                      all header keys and values should be either string-like or bytes-like objects.
             delivery_callback: A callback which will be called when each message
                 is either delivered or permenantly fails to be delivered.
-
+            test: Message should be marked as a test message by adding a header
+                  with key '_test'.
         """
-        message, headers = self.pack(message, headers)
+        message, headers = self.pack(message, headers, test=test)
         self._producer.write(message, headers=headers, delivery_callback=delivery_callback)
 
     def write_raw(self, packed_message, headers=None,
@@ -454,14 +455,12 @@ class Producer:
                 mapping strings to strings, or as a list of 2-tuples of strings.
             delivery_callback: A callback which will be called when each message
                 is either delivered or permenantly fails to be delivered.
-            test: Message should be marked as a test message by adding a header
-                with key '_test'.
         """
 
         self._producer.write(packed_message, headers=headers, delivery_callback=delivery_callback)
 
     @staticmethod
-    def pack(message, headers=None):
+    def pack(message, headers=None, test=False):
         """Pack and serialize a message.
 
         This is an advanced interface, which most users should not need to call directly, as
@@ -472,6 +471,8 @@ class Producer:
             headers: The set of headers requested to be sent with the message, either as a
                      mapping, or as a list of 2-tuples. In either the mapping or the list case,
                      all header keys and values should be either string-like or bytes-like objects.
+            test: Message should be marked as a test message by adding a header
+                  with key '_test'.
 
         Returns: A tuple containing the serialized message and the collection of headers which
                  should be sent with it.
@@ -484,6 +485,9 @@ class Producer:
             headers = list(headers.items())
         # ensure all headers are encoded
         headers = [(_ensure_bytes_like(k), _ensure_bytes_like(v)) for k, v in headers]
+        if test:
+            print("DEBUG: appending test header")
+            headers.append((b"_test", b"true"))
         try:
             payload = message.serialize()
         except AttributeError:
