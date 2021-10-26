@@ -164,8 +164,10 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
     topic = "gcn"
     mock_adc_producer = mock_producer(mock_broker, topic)
     expected_msg = json.dumps(Blob(circular_msg).serialize()).encode("utf-8")
-    headers = {"some header": "some value"}
-    test_headers = {"some header": "some value", "_test" : "true"}
+
+    headers = {"some header": "some value", "another header": b"other value"}
+    test_headers = {"some header": "some_value", "_test": "true"}
+    canonical_headers = [(b"some header", b"some value"), (b"another header", b"other value")]
 
     with patch("hop.io.producer.Producer", autospec=True, return_value=mock_adc_producer):
 
@@ -187,7 +189,7 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
         mock_broker.reset()
         with stream.open(broker_url, "w") as s:
             s.write(circular_msg, headers)
-            assert mock_broker.has_message(topic, expected_msg, headers)
+            assert mock_broker.has_message(topic, expected_msg, canonical_headers)
 
         mock_broker.reset()
         with stream.open(broker_url, "w") as s:
@@ -204,7 +206,31 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
         s = stream.open(broker_url, "w")
         s.write(circular_msg, headers)
         s.close()
-        assert mock_broker.has_message(topic, expected_msg, headers)
+        assert mock_broker.has_message(topic, expected_msg, canonical_headers)
+
+
+def test_stream_write_raw(circular_msg, circular_text, mock_broker, mock_producer):
+    topic = "gcn"
+    mock_adc_producer = mock_producer(mock_broker, topic)
+    encoded_msg = io.Producer.pack(GCNCircular(circular_msg["header"], circular_msg["body"]))
+    headers = {"some header": "some value"}
+    canonical_headers = list(headers.items())
+    with patch("hop.io.producer.Producer", autospec=True, return_value=mock_adc_producer):
+        stream = io.Stream(auth=False)
+
+        broker_url = f"kafka://localhost:9092/{topic}"
+
+        mock_broker.reset()
+        with stream.open(broker_url, "w") as s:
+            s.write_raw(encoded_msg, canonical_headers)
+            assert mock_broker.has_message(topic, encoded_msg, canonical_headers)
+
+        # repeat, but with a manual close instead of context management
+        mock_broker.reset()
+        s = stream.open(broker_url, "w")
+        s.write_raw(encoded_msg, canonical_headers)
+        s.close()
+        assert mock_broker.has_message(topic, encoded_msg, canonical_headers)
 
 
 def test_stream_auth(auth_config, tmpdir):
@@ -301,11 +327,11 @@ def test_mark_done(circular_msg):
 def test_pack(circular_msg, circular_text):
     # message class
     circular = GCNCircular(**circular_msg)
-    packed_msg = io.Producer._pack(circular)
+    packed_msg, _ = io.Producer.pack(circular)
 
     # unstructured message
     message = {"hey": "you"}
-    packed = io.Producer._pack(message)
+    packed, _ = io.Producer.pack(message)
 
 
 @pytest.mark.parametrize("message", [
@@ -330,7 +356,7 @@ def test_pack_unpack_roundtrip(message, message_parameters_dict, caplog):
         orig_message = test_file.read_text()
 
     # pack the message
-    packed_msg = io.Producer._pack(orig_message)
+    packed_msg, _ = io.Producer.pack(orig_message)
 
     # mock a kafka message with value being the packed message
     kafka_msg = MagicMock()
@@ -352,7 +378,7 @@ def test_pack_unpack_roundtrip_unstructured():
     # objects (of types that json.loads happens to produce) should remain unchanged by the process
     # of packing and unpacking
     for orig_message in ["a string", ["a", "B", "c"], {"dict": True, "other_data": [5, 17]}]:
-        packed_msg = io.Producer._pack(orig_message)
+        packed_msg, _ = io.Producer.pack(orig_message)
         kafka_msg = MagicMock()
         kafka_msg.value.return_value = packed_msg
         unpacked_msg = io.Consumer._unpack(kafka_msg)
@@ -361,7 +387,7 @@ def test_pack_unpack_roundtrip_unstructured():
     # non-serializable objects should raise an error
     with pytest.raises(TypeError):
         # note that we are not trying to pack a string, but the string class itself
-        packed_msg = io.Producer._pack(str)
+        packed_msg, _ = io.Producer.pack(str)
 
 
 @pytest.mark.parametrize("message", [
@@ -456,6 +482,15 @@ def test_plugin_loading(caplog):
         assert "VOEVENT" in registered
         assert "CIRCULAR" in registered
         assert "BLOB" in registered
+
+
+def test_stream_flush():
+    # flush is pretty trivial; it should just call the underlying flush
+    with patch("adc.producer.Producer.flush", MagicMock()) as flush:
+        broker_url = "kafka://example.com:9092/topic"
+        stream = io.Stream(auth=False).open(broker_url, "w")
+        stream.flush()
+        flush.assert_called()
 
 
 def make_mock_listing_consumer(topics=[]):
