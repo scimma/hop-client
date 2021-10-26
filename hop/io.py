@@ -314,7 +314,6 @@ class Consumer:
                 cost of greater latency.
                 If specified, this argument should be a datetime.timedelta
                 object.
-
         """
         logger.info("processing messages from stream")
         for message in self._consumer.stream(autocommit=autocommit, **kwargs):
@@ -418,7 +417,6 @@ class Producer:
                 is either delivered or permenantly fails to be delivered.
             test: Message should be marked as a test message by adding a header
                 with key '_test'.
-
         """
         if test:
             if headers is not None:
