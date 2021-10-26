@@ -10,7 +10,7 @@ from . import models
 logger = logging.getLogger("hop")
 
 
-def print_message(message, json_dump=False, test=False):
+def print_message(message, json_dump=False):
     """Print the content of a message.
 
     Args:
@@ -56,7 +56,7 @@ def _add_parser_args(parser):
         "-j", "--json", help="Request message output as raw json", action="store_true",
     )
     parser.add_argument(
-        "-t", "--test", help="Print test messages instead of ignoring them.", action="store_true",
+        "-t", "--test", help="Process test messages instead of ignoring them.", action="store_true",
     )
 
 

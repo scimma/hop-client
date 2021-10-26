@@ -104,6 +104,34 @@ def test_stream_read(circular_msg):
         assert messages == 1
 
 
+def test_stream_read_test_channel(circular_msg):
+    start_at = io.StartPosition.EARLIEST
+    message_data = {"format": "circular", "content": circular_msg}
+    fake_message = MagicMock()
+    fake_message.value   = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
+  
+    def test_headers():
+        return [("_test","true")]
+
+    fake_message.headers = test_headers
+    mock_instance = MagicMock()
+    mock_instance.stream = MagicMock(return_value=[fake_message])
+    stream = io.Stream(start_at=start_at, until_eos=True, auth=False)
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+        broker_url = f"kafka://hostname:port/test-topic"
+        messages = 0
+        with stream.open(broker_url, "r") as s:
+            for msg in s:
+                messages += 1
+        assert messages == 0
+
+        messages = 0
+        with stream.open(broker_url, "r", ignoretest=False) as s:
+            for msg in s:
+                messages += 1
+        assert messages == 1
+
+
 def test_stream_read_multiple(circular_msg):
     group_id = "test-group"
     topic1 = "gcn1"
@@ -137,6 +165,7 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
     mock_adc_producer = mock_producer(mock_broker, topic)
     expected_msg = json.dumps(Blob(circular_msg).serialize()).encode("utf-8")
     headers = {"some header": "some value"}
+    test_headers = {"some header": "some value", "_test" :"true"}
     with patch("hop.io.producer.Producer", autospec=True, return_value=mock_adc_producer):
 
         broker_url = f"kafka://localhost:port/{topic}"
@@ -158,6 +187,16 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
         with stream.open(broker_url, "w") as s:
             s.write(circular_msg, headers)
             assert mock_broker.has_message(topic, expected_msg, headers)
+
+        mock_broker.reset()
+        with stream.open(broker_url, "w") as s:
+            s.write(circular_msg, headers, test=True)
+            assert mock_broker.has_message(topic, expected_msg, test_headers)
+
+        mock_broker.reset()
+        with stream.open(broker_url, "w") as s:
+            s.write(circular_msg, headers=None, test=True)
+            assert mock_broker.has_message(topic, expected_msg, [("_test","true")])
 
         # repeat, but with a manual close instead of context management
         mock_broker.reset()

@@ -177,6 +177,23 @@ def test_cli_subscribe(script_runner):
         assert ret.stderr == ""
         assert message_body in ret.stdout
 
+    def fake_headers():
+        return [("_test","true")]
+
+    fake_message.headers = fake_headers
+
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+        ret = script_runner.run("hop", "subscribe", broker_url, "--no-auth", "--quiet")
+        assert ret.success
+        assert ret.stderr == ""
+        assert ret.stdout == ""
+
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+        ret = script_runner.run("hop", "subscribe", broker_url, "--no-auth", "--quiet", "--test")
+        assert ret.success
+        assert ret.stderr == ""
+        assert message_body in ret.stdout
+
 
 def test_cli_subscribe_logging(script_runner):
     broker_url = "kafka://hostname:port/message"
