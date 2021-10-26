@@ -362,7 +362,7 @@ class Consumer:
         """
         h = message.headers()
         if h is not None:
-            return bool([v for k,v in h if k == '_test']);
+            return bool([v for k, v in h if k == '_test'])
         else:
             return False
 
@@ -406,7 +406,8 @@ class Producer:
         ))
         logger.info(f"publishing to topic: {topic}")
 
-    def write(self, message, headers=None, delivery_callback=errors.raise_delivery_errors, test=False):
+    def write(self, message, headers=None,
+              delivery_callback=errors.raise_delivery_errors, test=False):
         """Write messages to a stream.
 
         Args:
@@ -422,7 +423,7 @@ class Producer:
             if headers is not None:
                 headers['_test'] = 'true'
             else:
-                headers = [('_test','true')]
+                headers = [('_test', 'true')]
         self._producer.write(self._pack(message), headers=headers,
                              delivery_callback=delivery_callback)
 

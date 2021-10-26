@@ -91,7 +91,7 @@ def test_cli_publish_blob_types(mock_broker, mock_producer, mock_consumer):
     args = MagicMock()
     args.url = "kafka://hostname:port/topic"
     args.format = io.Deserializer.BLOB.name
-    args.test   = False
+    args.test = False
     start_at = io.StartPosition.EARLIEST
     read_url = "kafka://group@hostname:port/topic"
 
@@ -127,7 +127,7 @@ def test_cli_publish_bad_blob(mock_broker, mock_producer):
     args = MagicMock()
     args.url = "kafka://hostname:port/topic"
     args.format = io.Deserializer.BLOB.name
-    args.test   = False
+    args.test = False
 
     mock_adc_producer = mock_producer(mock_broker, "topic")
     msgs = ["not quoted", '{"unclosed:"brace"',
@@ -178,7 +178,7 @@ def test_cli_subscribe(script_runner):
         assert message_body in ret.stdout
 
     def fake_headers():
-        return [("_test","true")]
+        return [("_test", "true")]
 
     fake_message.headers = fake_headers
 
