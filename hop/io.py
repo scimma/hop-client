@@ -362,10 +362,12 @@ class Consumer:
             message: The message to test.
         """
         h = message.headers()
-        if h is not None:
-            return bool([v for k, v in h if k == '_test'])
-        else:
-            return False
+        ret = False
+        if type(h) is list:
+            ret = bool([v for k, v in h if k == '_test'])
+        elif type(h) is dict:
+            ret = bool([k for k in h if k == '_test'])
+        return ret
 
     def __iter__(self):
         yield from self.read()
