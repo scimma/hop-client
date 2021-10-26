@@ -166,6 +166,7 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
     expected_msg = json.dumps(Blob(circular_msg).serialize()).encode("utf-8")
     headers = {"some header": "some value"}
     test_headers = {"some header": "some value", "_test" : "true"}
+
     with patch("hop.io.producer.Producer", autospec=True, return_value=mock_adc_producer):
 
         broker_url = f"kafka://localhost:port/{topic}"
