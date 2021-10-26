@@ -486,7 +486,6 @@ class Producer:
         # ensure all headers are encoded
         headers = [(_ensure_bytes_like(k), _ensure_bytes_like(v)) for k, v in headers]
         if test:
-            print("DEBUG: appending test header")
             headers.append((b"_test", b"true"))
         try:
             payload = message.serialize()
