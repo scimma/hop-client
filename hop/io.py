@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from enum import Enum
@@ -355,6 +356,22 @@ class Consumer:
         self.close()
 
 
+def _ensure_bytes_like(thing):
+    """Force an object which may be string-like to be bytes-like
+
+    Args:
+        thing: something which might be a string or might already be encoded as bytes.
+
+    Return:
+        Either the original input object or the encoding of that object as bytes.
+    """
+    try:  # check whether thing is bytes-like
+        memoryview(thing)
+        return thing  # keep as-is
+    except TypeError:
+        return thing.encode("utf-8")
+
+
 class Producer:
     """
     An event stream opened for writing to a topic.
@@ -386,38 +403,77 @@ class Producer:
         logger.info(f"publishing to topic: {topic}")
 
     def write(self, message, headers=None, delivery_callback=errors.raise_delivery_errors):
-        """Write messages to a stream.
+        """Write a message to the stream.
 
         Args:
             message: The message to write.
+            headers: The set of headers requested to be sent with the message, either as a
+                     mapping, or as a list of 2-tuples. In either the mapping or the list case,
+                     all header keys and values should be either string-like or bytes-like objects.
+            delivery_callback: A callback which will be called when each message
+                is either delivered or permenantly fails to be delivered.
+
+        """
+        message, headers = self.pack(message, headers)
+        self._producer.write(message, headers=headers, delivery_callback=delivery_callback)
+
+    def write_raw(self, packed_message, headers=None,
+                  delivery_callback=errors.raise_delivery_errors):
+        """Write a pre-encoded message to the stream.
+
+        This is an advanced interface; for most purposes it is preferrable to use
+        :meth:`Producer.write <hop.io.Producer.write>` instead.
+
+        Args:
+            packed_message: The message to write, which must already be correctly encoded by
+                            :meth:`Producer.pack <hop.io.Producer.pack>`
             headers: Any headers to attach to the message, either as a dictionary
                 mapping strings to strings, or as a list of 2-tuples of strings.
             delivery_callback: A callback which will be called when each message
                 is either delivered or permenantly fails to be delivered.
 
         """
-        self._producer.write(self._pack(message), headers=headers,
-                             delivery_callback=delivery_callback)
+        self._producer.write(packed_message, headers=headers, delivery_callback=delivery_callback)
 
     @staticmethod
-    def _pack(message):
-        """Pack and serialize messages.
+    def pack(message, headers=None):
+        """Pack and serialize a message.
+
+        This is an advanced interface, which most users should not need to call directly, as
+        :meth:`Producer.write <hop.io.Producer.write>` uses it automatically.
 
         Args:
             message: The message to pack and serialize.
+            headers: The set of headers requested to be sent with the message, either as a
+                     mapping, or as a list of 2-tuples. In either the mapping or the list case,
+                     all header keys and values should be either string-like or bytes-like objects.
 
-        :meta private:
+        Returns: A tuple containing the serialized message and the collection of headers which
+                 should be sent with it.
+
         """
+        # canonicalize headers to list form
+        if headers is None:
+            headers = []
+        elif isinstance(headers, Mapping):
+            headers = list(headers.items())
+        # ensure all headers are encoded
+        headers = [(_ensure_bytes_like(k), _ensure_bytes_like(v)) for k, v in headers]
         try:
             payload = message.serialize()
         except AttributeError:
             payload = {"format": "blob", "content": message}
         try:
-            return json.dumps(payload).encode("utf-8")
+            return (json.dumps(payload).encode("utf-8"), headers)
         except TypeError:
             raise TypeError("Unable to pack a message of type "
                             + message.__class__.__name__
                             + " which cannot be serialized to JSON")
+
+    def flush(self):
+        """Request that any messages locally queued for sending be sent immediately.
+        """
+        self._producer.flush()
 
     def close(self):
         """Wait for enqueued messages to be written and shut down.
