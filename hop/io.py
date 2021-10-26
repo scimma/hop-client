@@ -407,8 +407,9 @@ class Producer:
 
         Args:
             message: The message to write.
-            headers: Any headers to attach to the message, either as a dictionary
-                mapping strings to strings, or as a list of 2-tuples of strings.
+            headers: The set of headers requested to be sent with the message, either as a
+                     mapping, or as a list of 2-tuples. In either the mapping or the list case,
+                     all header keys and values should be either string-like or bytes-like objects.
             delivery_callback: A callback which will be called when each message
                 is either delivered or permenantly fails to be delivered.
 
@@ -444,7 +445,8 @@ class Producer:
         Args:
             message: The message to pack and serialize.
             headers: The set of headers requested to be sent with the message, either as a
-                     mapping of strings to strings, or as a list of 2-tuples of strings.
+                     mapping, or as a list of 2-tuples. In either the mapping or the list case,
+                     all header keys and values should be either string-like or bytes-like objects.
 
         Returns: A tuple containing the serialized message and the collection of headers which
                  should be sent with it.
