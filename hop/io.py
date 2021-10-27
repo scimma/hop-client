@@ -71,7 +71,7 @@ class Stream(object):
         else:
             return self._auth
 
-    def open(self, url, mode="r", group_id=None, **kwargs):
+    def open(self, url, mode="r", group_id=None, ignoretest=True, **kwargs):
         """Opens a connection to an event stream.
 
         Args:
@@ -79,6 +79,8 @@ class Stream(object):
             mode: Read ('r') or write ('w') from the stream.
             group_id: The consumer group ID from which to read.
                       Generated automatically if not specified.
+            ignoretest: When True, read mode will silently discard
+                        test messages.
 
         Returns:
             An open connection to the client, either a :class:`Producer` instance
@@ -121,6 +123,7 @@ class Stream(object):
                 start_at=self.start_at,
                 auth=credential,
                 read_forever=not self.until_eos,
+                ignoretest=ignoretest,
                 **kwargs,
             )
         else:
@@ -264,7 +267,7 @@ class Consumer:
     Instances of this class should be obtained from :meth:`Stream.open`.
     """
 
-    def __init__(self, group_id, broker_addresses, topics, **kwargs):
+    def __init__(self, group_id, broker_addresses, topics, ignoretest=True, **kwargs):
         """
         Args:
             group_id: The Kafka consumer group to join for reading messages.
@@ -281,6 +284,8 @@ class Consumer:
                 Kafka errors.
             offset_commit_interval: A datetime.timedelta specifying how often to
                 report progress to Kafka.
+            ignoretest: When True, ignore test messages. When False, process them
+                normally.
 
         :meta private:
         """
@@ -292,6 +297,7 @@ class Consumer:
         ))
         logger.info(f"subscribing to topics: {topics}")
         self._consumer.subscribe(topics)
+        self.ignoretest = ignoretest
 
     def read(self, metadata=False, autocommit=True, **kwargs):
         """Read messages from a stream.
@@ -312,6 +318,8 @@ class Consumer:
         """
         logger.info("processing messages from stream")
         for message in self._consumer.stream(autocommit=autocommit, **kwargs):
+            if self.ignoretest and self.is_test(message):
+                continue
             yield self._unpack(message, metadata=metadata)
         logger.info("finished processing messages")
 
@@ -345,6 +353,19 @@ class Consumer:
         """
         logger.info("closing connection")
         self._consumer.close()
+
+    @staticmethod
+    def is_test(message):
+        """True if message is a test message (contains '_test' as a header key).
+
+        Args:
+            message: The message to test.
+        """
+        h = message.headers()
+        if h is None:
+            return False
+        else:
+            return bool([v for k, v in h if k == "_test"])
 
     def __iter__(self):
         yield from self.read()
@@ -402,8 +423,10 @@ class Producer:
         ))
         logger.info(f"publishing to topic: {topic}")
 
-    def write(self, message, headers=None, delivery_callback=errors.raise_delivery_errors):
-        """Write a message to the stream.
+    def write(self, message, headers=None,
+              delivery_callback=errors.raise_delivery_errors, test=False):
+        """Write messages to a stream.
+
 
         Args:
             message: The message to write.
@@ -412,9 +435,10 @@ class Producer:
                      all header keys and values should be either string-like or bytes-like objects.
             delivery_callback: A callback which will be called when each message
                 is either delivered or permenantly fails to be delivered.
-
+            test: Message should be marked as a test message by adding a header
+                  with key '_test'.
         """
-        message, headers = self.pack(message, headers)
+        message, headers = self.pack(message, headers, test=test)
         self._producer.write(message, headers=headers, delivery_callback=delivery_callback)
 
     def write_raw(self, packed_message, headers=None,
@@ -431,12 +455,12 @@ class Producer:
                 mapping strings to strings, or as a list of 2-tuples of strings.
             delivery_callback: A callback which will be called when each message
                 is either delivered or permenantly fails to be delivered.
-
         """
+
         self._producer.write(packed_message, headers=headers, delivery_callback=delivery_callback)
 
     @staticmethod
-    def pack(message, headers=None):
+    def pack(message, headers=None, test=False):
         """Pack and serialize a message.
 
         This is an advanced interface, which most users should not need to call directly, as
@@ -447,6 +471,8 @@ class Producer:
             headers: The set of headers requested to be sent with the message, either as a
                      mapping, or as a list of 2-tuples. In either the mapping or the list case,
                      all header keys and values should be either string-like or bytes-like objects.
+            test: Message should be marked as a test message by adding a header
+                  with key '_test'.
 
         Returns: A tuple containing the serialized message and the collection of headers which
                  should be sent with it.
@@ -459,6 +485,8 @@ class Producer:
             headers = list(headers.items())
         # ensure all headers are encoded
         headers = [(_ensure_bytes_like(k), _ensure_bytes_like(v)) for k, v in headers]
+        if test:
+            headers.append(('_test', _ensure_bytes_like('true')))
         try:
             payload = message.serialize()
         except AttributeError:

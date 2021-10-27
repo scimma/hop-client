@@ -23,6 +23,11 @@ def _add_parser_args(parser):
         default=io.Deserializer.BLOB.name,
         help="Specify the message format. Defaults to BLOB for an unstructured message.",
     )
+    parser.add_argument(
+        "-t", "--test",
+        action="store_true",
+        help="Mark messages as test messages by adding a header with key '_test'."
+    )
 
 
 def _main(args):
@@ -50,6 +55,6 @@ def _main(args):
 
                 try:
                     for message in messages:
-                        s.write(loader.load(json.loads(message)))
+                        s.write(loader.load(json.loads(message)), test=args.test)
                 except json.decoder.JSONDecodeError as err:
                     raise ValueError("Blob messages must be valid JSON") from err

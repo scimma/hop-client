@@ -91,6 +91,7 @@ def test_cli_publish_blob_types(mock_broker, mock_producer, mock_consumer):
     args = MagicMock()
     args.url = "kafka://hostname:port/topic"
     args.format = io.Deserializer.BLOB.name
+    args.test = False
     start_at = io.StartPosition.EARLIEST
     read_url = "kafka://group@hostname:port/topic"
 
@@ -126,6 +127,7 @@ def test_cli_publish_bad_blob(mock_broker, mock_producer):
     args = MagicMock()
     args.url = "kafka://hostname:port/topic"
     args.format = io.Deserializer.BLOB.name
+    args.test = False
 
     mock_adc_producer = mock_producer(mock_broker, "topic")
     msgs = ["not quoted", '{"unclosed:"brace"',
@@ -152,7 +154,7 @@ def test_cli_subscribe(script_runner):
         assert ret.stderr == ""
 
         # verify broker url was processed
-        mock_stream.assert_called_with(broker_url, "r", group_id=None)
+        mock_stream.assert_called_with(broker_url, "r", group_id=None, ignoretest=True)
 
         ret = script_runner.run("hop", "subscribe", broker_url, "--no-auth", "--group-id", "group")
 
@@ -161,7 +163,7 @@ def test_cli_subscribe(script_runner):
         assert ret.stderr == ""
 
         # verify consumer group ID was used
-        mock_stream.assert_called_with(broker_url, "r", group_id="group")
+        mock_stream.assert_called_with(broker_url, "r", group_id="group", ignoretest=True)
 
     message_body = "some-message"
     message_data = {"format": "blob", "content": message_body}
@@ -171,6 +173,23 @@ def test_cli_subscribe(script_runner):
     mock_instance.stream = MagicMock(return_value=[fake_message])
     with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
         ret = script_runner.run("hop", "--debug", "subscribe", broker_url, "--no-auth", "--quiet")
+        assert ret.success
+        assert ret.stderr == ""
+        assert message_body in ret.stdout
+
+    def fake_headers():
+        return [('_test', b'true')]
+
+    fake_message.headers = fake_headers
+
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+        ret = script_runner.run("hop", "subscribe", broker_url, "--no-auth", "--quiet")
+        assert ret.success
+        assert ret.stderr == ""
+        assert ret.stdout == ""
+
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+        ret = script_runner.run("hop", "subscribe", broker_url, "--no-auth", "--quiet", "--test")
         assert ret.success
         assert ret.stderr == ""
         assert message_body in ret.stdout

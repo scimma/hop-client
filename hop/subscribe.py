@@ -55,6 +55,9 @@ def _add_parser_args(parser):
     parser.add_argument(
         "-j", "--json", help="Request message output as raw json", action="store_true",
     )
+    parser.add_argument(
+        "-t", "--test", help="Process test messages instead of ignoring them.", action="store_true",
+    )
 
 
 def _main(args):
@@ -66,6 +69,6 @@ def _main(args):
     start_at = io.StartPosition[args.start_at]
     stream = io.Stream(auth=(not args.no_auth), start_at=start_at, until_eos=args.until_eos)
 
-    with stream.open(args.url, "r", group_id=args.group_id) as s:
+    with stream.open(args.url, "r", group_id=args.group_id, ignoretest=(not args.test)) as s:
         for message in s:
             print_message(message, args.json)
