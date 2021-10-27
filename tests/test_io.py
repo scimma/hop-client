@@ -166,7 +166,7 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
     expected_msg = json.dumps(Blob(circular_msg).serialize()).encode("utf-8")
 
     headers = {"some header": "some value", "another header": b"other value"}
-    canonical_headers = [(b"some header", b"some value"), (b"another header", b"other value")]
+    canonical_headers = [("some header", "some value"), ("another header", b"other value")]
     test_headers = canonical_headers.copy()
     test_headers.append(('_test', b'true'))
     none_test_headers = []
