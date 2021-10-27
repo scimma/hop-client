@@ -499,31 +499,24 @@ def test_stream_flush():
 def test_is_test(circular_msg):
     fake_message = MagicMock()
 
+    def fake_headers_none():
+        return None
+
     def fake_headers_list_test():
         return [("_test", "true")]
 
     def fake_headers_list():
         return [("foo", "bar")]
 
-    def fake_headers_dict_test():
-        return {"_test": "true"}
-
-    def fake_headers_dict():
-        return {"foo": "bar"}
-
+    fake_message.headers = fake_headers_none
+    ret = io.Consumer.is_test(fake_message)
+    assert ret is False
     fake_message.headers = fake_headers_list_test
     ret = io.Consumer.is_test(fake_message)
     assert ret is True
     fake_message.headers = fake_headers_list
     ret = io.Consumer.is_test(fake_message)
     assert ret is False
-    fake_message.headers = fake_headers_dict_test
-    ret = io.Consumer.is_test(fake_message)
-    assert ret is True
-    fake_message.headers = fake_headers_dict
-    ret = io.Consumer.is_test(fake_message)
-    assert ret is False
-
 
 def make_mock_listing_consumer(topics=[]):
     """Create a mock object suitable for replacing confluent_kafka.Consumer
