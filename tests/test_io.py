@@ -518,6 +518,7 @@ def test_is_test(circular_msg):
     ret = io.Consumer.is_test(fake_message)
     assert ret is False
 
+
 def make_mock_listing_consumer(topics=[]):
     """Create a mock object suitable for replacing confluent_kafka.Consumer
         which has a list_topics method which acts as if a predetermined set of
