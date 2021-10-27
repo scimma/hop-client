@@ -111,7 +111,7 @@ def test_stream_read_test_channel(circular_msg):
     fake_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
 
     def test_headers():
-        return [("_test", "true")]
+        return [('_test', b'true')]
 
     fake_message.headers = test_headers
     mock_instance = MagicMock()
@@ -168,9 +168,9 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
     headers = {"some header": "some value", "another header": b"other value"}
     canonical_headers = [(b"some header", b"some value"), (b"another header", b"other value")]
     test_headers = canonical_headers.copy()
-    test_headers.append((b"_test", b"true"))
+    test_headers.append(('_test', b'true'))
     none_test_headers = []
-    none_test_headers.append((b"_test", b"true"))
+    none_test_headers.append(('_test', b"true"))
 
     with patch("hop.io.producer.Producer", autospec=True, return_value=mock_adc_producer):
 
@@ -503,10 +503,10 @@ def test_is_test(circular_msg):
         return None
 
     def fake_headers_list_test():
-        return [("_test", "true")]
+        return [('_test', b'true')]
 
     def fake_headers_list():
-        return [("foo", "bar")]
+        return [('foo', b'bar')]
 
     fake_message.headers = fake_headers_none
     ret = io.Consumer.is_test(fake_message)

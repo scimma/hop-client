@@ -365,7 +365,7 @@ class Consumer:
         if h is None:
             return False
         else:
-            return bool([v for k, v in h if k == '_test'])
+            return bool([v for k, v in h if k == "_test"])
 
     def __iter__(self):
         yield from self.read()
@@ -486,7 +486,7 @@ class Producer:
         # ensure all headers are encoded
         headers = [(_ensure_bytes_like(k), _ensure_bytes_like(v)) for k, v in headers]
         if test:
-            headers.append((b"_test", b"true"))
+            headers.append(('_test', _ensure_bytes_like('true')))
         try:
             payload = message.serialize()
         except AttributeError:

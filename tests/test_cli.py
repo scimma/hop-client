@@ -178,7 +178,7 @@ def test_cli_subscribe(script_runner):
         assert message_body in ret.stdout
 
     def fake_headers():
-        return [("_test", "true")]
+        return [('_test', b'true')]
 
     fake_message.headers = fake_headers
 
