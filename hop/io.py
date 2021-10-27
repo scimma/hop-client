@@ -377,22 +377,6 @@ class Consumer:
         self.close()
 
 
-def _ensure_bytes_like(thing):
-    """Force an object which may be string-like to be bytes-like
-
-    Args:
-        thing: something which might be a string or might already be encoded as bytes.
-
-    Return:
-        Either the original input object or the encoding of that object as bytes.
-    """
-    try:  # check whether thing is bytes-like
-        memoryview(thing)
-        return thing  # keep as-is
-    except TypeError:
-        return thing.encode("utf-8")
-
-
 class Producer:
     """
     An event stream opened for writing to a topic.
@@ -432,7 +416,8 @@ class Producer:
             message: The message to write.
             headers: The set of headers requested to be sent with the message, either as a
                      mapping, or as a list of 2-tuples. In either the mapping or the list case,
-                     all header keys and values should be either string-like or bytes-like objects.
+                     all header keys must be strings and and values should be either string-like or
+                     bytes-like objects.
             delivery_callback: A callback which will be called when each message
                 is either delivered or permenantly fails to be delivered.
             test: Message should be marked as a test message by adding a header
@@ -470,7 +455,8 @@ class Producer:
             message: The message to pack and serialize.
             headers: The set of headers requested to be sent with the message, either as a
                      mapping, or as a list of 2-tuples. In either the mapping or the list case,
-                     all header keys and values should be either string-like or bytes-like objects.
+                     all header keys must be strings and and values should be either string-like or
+                     bytes-like objects.
             test: Message should be marked as a test message by adding a header
                   with key '_test'.
 
@@ -483,10 +469,8 @@ class Producer:
             headers = []
         elif isinstance(headers, Mapping):
             headers = list(headers.items())
-        # ensure all headers are encoded
-        headers = [(_ensure_bytes_like(k), _ensure_bytes_like(v)) for k, v in headers]
         if test:
-            headers.append(('_test', _ensure_bytes_like('true')))
+            headers.append(('_test', b"true"))
         try:
             payload = message.serialize()
         except AttributeError:
