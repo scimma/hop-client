@@ -299,7 +299,7 @@ def test_journal_restore_state(tmpdir):
     j = PublicationJournal(journal_path)
 
     del j
-    j = PublicationJournal(journal_path)  # relaod empty journal
+    j = PublicationJournal(journal_path)  # reload empty journal
     assert not j.has_messages_to_send()
     assert not j.has_messages_in_flight()
 
@@ -307,7 +307,7 @@ def test_journal_restore_state(tmpdir):
     headers = [("header_0", b"value_0"), ("header_1", b"value_1")]
     j.queue_message(m0, headers)
     del j
-    j = PublicationJournal(journal_path)  # relaod with message to send
+    j = PublicationJournal(journal_path)  # reload with message in queue
     assert j.has_messages_to_send()
     assert not j.has_messages_in_flight()
 
@@ -315,7 +315,7 @@ def test_journal_restore_state(tmpdir):
     assert s0[1] == m0, "Message body should be preserved by on-disk journal"
     assert s0[2] == headers, "Message headers should be preserved by on-disk journal"
     del j
-    j = PublicationJournal(journal_path)  # relaod with message in flight
+    j = PublicationJournal(journal_path)  # reload with message in flight
     # this may appear counter-intuitive, but if the journal/sender is offline while the message is
     # in flight, we have no way of knowing whether it arrived. Therefore, the conservative thing to
     # do is assume that it did not, and send it again.
@@ -326,7 +326,7 @@ def test_journal_restore_state(tmpdir):
     assert s0_2 == s0, "Message to be resent should match original"
     j.mark_message_sent(s0_2[0])
     del j
-    j = PublicationJournal(journal_path)  # relaod after message successfully sent
+    j = PublicationJournal(journal_path)  # reload after message successfully sent
     assert not j.has_messages_to_send()
     assert not j.has_messages_in_flight()
 
