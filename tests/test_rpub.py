@@ -252,10 +252,10 @@ def test_journal_mark_sent_write_failure(tmpdir):
     # but intercept writing to inject failures
 
     def sneaky_open(path, mode, *args, **kwargs):
-        if 'r' in mode:
-            return orig_open(path, mode, *args, **kwargs)
-        else:
+        if 'w' in mode or 'a' in mode:
             return file_mock
+        else:
+            return orig_open(path, mode, *args, **kwargs)
 
     with patch("builtins.open", wraps=sneaky_open):
         j = PublicationJournal(journal_path)
