@@ -514,6 +514,13 @@ class RobustPublisher(threading.Thread):
         that they have arrived, including if it is itself taken offline (i.e. crashes) for some
         reason.
 
+        This is intended to provide *at least once* delivery of messages: If a message is confirmed
+        received by the broker, it will not be sent again, but if any disruption of the network or the
+        publisher itself prevents it from receiving that confirmation, even if the message was actually
+        received by the broker, the publisher will assume the worst and send the message again. Users of
+        this class (and more generally consumers of data published with it) should be prepared to discard
+        duplicate messages.
+
         Args:
             url: The URL for the Kafka topci to which messages will be published.
             auth: A `bool` or :class:`Auth <hop.auth.Auth>` instance. Defaults to
