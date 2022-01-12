@@ -436,13 +436,30 @@ def test_journal_restore_duplicate_sequence_number_to_send(tmpdir):
     # but dubious meanings
     test_message = b"data"
     rbody = BytesIO()
-    rbody.write(PublicationJournal.encode_int(0))  # sequence number
+    rbody.write(PublicationJournal.encode_int(58))  # sequence number
     rbody.write(PublicationJournal.encode_int(len(test_message)))  # data length
     rbody.write(test_message)  # data
     rbody.write(PublicationJournal.encode_int(0))  # no headers
     j._write_record(PublicationJournal.msg_record_type, rbody.getvalue())
     # record the same message again, duplicating the sequence number
     j._write_record(PublicationJournal.msg_record_type, rbody.getvalue())
+    del j
+
+    with pytest.raises(RuntimeError) as excinfo:
+        j = PublicationJournal(journal_path)
+    assert "Duplicate message sequence number" in str(excinfo.value)
+
+    journal_path = tmpdir.join("journal2")
+    j = PublicationJournal(journal_path)
+    test_message2 = b"other data"
+    rbody2 = BytesIO()
+    rbody2.write(PublicationJournal.encode_int(58))  # sequence number
+    rbody2.write(PublicationJournal.encode_int(len(test_message2)))  # data length
+    rbody2.write(test_message2)  # data
+    rbody2.write(PublicationJournal.encode_int(0))  # no headers
+    j._write_record(PublicationJournal.msg_record_type, rbody.getvalue())
+    # record another message but with the same sequence number
+    j._write_record(PublicationJournal.msg_record_type, rbody2.getvalue())
     del j
 
     with pytest.raises(RuntimeError) as excinfo:
