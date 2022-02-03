@@ -38,16 +38,23 @@ class Auth(auth.SASLAuth):
     ssl : `bool`, optional
         Whether to enable SSL (enabled by default).
     method : `SASLMethod`, optional
-        The SASL method to authenticate, default = SASLMethod.SCRAM_SHA_512.
+        The SASL method to authenticate. The default is SASLMethod.OAUTHBEARER
+        if token_endpoint is provided, or SASLMethod.SCRAM_SHA_512 otherwise.
         See valid SASL methods in SASLMethod.
     ssl_ca_location : `str`, optional
         If using SSL via a self-signed cert, a path/location
         to the certificate.
+    token_endpoint : `str`, optional
+        The OpenID Connect token endpoint URL.
+        Required for OAUTHBEARER / OpenID Connect, otherwise ignored.
     """
 
-    def __init__(self, user, password, host="", ssl=True, method=SASLMethod.SCRAM_SHA_512,
-                 **kwargs):
-        super().__init__(user, password, ssl=ssl, method=method, **kwargs)
+    def __init__(self, user, password, host="", ssl=True, method=None,
+                 token_endpoint=None, **kwargs):
+        if method is None and token_endpoint is None:
+            method = SASLMethod.SCRAM_SHA_512
+        super().__init__(user, password, ssl=ssl, method=method,
+                         token_endpoint=token_endpoint, **kwargs)
         self._username = user
         self._hostname = host
 
@@ -59,7 +66,8 @@ class Auth(auth.SASLAuth):
     @property
     def password(self):
         """The password for this credential"""
-        return self._config["sasl.password"]
+        return (self._config.get("sasl.password")
+                or self._config.get("sasl.oauthbearer.client.secret"))
 
     @property
     def hostname(self):
@@ -92,13 +100,21 @@ class Auth(auth.SASLAuth):
             return None
         return self._config["ssl.ca.location"]
 
+    @property
+    def token_endpoint(self):
+        """The OpenID Connect token endpoint,
+            or None if OpenID Connect is not enabled
+        """
+        return self._config.get("sasl.oauthbearer.token.endpoint.url")
+
     def __eq__(self, other):
         return (self._username == other._username
                 and self.password == other.password
                 and self.hostname == other.hostname
                 and self.mechanism == other.mechanism
                 and self.protocol == other.protocol
-                and self.ssl_ca_location == other.ssl_ca_location)
+                and self.ssl_ca_location == other.ssl_ca_location
+                and self.token_endpoint == other.token_endpoint)
 
 
 def load_auth(config_file=None):
@@ -227,8 +243,12 @@ def _interpret_auth_data(auth_data):
             if "hostname" in config:
                 host = config["hostname"]
 
+            token_endpoint = config.get("token_endpoint")
+
             if "mechanism" in config:
                 mechanism = config["mechanism"].replace("-", "_")
+            elif token_endpoint:
+                mechanism = "OAUTHBEARER"
             else:
                 mechanism = "SCRAM_SHA_512"
 
@@ -237,7 +257,7 @@ def _interpret_auth_data(auth_data):
                                f"missing auth property {ke}")
         else:
             auth.append(Auth(user, password, host=host, ssl=ssl, method=SASLMethod[mechanism],
-                             **extra_kwargs))
+                             token_endpoint=token_endpoint, **extra_kwargs))
     return auth
 
 
@@ -365,6 +385,7 @@ def read_new_credential(csv_file=None):
         if len(password) == 0:
             raise RuntimeError("Password may not be empty")
         hostname = _validate_hostname(input("Hostname (may be empty): "))
+        token_endpoint = input("Token endpoint (empty if not applicable): ") or None
     else:
         if os.path.exists(csv_file):
             with open(csv_file, "r") as f:
@@ -373,6 +394,7 @@ def read_new_credential(csv_file=None):
                 username = cred["username"]
                 password = cred["password"]
                 hostname = cred["hostname"] if "hostname" in cred else ""
+                token_endpoint = cred.get("token_endpoint")
                 if "mechanism" in cred:
                     options["method"] = cred["mechanism"].replace("-", "_")
                 if "protocol" in cred:
@@ -381,7 +403,7 @@ def read_new_credential(csv_file=None):
                     options["ssl_ca_location"] = cred["ssl_ca_location"]
         else:
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), csv_file)
-    return Auth(username, password, hostname, **options)
+    return Auth(username, password, hostname, token_endpoint=token_endpoint, **options)
 
 
 def write_auth_data(config_file, credentials):
@@ -397,7 +419,8 @@ def write_auth_data(config_file, credentials):
     cred_list = []
     for cred in credentials:
         cred_dict = {"username": cred.username, "password": cred.password,
-                     "protocol": cred.protocol, "mechanism": cred.mechanism}
+                     "protocol": cred.protocol, "mechanism": cred.mechanism,
+                     "token_endpoint": cred.token_endpoint}
         if len(cred.hostname) > 0:
             cred_dict["hostname"] = cred.hostname
         if cred.ssl_ca_location is not None:
