@@ -481,6 +481,28 @@ def test_journal_restore_too_short_message_record(tmpdir):
     assert "too small to conain required data for record" in str(excinfo.value)
 
 
+def test_journal_restore_mismatched_body_length(tmpdir):
+    journal_path = tmpdir.join("journal")
+    j = PublicationJournal(journal_path)
+
+    # directly use internal recording function to generate records with valid checksums
+    # but dubious meanings
+    test_message = b"somedata"
+    rbody = BytesIO()
+    rbody.write(PublicationJournal.encode_int(0))  # sequence number
+    # use wrong data length
+    rbody.write(PublicationJournal.encode_int(len(test_message) * 2))
+    rbody.write(test_message)  # data
+    rbody.write(PublicationJournal.encode_int(0))  # no headers
+    j._write_record(PublicationJournal.msg_record_type, rbody.getvalue())
+    del j
+
+    with pytest.raises(RuntimeError) as excinfo:
+        j = PublicationJournal(journal_path)
+    assert "Claimed message data length" in str(excinfo.value)
+    assert "exceeds record body length" in str(excinfo.value)
+
+
 def test_journal_restore_missing_headers(tmpdir):
     journal_path = tmpdir.join("journal")
     j = PublicationJournal(journal_path)
