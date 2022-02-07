@@ -21,6 +21,9 @@ class RAPriorityQueue:
     """A priority queue which also allows random access to queued items.
 
     Items' keys are also their priorities, and keys which compare lower have higher priority.
+
+    All keys in a queue must be mutually comparable; this is most easily accomplished by using a single
+    key type for a given queue. e
     """
 
     def __init__(self):
@@ -491,7 +494,7 @@ class PublicationJournal:
         Args:
             seq_num: The sequence number of the message in question, previously returned by
                      :meth:`get_next_message_to_send`.
-            lock: An optional refereence to a lock object which the callback should hold when
+            lock: An optional reference to a lock object which the callback should hold when
                   invoked, e.g. to protect concurrent access to the journal.
         """
         if seq_num not in self.maybe_sent_messages:
