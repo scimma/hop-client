@@ -40,20 +40,20 @@ def test_voevent(voevent_fileobj):
         == voevent.WhereWhen["ObsDataLocation"]["ObservatoryLocation"]["id"]
 
 
-def test_gcn_circular(circular_text, circular_msg):
+def test_gcn_circular(circular_text, circular_msg, circular_data_raw):
     with patch("builtins.open", mock_open(read_data=circular_text)):
         gcn_file = "example.gcn3"
         with open(gcn_file, "r") as f:
             gcn = models.GCNCircular.load(f)
 
         # verify parsed GCN structure is correct
-        assert gcn.header["title"] == circular_msg["header"]["title"]
-        assert gcn.header["number"] == circular_msg["header"]["number"]
-        assert gcn.header["subject"] == circular_msg["header"]["subject"]
-        assert gcn.header["date"] == circular_msg["header"]["date"]
-        assert gcn.header["from"] == circular_msg["header"]["from"]
+        assert gcn.header["title"] == circular_data_raw["header"]["title"]
+        assert gcn.header["number"] == circular_data_raw["header"]["number"]
+        assert gcn.header["subject"] == circular_data_raw["header"]["subject"]
+        assert gcn.header["date"] == circular_data_raw["header"]["date"]
+        assert gcn.header["from"] == circular_data_raw["header"]["from"]
 
-        assert gcn.body == circular_msg["body"]
+        assert gcn.body == circular_data_raw["body"]
 
         # verify wrapper format is correct
         assert gcn.serialize()["format"] == "circular"
@@ -84,16 +84,55 @@ def test_blob(blob_text, blob_msg):
         # round-tripping should work iff the blob was holding a string all along
         assert models.Blob.load(as_string) == blob
 
-    # conversion to a dictionary should just result in a key 'content' under which the original
-    # contents are stored, regardless of whether the missing_schema flag is set
-    blob_ms = models.Blob("foo", True)
-    blob_ms_dict = blob_ms.asdict()
-    assert type(blob_ms_dict) is dict
-    assert blob_ms_dict["content"] == blob_ms.content
-    # if the flag was set, this should separately be include in the resulting dictionary
-    assert blob_ms_dict["missing_schema"] is True
 
-    blob_ws = models.Blob("bar")
-    blob_ws_dict = blob_ws.asdict()
-    assert type(blob_ws_dict) is dict
-    assert blob_ws_dict["content"] == blob_ws.content
+def test_avro(avro_data_raw, avro_data, avro_msg):
+    with patch("builtins.open", mock_open(read_data=avro_data)):
+        avro = models.AvroBlob.load(avro_data)
+
+    # verify data is correct after deserializing
+    assert avro.content == avro_data_raw
+
+    # verify wrapper format is correct
+    assert avro.serialize()["format"] == "avro"
+
+    # verify that serializing again produces the same result
+    serialized = avro.serialize()["content"]
+    assert models.AvroBlob.load(serialized) == avro
+
+    # test that serializing the same object tree without a schema produces equivalent results
+    avro2 = models.AvroBlob(avro_data_raw)
+    serialized2 = avro2.serialize()["content"]
+    # serialized2 may not be the same as avro_data because the schemas can differ
+    assert models.AvroBlob.load(serialized2) == avro
+
+
+def test_avro_invalid_data_type_serialization():
+    # dictionary keys can only be strings
+    with pytest.raises(ValueError) as ve:
+        models.AvroBlob({1: "abc", False: "def"}).serialize()
+    assert "Dictionaries with non-string keys cannot be represented as Avro" in str(ve.value)
+
+    # arbitrary, user-defined types are not supported in Avro
+    with pytest.raises(ValueError) as ve:
+        models.AvroBlob(models.Blob(b"somedata")).serialize()
+    assert "Unable to assign an Avro type to value of type <class 'hop.models.Blob'>" \
+        in str(ve.value)
+
+
+def test_avro_invalid_data_type_deserialization():
+    # only bytes objects are accepted, not strings
+    with pytest.raises(TypeError):
+        models.AvroBlob.load("some string")
+
+
+def test_avro_operators(avro_data, avro_data_raw):
+    avro_with_schema = models.AvroBlob.load(avro_data)
+    avro_no_schema = models.AvroBlob(avro_data_raw)
+
+    # equality should not consider schemas
+    assert avro_with_schema == avro_no_schema
+    # not equal to objects of any other type
+    assert avro_with_schema != avro_data_raw
+    # hashing is not implemented because python fails to implement it for dict
+    with pytest.raises(NotImplementedError):
+        hash(avro_with_schema)

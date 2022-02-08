@@ -10,7 +10,7 @@ from hop import subscribe
 
 
 # test the subscribe printer for each message format
-@pytest.mark.parametrize("message_format", ["voevent", "circular", "blob"])
+@pytest.mark.parametrize("message_format", ["voevent", "circular", "blob", "json", "avro"])
 @pytest.mark.parametrize("json_dump", [True, False])
 def test_print_message(message_format, json_dump, message_parameters_dict):
 
@@ -36,6 +36,7 @@ def test_print_message(message_format, json_dump, message_parameters_dict):
 
     # extract message string from stdout
     test_message_stdout_str = f.getvalue()
+    print(test_message_stdout_str)
 
     # read in expected stdout text
     expected_basename = os.path.splitext(test_file)[0]
@@ -46,7 +47,6 @@ def test_print_message(message_format, json_dump, message_parameters_dict):
     expected_message_stdout = (shared_datadir / "expected_data" / expected_file).read_text()
 
     # verify printed message structure is correct
-    print(test_message_stdout_str)
     assert test_message_stdout_str == expected_message_stdout
 
     f.close()

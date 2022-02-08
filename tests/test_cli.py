@@ -106,8 +106,12 @@ def test_cli_publish_blob_types(mock_broker, mock_producer, mock_consumer):
             publish._main(args)
 
             # each published message should be on the broker
-            expected_msg = json.dumps(models.Blob(msg).serialize()).encode("utf-8")
-            assert mock_broker.has_message("topic", expected_msg)
+            encoded = models.Blob(msg).serialize()
+            expected_msg = {
+                "message": encoded["content"],
+                "headers": [("_format", encoded["format"].encode("utf-8"))],
+            }
+            assert mock_broker.has_message("topic", **expected_msg)
 
             # reading from the broker should yield messages which match the originals
             with io.Stream(start_at=None, auth=False).open(read_url, "r") as s:
@@ -117,7 +121,7 @@ def test_cli_publish_blob_types(mock_broker, mock_producer, mock_consumer):
                 # there should be one new message
                 assert len(extracted_msgs) == 1
                 # and it should be the one we published
-                assert msg in extracted_msgs
+                assert msg in [msg.content for msg in extracted_msgs]
 
 
 def test_cli_publish_bad_blob(mock_broker, mock_producer):

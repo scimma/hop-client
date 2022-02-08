@@ -22,7 +22,7 @@ def print_message(message, json_dump=False):
     """
     if json_dump:
         if isinstance(message, models.MessageModel):
-            message = json.dumps(message.asdict())
+            message = json.dumps(message.asjson())
         else:
             message = json.dumps(message)
     print(message, file=sys.stdout, flush=True)

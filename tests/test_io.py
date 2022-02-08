@@ -9,9 +9,9 @@ import pytest
 
 from hop.auth import Auth
 from hop import io
-from hop.models import GCNCircular, VOEvent, Blob
+from hop.models import AvroBlob, Blob, GCNCircular, JSONBlob, VOEvent, format_name
 
-from conftest import temp_environ, temp_config
+from conftest import temp_environ, temp_config, message_parameters_dict_data
 
 logger = logging.getLogger("hop")
 
@@ -26,27 +26,58 @@ def content_mock(message_model):
     return content
 
 
+def make_message(content, headers=[], topic="test-topic", partition=0, offset=0):
+    message = MagicMock()
+    message.value.return_value = content
+    message.headers.return_value = headers
+    message.topic.return_value = topic
+    message.partition.return_value = partition
+    message.offset.return_value = offset
+    message.timestamp.return_value = (0, 1234567890)
+    message.key.return_value = "test-key"
+    return message
+
+
+def make_message_standard(message, **kwags):
+    raw = message.serialize()
+    return make_message(raw["content"],
+                        headers=[("_format", raw["format"].encode("utf-8"))], **kwags)
+
+
+def old_style_message(message):
+    raw = {"format": format_name(type(message)), "content": message.asjson()}
+    return json.dumps(raw).encode("utf-8")
+
+
+def get_model_data(model_name):
+    return message_parameters_dict_data[model_name]["model_text"]
+
+
 # test the deserializer for each message format
 @pytest.mark.parametrize("message", [
-    {"format": "voevent", "content": content_mock(VOEvent)},
-    {"format": "circular", "content": content_mock(GCNCircular)},
-    {"format": "blob", "content": "this is a test message"},
-    {"format": "other", "content": "other"},
-    ["wrong_datatype"],
-    {"wrong_key": "value"},
+    # properly formatted, new-style messages
+    {"format": "voevent",
+        "content": make_message_standard(VOEvent.load(get_model_data("voevent")))},
+    {"format": "circular",
+        "content": make_message_standard(GCNCircular.load(get_model_data("circular")))},
+    {"format": "json", "content": make_message_standard(JSONBlob.load(get_model_data("json")))},
+    {"format": "avro", "content": make_message_standard(AvroBlob.load(get_model_data("avro")))},
+    {"format": "blob", "content": make_message_standard(Blob(b"some data"))},
+    # a new-style message in some user-defined format we don't have loaded
+    {"format": "other", "content": make_message(b"other", headers=[("_format", b"other")])},
+    # valid, old-style messages
+    {"format": "voevent",
+        "content": make_message(old_style_message(VOEvent.load(get_model_data("voevent"))))},
+    {"format": "circular",
+        "content": make_message(old_style_message(GCNCircular.load(get_model_data("circular"))))},
+    # an old-style message with the old JSON label
+    {"format": "json",
+        "content": make_message(b'{"format":"blob", "content":{"foo":"bar", "baz":5}}')},
+    # messages produced by foreign clients which don't apply our format labels
+    {"format": "json", "content": make_message(b'{"foo":"bar", "baz":5}')},
+    {"format": "blob", "content": make_message(b'some arbitrary data\0that hop can\'t read')},
 ])
 def test_deserialize(message, message_parameters_dict, caplog):
-
-    # test a non-dict message
-    if not isinstance(message, dict):
-        with pytest.raises(ValueError):
-            test_model = io.Deserializer.deserialize(message)
-        return
-    # test a dict message with wrong key values
-    elif not (("format" in message) and ("content" in message)):
-        with pytest.raises(ValueError):
-            test_model = io.Deserializer.deserialize(message)
-        return
 
     message_format = message["format"]
     message_content = message["content"]
@@ -58,22 +89,20 @@ def test_deserialize(message, message_parameters_dict, caplog):
         expected_model = message_parameters["expected_model"]
 
         # test valid formats
-        with patch(f"hop.models.{model_name}", MagicMock()):
-            test_model = io.Deserializer.deserialize(message)
+        test_model = io.Deserializer.deserialize(message_content)
 
         # verify the message is classified properly
         assert isinstance(test_model, expected_model)
 
     else:  # test an invalid format
         with caplog.at_level(logging.WARNING):
-            test_model = io.Deserializer.deserialize(message)
+            test_model = io.Deserializer.deserialize(message_content)
 
             # verify a message blob was produced with warnings
             output = f"Message format {message_format.upper()} " \
-                "not recognized, returning a Blob"
+                "not recognized; returning a Blob"
             assert isinstance(test_model, Blob)
             assert output in caplog.text
-            assert test_model.missing_schema
 
 
 def test_stream_read(circular_msg):
@@ -81,9 +110,10 @@ def test_stream_read(circular_msg):
     group_id = "test-group"
     start_at = io.StartPosition.EARLIEST
 
-    message_data = {"format": "circular", "content": circular_msg}
-    fake_message = MagicMock()
-    fake_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
+    fake_message = make_message(
+        GCNCircular.load(get_model_data("circular")).serialize()["content"],
+        headers=[("_format", b"circular")])
+
     mock_instance = MagicMock()
     mock_instance.stream = MagicMock(return_value=[fake_message])
     stream = io.Stream(start_at=start_at, until_eos=True, auth=False)
@@ -107,8 +137,7 @@ def test_stream_read(circular_msg):
 def test_stream_read_test_channel(circular_msg):
     start_at = io.StartPosition.EARLIEST
     message_data = {"format": "circular", "content": circular_msg}
-    fake_message = MagicMock()
-    fake_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
+    fake_message = make_message_standard(circular_msg)
 
     def test_headers():
         return [('_test', b'true')]
@@ -139,12 +168,8 @@ def test_stream_read_multiple(circular_msg):
     start_at = io.StartPosition.EARLIEST
 
     message_data = {"format": "circular", "content": circular_msg}
-    topic1_message = MagicMock()
-    topic1_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
-    topic1_message.topic = MagicMock(return_value=topic1)
-    topic2_message = MagicMock()
-    topic2_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
-    topic2_message.topic = MagicMock(return_value=topic2)
+    topic1_message = make_message_standard(circular_msg, topic=topic1)
+    topic2_message = make_message_standard(circular_msg, topic=topic2)
     mock_instance = MagicMock()
     mock_instance.stream = MagicMock(return_value=[topic1_message, topic2_message])
     stream = io.Stream(start_at=start_at, until_eos=True, auth=False)
@@ -163,14 +188,15 @@ def test_stream_read_multiple(circular_msg):
 def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
     topic = "gcn"
     mock_adc_producer = mock_producer(mock_broker, topic)
-    expected_msg = json.dumps(Blob(circular_msg).serialize()).encode("utf-8")
+    expected_msg = make_message_standard(circular_msg)
 
-    headers = {"some header": "some value", "another header": b"other value"}
-    canonical_headers = [("some header", "some value"), ("another header", b"other value")]
+    headers = {"some header": b"some value", "another header": b"other value"}
+    canonical_headers = [("some header", b"some value"),
+                         ("another header", b"other value"),
+                         ("_format", b"circular")]
     test_headers = canonical_headers.copy()
-    test_headers.append(('_test', b'true'))
-    none_test_headers = []
-    none_test_headers.append(('_test', b"true"))
+    test_headers.insert(2, ('_test', b'true'))
+    none_test_headers = [('_test', b"true"), ("_format", b"circular")]
 
     with patch("hop.io.producer.Producer", autospec=True, return_value=mock_adc_producer):
 
@@ -192,30 +218,30 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
         mock_broker.reset()
         with stream.open(broker_url, "w") as s:
             s.write(circular_msg, headers)
-            assert mock_broker.has_message(topic, expected_msg, canonical_headers)
+            assert mock_broker.has_message(topic, expected_msg.value(), canonical_headers)
 
         mock_broker.reset()
         with stream.open(broker_url, "w") as s:
             s.write(circular_msg, headers, test=True)
-            assert mock_broker.has_message(topic, expected_msg, test_headers)
+            assert mock_broker.has_message(topic, expected_msg.value(), test_headers)
 
         mock_broker.reset()
         with stream.open(broker_url, "w") as s:
             s.write(circular_msg, headers=None, test=True)
-            assert mock_broker.has_message(topic, expected_msg, none_test_headers)
+            assert mock_broker.has_message(topic, expected_msg.value(), none_test_headers)
 
         # repeat, but with a manual close instead of context management
         mock_broker.reset()
         s = stream.open(broker_url, "w")
         s.write(circular_msg, headers)
         s.close()
-        assert mock_broker.has_message(topic, expected_msg, canonical_headers)
+        assert mock_broker.has_message(topic, expected_msg.value(), canonical_headers)
 
 
 def test_stream_write_raw(circular_msg, circular_text, mock_broker, mock_producer):
     topic = "gcn"
     mock_adc_producer = mock_producer(mock_broker, topic)
-    encoded_msg = io.Producer.pack(GCNCircular(circular_msg["header"], circular_msg["body"]))
+    encoded_msg = io.Producer.pack(circular_msg)
     headers = {"some header": "some value"}
     canonical_headers = list(headers.items())
     with patch("hop.io.producer.Producer", autospec=True, return_value=mock_adc_producer):
@@ -298,13 +324,11 @@ def test_stream_open(auth_config, tmpdir):
         producer.write("data")
 
 
-def test_unpack(circular_msg, circular_text):
-    wrapped_msg = {"format": "circular", "content": circular_msg}
-
-    kafka_msg = MagicMock()
-    kafka_msg.value.return_value = json.dumps(wrapped_msg).encode("utf-8")
+def test_unpack(circular_msg):
+    kafka_msg = make_message_standard(circular_msg)
 
     unpacked_msg = io.Consumer._unpack(kafka_msg)
+    assert unpacked_msg == circular_msg
 
     unpacked_msg2, metadata = io.Consumer._unpack(kafka_msg, metadata=True)
     assert unpacked_msg2 == unpacked_msg
@@ -314,8 +338,7 @@ def test_mark_done(circular_msg):
     start_at = io.StartPosition.EARLIEST
     message_data = {"format": "circular", "content": circular_msg}
 
-    mock_message = MagicMock()
-    mock_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
+    mock_message = make_message_standard(circular_msg)
     mock_instance = MagicMock()
     mock_instance.stream = MagicMock(return_value=[mock_message])
     stream = io.Stream(until_eos=True, start_at=start_at, auth=False)
@@ -329,22 +352,22 @@ def test_mark_done(circular_msg):
 
 def test_pack(circular_msg, circular_text):
     # message class
-    circular = GCNCircular(**circular_msg)
-    packed_msg, _ = io.Producer.pack(circular)
+    packed_msg, headers = io.Producer.pack(circular_msg)
 
     # unstructured message
     message = {"hey": "you"}
-    packed, _ = io.Producer.pack(message)
+    packed, headers = io.Producer.pack(message)
 
 
 @pytest.mark.parametrize("message", [
-    {"format": "voevent", "content": content_mock(VOEvent)},
-    {"format": "circular", "content": content_mock(GCNCircular)},
-    {"format": "blob", "content": "this is a test message"},
+    {"format": "voevent", "read-mode": "rb"},
+    {"format": "circular", "read-mode": "r"},
+    {"format": "blob", "read-mode": "rb"},
+    {"format": "json", "read-mode": "rb"},
+    {"format": "avro", "read-mode": "rb"},
 ])
 def test_pack_unpack_roundtrip(message, message_parameters_dict, caplog):
     format = message["format"]
-    content = message["content"]
 
     # load test data
     shared_datadir = Path("tests/data")
@@ -353,17 +376,14 @@ def test_pack_unpack_roundtrip(message, message_parameters_dict, caplog):
 
     # generate a message
     expected_model = message_parameters_dict[format]["expected_model"]
-    if format in ("voevent", "circular"):
-        orig_message = expected_model.load_file(test_file)
-    else:
-        orig_message = test_file.read_text()
+    with open(test_file, message["read-mode"]) as f:
+        orig_message = expected_model.load(f)
 
     # pack the message
-    packed_msg, _ = io.Producer.pack(orig_message)
+    packed_msg, headers = io.Producer.pack(orig_message)
 
     # mock a kafka message with value being the packed message
-    kafka_msg = MagicMock()
-    kafka_msg.value.return_value = packed_msg
+    kafka_msg = make_message(packed_msg, headers)
 
     # unpack the message
     unpacked_msg = io.Consumer._unpack(kafka_msg)
@@ -371,21 +391,24 @@ def test_pack_unpack_roundtrip(message, message_parameters_dict, caplog):
     # verify based on format
     if format in ("voevent", "circular"):
         assert isinstance(unpacked_msg, expected_model)
-        assert unpacked_msg.asdict() == orig_message.asdict()
+        assert unpacked_msg == orig_message
     else:
         assert isinstance(unpacked_msg, type(unpacked_msg))
         assert unpacked_msg == orig_message
 
 
 def test_pack_unpack_roundtrip_unstructured():
-    # objects (of types that json.loads happens to produce) should remain unchanged by the process
-    # of packing and unpacking
-    for orig_message in ["a string", ["a", "B", "c"], {"dict": True, "other_data": [5, 17]}]:
-        packed_msg, _ = io.Producer.pack(orig_message)
-        kafka_msg = MagicMock()
-        kafka_msg.value.return_value = packed_msg
+    # objects (of types that json.loads happens to produce, and bytes) should remain unchanged
+    # by the process of packing and unpacking
+    for orig_message in [
+            "a string",
+            ["a", "B", "c"],
+            {"dict": True, "other_data": [5, 17]},
+            b"A\x00B\x04"]:
+        packed_msg, headers = io.Producer.pack(orig_message)
+        kafka_msg = make_message(packed_msg, headers)
         unpacked_msg = io.Consumer._unpack(kafka_msg)
-        assert unpacked_msg == orig_message
+        assert unpacked_msg.content == orig_message
 
     # non-serializable objects should raise an error
     with pytest.raises(TypeError):
@@ -438,15 +461,16 @@ def test_plugin_loading(caplog):
     lse_mock = MagicMock(side_effect=raise_ex)
     pm1.load_setuptools_entrypoints = lse_mock
 
+    builtin_models = ["VOEVENT", "CIRCULAR", "JSON", "AVRO", "BLOB"]
+
     with patch("pluggy.PluginManager", MagicMock(return_value=pm1)), \
             caplog.at_level(logging.WARNING):
         registered = io._load_deserializer_plugins()
         assert "Could not load external message plugins" in caplog.text
         # but built-in models should still be available
-        assert len(registered) == 3
-        assert "VOEVENT" in registered
-        assert "CIRCULAR" in registered
-        assert "BLOB" in registered
+        assert len(registered) == len(builtin_models)
+        for expected_model in builtin_models:
+            assert expected_model in registered
         # while we're here, make sure the documented interface is being used
         lse_mock.assert_called_with("hop_plugin")
 
@@ -479,12 +503,10 @@ def test_plugin_loading(caplog):
     pm3.load_setuptools_entrypoints = fake_lse
     with patch("pluggy.PluginManager", MagicMock(return_value=pm3)):
         registered = io._load_deserializer_plugins()
-        print(registered)
-        assert len(registered) == 4
+        assert len(registered) == len(builtin_models) + 1
+        for expected_model in builtin_models:
+            assert expected_model in registered
         assert "FOO" in registered
-        assert "VOEVENT" in registered
-        assert "CIRCULAR" in registered
-        assert "BLOB" in registered
 
 
 def test_stream_flush():
