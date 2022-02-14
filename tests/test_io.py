@@ -1,5 +1,5 @@
 from collections import Counter
-from dataclasses import fields
+from dataclasses import asdict, fields
 import json
 import logging
 from pathlib import Path
@@ -44,8 +44,9 @@ def make_message_standard(message, **kwags):
                         headers=[("_format", raw["format"].encode("utf-8"))], **kwags)
 
 
+# only applicable to old message models which are JSON-compatible
 def old_style_message(message):
-    raw = {"format": format_name(type(message)), "content": message.asjson()}
+    raw = {"format": format_name(type(message)), "content": asdict(message)}
     return json.dumps(raw).encode("utf-8")
 
 
@@ -406,6 +407,7 @@ def test_pack_unpack_roundtrip_unstructured():
             {"dict": True, "other_data": [5, 17]},
             b"A\x00B\x04"]:
         packed_msg, headers = io.Producer.pack(orig_message)
+        print(f"pasked_msg: {packed_msg}")
         kafka_msg = make_message(packed_msg, headers)
         unpacked_msg = io.Consumer._unpack(kafka_msg)
         assert unpacked_msg.content == orig_message

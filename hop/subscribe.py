@@ -1,31 +1,11 @@
-import json
 import logging
 import sys
 
 from . import cli
 from . import io
-from . import models
 
 
 logger = logging.getLogger("hop")
-
-
-def print_message(message, json_dump=False):
-    """Print the content of a message.
-
-    Args:
-      message: message to print
-      json_dump: boolean indicating whether to print as raw json
-
-    Returns:
-      None
-    """
-    if json_dump:
-        if isinstance(message, models.MessageModel):
-            message = json.dumps(message.asjson())
-        else:
-            message = json.dumps(message)
-    print(message, file=sys.stdout, flush=True)
 
 
 def _add_parser_args(parser):
@@ -71,4 +51,4 @@ def _main(args):
 
     with stream.open(args.url, "r", group_id=args.group_id, ignoretest=(not args.test)) as s:
         for message in s:
-            print_message(message, args.json)
+            print(message, file=sys.stdout, flush=True)

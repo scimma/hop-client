@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 import email
 import fastavro
@@ -27,12 +26,6 @@ class MessageModel(ABC):
 
     """
 
-    def asjson(self):
-        """Represents the message model as a JSON-compatible object tree.
-
-        """
-        return asdict(self)
-
     def serialize(self):
         """Wrap the message with its format and content.
 
@@ -44,7 +37,7 @@ class MessageModel(ABC):
         """
         # by default, encode using JSON
         return {"format": format_name(type(self)),
-                "content": json.dumps(self.asjson()).encode("utf-8")
+                "content": json.dumps(asdict(self)).encode("utf-8")
                 }
 
     @classmethod
@@ -111,7 +104,7 @@ class VOEvent(MessageModel):
     Reference: dict = field(default_factory=dict)
 
     def __str__(self):
-        return json.dumps(self.asjson(), indent=2)
+        return json.dumps(asdict(self), indent=2)
 
     @classmethod
     def load(cls, xml_input):
@@ -197,9 +190,6 @@ class Blob(MessageModel):
     def __str__(self):
         return str(self.content)
 
-    def asjson(self):
-        return str(self.content)
-
     def serialize(self):
         return {"format": format_name(type(self)), "content": self.content}
 
@@ -237,8 +227,10 @@ class JSONBlob(MessageModel):
     def __str__(self):
         return str(self.content)
 
-    def asjson(self):
-        return self.content
+    def serialize(self):
+        return {"format": format_name(type(self)),
+                "content": json.dumps(self.content).encode("utf-8")
+                }
 
     @classmethod
     def deserialize(cls, data):
@@ -276,30 +268,6 @@ class AvroBlob(MessageModel):
 
     def __str__(self):
         return str(self.content)
-
-    def asjson(self):
-        # replace all JSON incompatible bytes objects, and immutable tuple objects
-        def clean(value):
-            if isinstance(value, dict):
-                for key in value.keys():
-                    if isinstance(value[key], bytes):
-                        value[key] = repr(value[key])
-                    elif isinstance(value[key], tuple):
-                        value[key] = list(value[key])
-                    clean(value[key])
-            elif isinstance(value, list):
-                for idx, entry in enumerate(value):
-                    if isinstance(entry, bytes):
-                        value[idx] = repr(entry)
-                    elif isinstance(entry, tuple):
-                        value[idx] = list(entry)
-                    clean(value[idx])
-
-        data = deepcopy(self.content)
-        if isinstance(data, tuple):
-            data = list(data)
-        clean(data)
-        return data
 
     def serialize(self):
         """Wrap the message with its format and content.
