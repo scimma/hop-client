@@ -579,13 +579,13 @@ class RobustPublisher(threading.Thread):
         self._stream = dummy.open(url, "w", error_callback=PublicationJournal.error_callback,
                                   **kwargs)
 
-        self._running = True
+        self._should_stop = False
         self._immediate_start = self._journal.has_messages_to_send()
 
     def run(self):
         while True:
             with self._cond:
-                if not self._running and not self._journal.has_messages_to_send():
+                if self._should_stop and not self._journal.has_messages_to_send():
                     break
                 if not self._immediate_start:
                     self._cond.wait()  # wait for something to do
@@ -636,7 +636,7 @@ class RobustPublisher(threading.Thread):
     def __exit__(self, ex_type, ex_val, traceback):
         logger.debug("Stopping publisher thread")
         with self._cond:
-            self._running = False
+            self._should_stop = True
             self._cond.notify()  # wake up the sender loop
         self.join()
         self._stream.close()
