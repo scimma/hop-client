@@ -579,10 +579,11 @@ class RobustPublisher(threading.Thread):
         self._stream = dummy.open(url, "w", error_callback=PublicationJournal.error_callback,
                                   **kwargs)
 
-        self._should_stop = False
-        self._immediate_start = self._journal.has_messages_to_send()
-
     def run(self):
+        """
+        This method is not part of the public interface of this class, and should not be called directly
+        by users.
+        """
         while True:
             with self._cond:
                 if self._should_stop and not self._journal.has_messages_to_send():
@@ -623,21 +624,54 @@ class RobustPublisher(threading.Thread):
                 pass
 
     def write(self, message, headers=None):
+        """
+        Queue a message to be sent. Message sending occurs asynchronously on a background thread, so this
+        method returns immediately unless an error occurs queuing the message.
+        :meth:`RobustPublisher.start <RobustPublisher.start>` must be called prior to calling this method.
+
+        Args:
+            message: A message to send.
+            headers: Headers to be sent with the message, as a list of 2-tuples of strings.
+
+        Raises:
+            RuntimeError: If appending the new message to the on-disk journal fails.
+            TypeError: If the message is not a suitable type.
+        """
         message, headers = io.Producer.pack(message, headers)
         with self._cond:  # must hold the lock to manipulate journal
             seq_num = self._journal.queue_message(message, headers)
             self._cond.notify()  # wake up the sender loop if sleeping
         logger.debug(f"Queued message with sequence number {seq_num} to be sent")
 
-    def __enter__(self):
-        self.start()
-        return self
+    def start(self):
+        """
+        Start the background communication thread used by the publisher to send messages.
+        This should be called prior to any calls to :meth:`RobustPublisher.write <RobustPublisher.write>`.
+        This method should not be called more than once.
+        """
+        self._should_stop = False
+        self._immediate_start = self._journal.has_messages_to_send()
+        super(RobustPublisher, self).start()
 
-    def __exit__(self, ex_type, ex_val, traceback):
+    def stop(self):
+        """
+        Stop the background communication thread used by the publisher to send messages. This method will
+        block until the thread completes, which includes sending all queued messages.
+        :meth:`RobustPublisher.write <RobustPublisher.write>` should not be called after this method has
+        been called.
+        This method should not be called more than once.
+        """
         logger.debug("Stopping publisher thread")
         with self._cond:
             self._should_stop = True
             self._cond.notify()  # wake up the sender loop
         self.join()
         self._stream.close()
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, ex_type, ex_val, traceback):
+        self.stop()
         return False  # propagate any exceptions
