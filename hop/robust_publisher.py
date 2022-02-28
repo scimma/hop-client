@@ -484,12 +484,13 @@ class PublicationJournal:
                 self.requeue_message(seq_num)
 
     def get_delivery_callback(self, seq_num, lock=NullLock()):
-        """Construct a callback handler specific to a particular message which will either mark it
-            successfully sent or requeue it to send again.
+        """
+        Construct a callback handler specific to a particular message which will either mark it
+        successfully sent or requeue it to send again.
 
-            The callback which is produced will take two arguments: A confluent_kafka.KafkaError
-            describing any error in sending the message, and confluent_kafka.Message containing the
-            message itself.
+        The callback which is produced will take two arguments: A confluent_kafka.KafkaError
+        describing any error in sending the message, and confluent_kafka.Message containing the
+        message itself.
 
         Args:
             seq_num: The sequence number of the message in question, previously returned by
