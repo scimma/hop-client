@@ -17,7 +17,7 @@ from adc.errors import KafkaException
 logger = logging.getLogger("hop")
 
 
-class RAPriorityQueue:
+class _RAPriorityQueue:
     """A priority queue which also allows random access to queued items.
 
     Items' keys are also their priorities, and keys which compare lower have higher priority.
@@ -141,8 +141,8 @@ class PublicationJournal:
         """
         self.journal_path = journal_path
         # each queue will store (message, headers) tuples, keyed by sequence numbers
-        self.messages_to_send = RAPriorityQueue()
-        self.maybe_sent_messages = RAPriorityQueue()
+        self.messages_to_send = _RAPriorityQueue()
+        self.maybe_sent_messages = _RAPriorityQueue()
         self.message_counter = 0
         self._read_previous_journal()
         self.journal = open(self.journal_path, "ab")
@@ -510,7 +510,7 @@ class PublicationJournal:
         logger.error(f"Kafka error: {kafka_error}")
 
 
-class RobustPublisher(threading.Thread):
+class RobustProducer(threading.Thread):
     def __init__(self, url, auth=True, journal_path="publisher.journal", poll_wait=1.e-4, **kwargs):
         """
         Construct a publisher which will retry sending messages if it does not receive confirmation
@@ -562,7 +562,7 @@ class RobustPublisher(threading.Thread):
             OSError: If a journal file exists but cannot be read.
             Runtime Error: If the contents of the journal file are corrupted.
         """
-        super(RobustPublisher, self).__init__()
+        super(RobustProducer, self).__init__()
 
         self._poll_wait = poll_wait
 
@@ -627,7 +627,7 @@ class RobustPublisher(threading.Thread):
         """
         Queue a message to be sent. Message sending occurs asynchronously on a background thread, so this
         method returns immediately unless an error occurs queuing the message.
-        :meth:`RobustPublisher.start <RobustPublisher.start>` must be called prior to calling this method.
+        :meth:`RobustProducer.start <RobustProducer.start>` must be called prior to calling this method.
 
         Args:
             message: A message to send.
@@ -646,18 +646,18 @@ class RobustPublisher(threading.Thread):
     def start(self):
         """
         Start the background communication thread used by the publisher to send messages.
-        This should be called prior to any calls to :meth:`RobustPublisher.write <RobustPublisher.write>`.
+        This should be called prior to any calls to :meth:`RobustProducer.write <RobustProducer.write>`.
         This method should not be called more than once.
         """
         self._should_stop = False
         self._immediate_start = self._journal.has_messages_to_send()
-        super(RobustPublisher, self).start()
+        super(RobustProducer, self).start()
 
     def stop(self):
         """
         Stop the background communication thread used by the publisher to send messages. This method will
         block until the thread completes, which includes sending all queued messages.
-        :meth:`RobustPublisher.write <RobustPublisher.write>` should not be called after this method has
+        :meth:`RobustProducer.write <RobustProducer.write>` should not be called after this method has
         been called.
         This method should not be called more than once.
         """

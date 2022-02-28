@@ -11,19 +11,19 @@ from unittest.mock import patch, MagicMock
 from adc.errors import KafkaException
 
 import hop
-from hop.robust_publisher import RAPriorityQueue, PublicationJournal, RobustPublisher
+from hop.robust_publisher import _RAPriorityQueue, PublicationJournal, RobustProducer
 
 
 logger = logging.getLogger("hop")
 
 
 def test_queue_construction():
-    q = RAPriorityQueue()
+    q = _RAPriorityQueue()
     assert len(q) == 0  # queue should initially be empty
 
 
 def test_queue_len():
-    q = RAPriorityQueue()
+    q = _RAPriorityQueue()
     expected = 0
 
     def add(key, value):
@@ -54,7 +54,7 @@ def test_queue_len():
 
 
 def test_queue_contains():
-    q = RAPriorityQueue()
+    q = _RAPriorityQueue()
     assert "foo" not in q
     q.insert("foo", "bar")
     assert "foo" in q
@@ -67,7 +67,7 @@ def test_queue_contains():
 
 
 def test_queue_insert_setitem():
-    q = RAPriorityQueue()
+    q = _RAPriorityQueue()
     assert "foo" not in q
     q.insert("foo", "bar")
     assert "foo" in q
@@ -81,7 +81,7 @@ def test_queue_insert_setitem():
 
 
 def test_queue_getitem():
-    q = RAPriorityQueue()
+    q = _RAPriorityQueue()
     with pytest.raises(KeyError):
         q["foo"]
     q.insert("foo", "bar")
@@ -96,7 +96,7 @@ def test_queue_getitem():
 
 
 def test_queue_pop():
-    q = RAPriorityQueue()
+    q = _RAPriorityQueue()
     assert q.pop_highest_priority() is None
     # if there is only one item, pop must remove it
     q.insert(1, "foo")
@@ -111,7 +111,7 @@ def test_queue_pop():
 
 
 def test_queue_remove_del():
-    q = RAPriorityQueue()
+    q = _RAPriorityQueue()
     with pytest.raises(KeyError):
         q.remove(1)
     q.insert(2, "bar")
@@ -731,7 +731,7 @@ class FakeProducer:
     def __init__(self, immediate_failure=False, poll_failure=False):
         self.delivery_callbacks = []
         self.messages_written = []
-        # need to coordinate access due to RobustPublisher's background thread
+        # need to coordinate access due to RobustProducer's background thread
         self.lock = threading.Lock()
         # need this to allow ._producer._producer.poll()
         self._producer = MagicMock()
@@ -792,7 +792,7 @@ def test_rpublisher_empty_journal(tmpdir):
     url = "kafka://example.com/topic"
 
     with patch("hop.io.Stream", makeStream()) as steam_middleman:
-        with RobustPublisher(url, journal_path=journal_path) as pub:
+        with RobustProducer(url, journal_path=journal_path) as pub:
             pub.write("a message")
 
             # The publisher will spin in _do_send as long as the state of sent messages is
@@ -819,7 +819,7 @@ def test_rpublisher_existing_journal(tmpdir):
     del j
 
     with patch("hop.io.Stream", makeStream()) as steam_middleman:
-        with RobustPublisher(url, journal_path=journal_path) as pub:
+        with RobustProducer(url, journal_path=journal_path) as pub:
             while True:
                 time.sleep(0.01)
                 with pub._stream.lock:
@@ -838,7 +838,7 @@ def test_rpublisher_immediate_send_fail(tmpdir):
     url = "kafka://example.com/topic"
 
     with patch("hop.io.Stream", makeStream(immediate_failure=True)) as steam_middleman:
-        with RobustPublisher(url, journal_path=journal_path) as pub:
+        with RobustProducer(url, journal_path=journal_path) as pub:
             pub.write("a message")
 
             while True:
@@ -857,7 +857,7 @@ def test_rpublisher_poll_fail(tmpdir):
     url = "kafka://example.com/topic"
 
     with patch("hop.io.Stream", makeStream(poll_failure=True)) as steam_middleman:
-        with RobustPublisher(url, journal_path=journal_path) as pub:
+        with RobustProducer(url, journal_path=journal_path) as pub:
             pub.write("a message")
 
             while True:
