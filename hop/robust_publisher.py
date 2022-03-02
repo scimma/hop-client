@@ -23,7 +23,7 @@ class _RAPriorityQueue:
     Items' keys are also their priorities, and keys which compare lower have higher priority.
 
     All keys in a queue must be mutually comparable; this is most easily accomplished by using a single
-    key type for a given queue. e
+    key type for a given queue.
     """
 
     def __init__(self):
@@ -161,7 +161,7 @@ class PublicationJournal:
             # The body length is contained in the header, and protected by the header CRC
             # so that item lengths within the body can be sanity checked before reading the
             # body is complete. The body CRC also protects the data in the body, but cannot
-            # be re-checked until the entrie body has been read. That can pose a problem if
+            # be re-checked until the entire body has been read. That can pose a problem if
             # the length for one of the variable length components in the body is corrupted,
             # and would lead to read of a nonsensical length (exhausting memory or similar).
             write_to_header(PublicationJournal.encode_int(record_type))  # record type
