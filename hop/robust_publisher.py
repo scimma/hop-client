@@ -225,7 +225,7 @@ class PublicationJournal:
         return len(self.messages_to_send) > 0
 
     def get_next_message_to_send(self):
-        """Fetch the next mesage which should be sent
+        """Fetch the next message which should be sent
 
         Returns:
             The next message in the form of a tuple of (seqeunce number, message, message headers),
@@ -549,7 +549,7 @@ class RobustProducer(threading.Thread):
                        increase this value so that the publisher will wait to discover that each
                        message has been sent (in the success case) instead of sleeping and waiting
                        for another message to send. If this value is 'too low' (much smaller than
-                       both the time for a mesage to be sent and acknowledged and the time for the
+                       both the time for a message to be sent and acknowledged and the time for the
                        next message to be ready for sending), the publisher will waste CPU time
                        entering and exiting the internal function used to receive event
                        notifications. If this value is too large (larger than or similar in size to
