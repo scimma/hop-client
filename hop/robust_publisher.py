@@ -22,8 +22,9 @@ class _RAPriorityQueue:
 
     Items' keys are also their priorities, and keys which compare lower have higher priority.
 
-    All keys in a queue must be mutually comparable; this is most easily accomplished by using a single
-    key type for a given queue.
+    All keys in a queue must be mutually comparable; this is most easily accomplished by using a
+    single key type for a given queue.
+
     """
 
     def __init__(self):
@@ -484,8 +485,7 @@ class PublicationJournal:
                 self.requeue_message(seq_num)
 
     def get_delivery_callback(self, seq_num, lock=NullLock()):
-        """
-        Construct a callback handler specific to a particular message which will either mark it
+        """Construct a callback handler specific to a particular message which will either mark it
         successfully sent or requeue it to send again.
 
         The callback which is produced will take two arguments: A confluent_kafka.KafkaError
@@ -497,6 +497,7 @@ class PublicationJournal:
                      :meth:`get_next_message_to_send`.
             lock: An optional reference to a lock object which the callback should hold when
                   invoked, e.g. to protect concurrent access to the journal.
+
         """
         if seq_num not in self.maybe_sent_messages:
             raise RuntimeError("Cannot produce a delivery callback for message with sequence "
@@ -513,17 +514,16 @@ class PublicationJournal:
 
 class RobustProducer(threading.Thread):
     def __init__(self, url, auth=True, journal_path="publisher.journal", poll_wait=1.e-4, **kwargs):
-        """
-        Construct a publisher which will retry sending messages if it does not receive confirmation
+        """Construct a publisher which will retry sending messages if it does not receive confirmation
         that they have arrived, including if it is itself taken offline (i.e. crashes) for some
         reason.
 
         This is intended to provide *at least once* delivery of messages: If a message is confirmed
-        received by the broker, it will not be sent again, but if any disruption of the network or the
-        publisher itself prevents it from receiving that confirmation, even if the message was actually
-        received by the broker, the publisher will assume the worst and send the message again. Users of
-        this class (and more generally consumers of data published with it) should be prepared to discard
-        duplicate messages.
+        received by the broker, it will not be sent again, but if any disruption of the network or
+        the publisher itself prevents it from receiving that confirmation, even if the message was
+        actually received by the broker, the publisher will assume the worst and send the message
+        again. Users of this class (and more generally consumers of data published with it) should
+        be prepared to discard duplicate messages.
 
         Args:
             url: The URL for the Kafka topci to which messages will be published.
@@ -562,6 +562,7 @@ class RobustProducer(threading.Thread):
         Raises:
             OSError: If a journal file exists but cannot be read.
             Runtime Error: If the contents of the journal file are corrupted.
+
         """
         super(RobustProducer, self).__init__()
 
@@ -581,9 +582,9 @@ class RobustProducer(threading.Thread):
                                   **kwargs)
 
     def run(self):
-        """
-        This method is not part of the public interface of this class, and should not be called directly
+        """This method is not part of the public interface of this class, and should not be called directly
         by users.
+
         """
         while True:
             with self._cond:
@@ -625,10 +626,10 @@ class RobustProducer(threading.Thread):
                 pass
 
     def write(self, message, headers=None):
-        """
-        Queue a message to be sent. Message sending occurs asynchronously on a background thread, so this
-        method returns immediately unless an error occurs queuing the message.
-        :meth:`RobustProducer.start <RobustProducer.start>` must be called prior to calling this method.
+        """Queue a message to be sent. Message sending occurs asynchronously on a background thread, so
+        this method returns immediately unless an error occurs queuing the message.
+        :meth:`RobustProducer.start <RobustProducer.start>` must be called prior to calling this
+        method.
 
         Args:
             message: A message to send.
@@ -637,6 +638,7 @@ class RobustProducer(threading.Thread):
         Raises:
             RuntimeError: If appending the new message to the on-disk journal fails.
             TypeError: If the message is not a suitable type.
+
         """
         message, headers = io.Producer.pack(message, headers)
         with self._cond:  # must hold the lock to manipulate journal
@@ -645,22 +647,22 @@ class RobustProducer(threading.Thread):
         logger.debug(f"Queued message with sequence number {seq_num} to be sent")
 
     def start(self):
-        """
-        Start the background communication thread used by the publisher to send messages.
-        This should be called prior to any calls to :meth:`RobustProducer.write <RobustProducer.write>`.
+        """Start the background communication thread used by the publisher to send messages. This should
+        be called prior to any calls to :meth:`RobustProducer.write <RobustProducer.write>`.
         This method should not be called more than once.
+
         """
         self._should_stop = False
         self._immediate_start = self._journal.has_messages_to_send()
         super(RobustProducer, self).start()
 
     def stop(self):
-        """
-        Stop the background communication thread used by the publisher to send messages. This method will
-        block until the thread completes, which includes sending all queued messages.
-        :meth:`RobustProducer.write <RobustProducer.write>` should not be called after this method has
-        been called.
+        """Stop the background communication thread used by the publisher to send messages. This method
+        will block until the thread completes, which includes sending all queued messages.
+        :meth:`RobustProducer.write <RobustProducer.write>` should not be called after this method
+        has been called.
         This method should not be called more than once.
+
         """
         logger.debug("Stopping publisher thread")
         with self._cond:
