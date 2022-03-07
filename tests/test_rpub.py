@@ -4,6 +4,7 @@ import logging
 import os
 import pytest
 import stat
+import struct
 import time
 import threading
 from unittest.mock import patch, MagicMock
@@ -292,6 +293,24 @@ def test_journal_requeue_message(tmpdir):
 
     with pytest.raises(RuntimeError):
         j.requeue_message(s0[0])  # can't requeue a sent message
+
+
+def test_journal_ecoder_failure():
+    format = "!I"
+
+    def even_number_decoder(buffer):
+        if buffer[-1] & 1:
+            raise RuntimeError("Data does not represent an even number")
+        return struct.unpack(format, buffer)[0]
+
+    good_data = struct.pack(format, 222)
+    bad_data = struct.pack(format, 32767)
+
+    PublicationJournal._decode_raw_data(good_data, even_number_decoder, 0, "my value")
+    with pytest.raises(RuntimeError) as err:
+        PublicationJournal._decode_raw_data(bad_data, even_number_decoder, 0, "my value")
+    assert("my value" in str(err.value))
+    assert("Data does not represent an even number" in str(err.value))
 
 
 def test_journal_restore_state(tmpdir):
