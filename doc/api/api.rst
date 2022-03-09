@@ -10,6 +10,7 @@ hop-client API
     cli
     configure
     io
+    robust_publisher
     publish
     subscribe
     models

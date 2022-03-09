@@ -14,6 +14,7 @@ User's Guide
    user/stream
    user/auth
    user/models
+   user/robust_publication
    user/commands
 
 API Reference
