@@ -11,18 +11,18 @@ The RobustProducer
 In some situations, it may be critical to ensure that messages are sent to the Kafka broker, even when the
 intervening network may be unreliable, the sending process may be killed unexpectedly, and so on.
 The :class:`RobustProducer <hop.robust_publisher.RobustProducer>` object extends the capabilities of the 
-simple :class:`Producer <hop.io.Producer>` to cover this need better. 
+simple :class:`Producer <hop.io.Producer>` to provide this functionality. 
 
 The two main mechanisms used by the :class:`RobustProducer <hop.robust_publisher.RobustProducer>` are to 
 maintain a local journal of messages which are queued to be sent or are in flight, and to listen for
 confirmation messages from the Kafka broker that messages have been received.
-The use of receipt confirmations enables resending messages which are lost in the network or if the broker
+The use of receipt confirmations enables the resending of messages which are lost in the network or if the broker
 fails unexpectedly, while use of the journal ensures that even if the sending program is stopped suddenly, 
 it can resend any messages whose receipt was not yet confirmed. 
 Implications of this are that local disk space is required for the message journal (and the amount of
 space used will be at least that of the sum of sizes of all messages in flight at the same time), and that
-at-least-once delivery is guarnteed, but that in providing that guarantee, messages may be duplicated.
-For example, duplication on the broker will occur if the producer sends the mesage, but the broker's
+at-least-once delivery is guaranteed, but that in providing that guarantee, messages may be duplicated.
+For example, duplication of messages on the broker will occur if the producer sends the mesage, but the broker's
 confirmation is lost in the network, so the producer is forced to assume that the message did not go
 through and resends it. 
 Clients should be prepared to handle duplicate messages appropriately. 
