@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2022-04-27
+### Changed
+- Remove message header encoding from `Producer` since confluent-kafka handles encoding.
+- Fix issue with parsing server hostname when user-provided hostname has a `kafka://` 
+  prefix.
+- Change `Producer.pack` from a private to public method
+- Remove Anaconda packaging in favor of conda-forge.
+
+### Added
+- Add robust publisher functionality to allow the client to retry message sending by
+  checking for message receipt by the server.
+- Add default client behavior to ignore messages designated as 'test' messages via a 
+  header key `_test`.
+- Add `flush` method to the `Producer`.
+- Add conda-forge packaging.
+
 ## [0.5.0] - 2021-10-11
 ### Changed
 - Fix issue where subscribing to multiple topics only returned messages from
@@ -136,7 +152,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial Release.
 
-[Unreleased]: https://github.com/scimma/hop-client/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/scimma/hop-client/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/scimma/hop-client/releases/tag/v0.5.1
 [0.5.0]: https://github.com/scimma/hop-client/releases/tag/v0.5.0
 [0.4.1]: https://github.com/scimma/hop-client/releases/tag/v0.4.1
 [0.4.0]: https://github.com/scimma/hop-client/releases/tag/v0.4.0
