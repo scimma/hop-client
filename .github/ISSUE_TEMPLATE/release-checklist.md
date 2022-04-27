@@ -15,7 +15,7 @@ assignees: ''
 
 ### Pre-release:
 
-* [ ] Create a new branch named `release-v<X.Y.Z>` from master, substituting the new version for `X.Y.Z`
+* [ ] Create a new branch named `release-vX.Y.Z` from master, substituting the new version for `X.Y.Z`
 * [ ] Update `CHANGELOG.md` with major changes since that last previous release
 * [ ] `make test` runs without errors.
 * [ ] `make lint` doesn't give any warnings.
