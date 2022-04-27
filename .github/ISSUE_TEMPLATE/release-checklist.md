@@ -24,8 +24,8 @@ assignees: ''
 * [ ] Ensure that `CHANGELOG.md` has been updated with the current version via `make changelog VERSION=X.Y.Z`
 * [ ] Check that `CHANGELOG.md` isn't missing any feature additions/changes/removals for the proposed version, and commit.
 * [ ] Update this issue with the commit ref # of the CHANGELOG update in the previous step.
-* [ ] Make PR from the `release-v<X.Y.Z>` branch created above and reference this issue in the description.
-* [ ] Check that CI pipeline run on this PR passes all stages.
+* [ ] Make PR from the `release-vX.Y.Z` branch created above and reference this issue in the description.
+* [ ] Check that the CI pipeline run on this PR passes all stages.
 
 ### Release:
 
