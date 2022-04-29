@@ -14,7 +14,8 @@ def _add_parser_args(parser):
     cli.add_logging_opts(parser)
 
     parser.add_argument(
-        "message", metavar="MESSAGE", nargs="*", help="Messages to publish.",
+        "message", metavar="MESSAGE", nargs="*",
+        help="File of messages to publish. (standard input is used if omitted)"
     )
     parser.add_argument(
         "-f",
