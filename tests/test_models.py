@@ -107,14 +107,19 @@ def test_avro(avro_data_raw, avro_data, avro_msg):
 
 
 def test_avro_invalid_data_type_serialization():
+    # data must be a sequence of records
+    with pytest.raises(TypeError) as te:
+        models.AvroBlob({1: "abc", False: "def"}).serialize()
+    assert "AvroBlob requires content to be a sequence of records" in str(te.value)
+
     # dictionary keys can only be strings
     with pytest.raises(ValueError) as ve:
-        models.AvroBlob({1: "abc", False: "def"}).serialize()
+        models.AvroBlob([{1: "abc", False: "def"}]).serialize()
     assert "Dictionaries with non-string keys cannot be represented as Avro" in str(ve.value)
 
     # arbitrary, user-defined types are not supported in Avro
     with pytest.raises(ValueError) as ve:
-        models.AvroBlob(models.Blob(b"somedata")).serialize()
+        models.AvroBlob([models.Blob(b"somedata")]).serialize()
     assert "Unable to assign an Avro type to value of type <class 'hop.models.Blob'>" \
         in str(ve.value)
 

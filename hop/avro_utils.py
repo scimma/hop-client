@@ -90,8 +90,3 @@ class SchemaGenerator(object):
             return types.pop()  # only one item in set, so pop must yield it
         else:
             return HashableList(types)  # form a union type
-
-
-def invent_schema(datum):
-    schema = SchemaGenerator().determine_type(datum)
-    return schema
