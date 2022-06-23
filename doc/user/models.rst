@@ -32,14 +32,62 @@ To give an example of its usage:
     with stream.open("kafka://hostname:port/topic", "w") as s:
         s.write(voevent)
 
-
 Unstructured Messages
 -----------------------
 
-Unstructured messages can be sent directly to an open :code:`Stream` instance
-and will be serialized appropriately. Any python object that can be JSON
-serialized can be sent. Examples include a dictionary, a byte64 encoded
-string, and a list.
+Unstructured (or less structured messages) can be sent directly to an open
+:code:`Stream` instance. Any python object that can be JSON
+serialized can be sent. Examples include a dictionary, a
+string, and a list. At an even more raw level, bytes objects can be sent
+without any further encoding or interpretation.
+
+On the more structured end of the spectrum, the hop client understands some
+general data formats, and can automatically encode and decode them. These
+include JSON with the :code:`JSONBlob` class and Apache Avro with the
+:code:`AvroBlob` class. Using :code:`JSONBlob` is equivalent to simply
+writing an unstructured but JSON-encodable python object. :code:`AvroBlob`
+supports efficiently including bytes subobjects, as well as schemas. If no
+schema is supplied, it will create a schema to describe the object(s) it is
+given, but a deliberately designed schema may also be used.
+
+
+.. code:: python
+
+    from hop import Stream
+    from hop.auth import load_auth
+    from hop.models import JSONBlob, AvroBlob
+    import fastavro
+
+    stream = Stream(auth=load_auth())
+    with stream.open("kafka://hostname:port/topic", "w") as s:
+
+        # Writing simple, unstructured messages
+        s.write("a string message")
+        s.write(["some", "data", "with", "numbers:", 5, 6, 7])
+        s.write({"priority": 1, "payload": "data"})
+        s.write(b'\x02Binary data\x1DMessage ends\x03')
+
+        # Explicitly writing a partially-structured message as JSON
+        s.write(JSONBlob({"priority": 1, "payload": "data"}))
+
+        # Write an Avro message with an ad-hoc schema
+        # Avro may contain arbitrarily many records,
+        # so it always expects a list or records to be written
+        s.write(AvroBlob([{"priority": 1, "payload": b'\x02Binary data\x03'}]))
+
+        # Write an Avro message with a specific schema
+        schema = fastavro.load_schema("my_schema.avsc")
+        s.write(AvroBlob([{priority: 1, payload: b'\x02Binary data\x03'}],
+                         schema=schema))
+
+
+All unstructured messages are unpacked by the hop client back into message
+model objects containing python objects equivalent to what was sent when they
+are read from a stream. The decoded objects are available from each of the
+unstructured message model types as :code:`content` property. Some model types
+also make additional information available, for example, the :code:`AvroBlob`
+also has a :code:`schema` property which contains the schema with which the
+message was sent.
 
 Register External Message Models
 ---------------------------------
