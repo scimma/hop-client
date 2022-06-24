@@ -107,7 +107,7 @@ One can consume messages through the python API as follows:
 
     with stream.open("kafka://hostname:port/topic", "r") as s:
         for message in s:
-             print(message)
+             print(message.content)
 
 This will listen to the Hop broker, listening to new messages and printing them to
 stdout as they arrive.
@@ -124,5 +124,5 @@ from. For example, if you'd like to listen to all messages stored in a topic, yo
 
     with stream.open("kafka://hostname:port/topic", "r") as s:
         for message in s:
-             print(message)
+             print(message.content)
 
