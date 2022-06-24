@@ -267,7 +267,7 @@ class AvroBlob(MessageModel):
     schema: dict = None
     format_name = "avro"
 
-    def __init__(self, content: List[JSONType], schema: dict=None):
+    def __init__(self, content: List[JSONType], schema: dict = None):
         if not isinstance(content, collections.abc.Sequence):
             raise TypeError("AvroBlob requires content to be a sequence of records")
         self.content = content
