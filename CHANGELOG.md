@@ -6,6 +6,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2022-06-28
+### Changed
+- All messages returned from `hop.io.Consumer` will now be instances of message model
+  classes. This means that for receiving unstructured JSON messages (now handled by
+  the `JSONBlob` class), users should retrieve the deserialized object(s) by accessing
+  the `content` property of the message, rather than expecting the message to directly
+  be the serialized object(s).
+- `hop.io.Producer` will now use a Kafka message header to indicate the format used for
+  encoding each message it sends. `hop.io.Consumer` will read these headers, but also
+  has backwards compatibility with the JSON envelope format used in previous versions. 
+
+### Added
+- Support for sending messages encoded using the
+  [Avro container format](https://avro.apache.org/docs/current/spec.html#Object+Container+Files).
+- Messages not formatted as JSON can now be safely accepted by `hop.io.Consumer`,
+  although it will not necessarily be able to provide useful deserialization of
+  unregistered formats. Messages which are not recognized will be returned as
+  instances of the `Blob` class, whose `content` property will contain the raw
+  bytes of the message data.
+
 ## [0.5.1] - 2022-04-27
 ### Changed
 - Remove message header encoding from `Producer` since confluent-kafka handles encoding.
