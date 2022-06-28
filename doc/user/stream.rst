@@ -22,7 +22,7 @@ Let's open up a stream and show the :code:`Stream` object in action:
     stream = Stream(until_eos=True)
     with stream.open("kafka://hostname:port/topic", "r") as s:
         for message in s:
-             print(message)
+             print(message.content)
 
 The :code:`until_eos` option allows one to listen to messages until
 the no more messages are available (EOS or end of stream). By default
@@ -39,7 +39,7 @@ so a shorthand is provided for using one:
 
     with stream.open("kafka://hostname:port/topic", "r") as s:
         for message in s:
-             print(message)
+             print(message.content)
 
 A complete list of configurable options in :code:`Stream` are:
 
@@ -56,7 +56,7 @@ to open up a stream as long as the stream is explicitly closed afterwards:
 
     s = stream.open("kafka://hostname:port/topic", "r")
     for message in s:
-         print(message)
+         print(message.content)
     s.close()
 
 So far, all examples have shown the iterator interface for reading messages from an open
@@ -72,7 +72,7 @@ be useful in the case of listening to multiple topics at once:
 
     with stream.open("kafka://hostname:port/topic1,topic2", "r") as s:
         for message, metadata in s.read(metadata=True):
-             print(message, metadata.topic)
+             print(message.content, metadata.topic)
 
 Anatomy of a Kafka URL
 -----------------------
@@ -108,7 +108,7 @@ A workflow to do this is shown below:
 
     with stream.open("kafka://hostname:port/topic1", "r", "mygroup") as s:
         for message, metadata in s.read(metadata=True, autocommit=False):
-             print(message, metadata.topic)
+             print(message.content, metadata.topic)
              s.mark_done(metadata)
 
 Attaching Metadata to Messages

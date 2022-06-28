@@ -187,19 +187,39 @@ class _DeserializerMixin:
                 if the message format is not recognized.
 
         """
-        try:
-            format = message["format"].upper()
-            content = message["content"]
-        except (KeyError, TypeError):
-            raise ValueError("Message is incorrectly formatted")
-        else:
-            if format == Deserializer.BLOB.name:
-                return content
-            elif format in cls.__members__:
-                return cls[format].value(**content)
+
+        def from_format(data, format, deserialize=True):
+            format = format.upper()
+            if format in cls.__members__:
+                if deserialize:
+                    return cls[format].value.deserialize(data)
+                else:
+                    return cls[format].value(**data)
             else:
-                logger.warning(f"Message format {format} not recognized, returning a Blob")
-                return models.Blob(content=content, missing_schema=True)
+                logger.warning(f"Message format {format} not recognized; returning a Blob")
+                logger.warning(f"Known message formats are {cls.__members__}")
+                return models.Blob(content=data)
+
+        # first look for a format header
+        if message.headers() is not None:
+            try:
+                format_header = filter(lambda h: h[0] == "_format", message.headers())
+                format = next(format_header)[1].decode("utf-8")
+                return from_format(message.value(), format)
+            except StopIteration:  # no format header
+                pass
+        # otherwise, try doing old-style JSON envelope decoding
+        try:
+            old = json.loads(message.value().decode("utf-8"))
+            if isinstance(old, Mapping) and "format" in old and "content" in old:
+                if old["format"] == "blob":  # this was the old label for JSON
+                    return models.JSONBlob(content=old["content"])
+                return from_format(old["content"], old["format"], deserialize=False)
+            # not labeled according to our scheme, but it is valid JSON
+            return models.JSONBlob(content=old)
+        except json.JSONDecodeError:  # if we can't tell what the data is, pass it on unchanged
+            logger.warning("Unknown message format; returning a Blob")
+            return models.Blob(content=message.value())
 
     def load(self, input_):
         return self.value.load(input_)
@@ -331,8 +351,7 @@ class Consumer:
             message: The message to deserialize and unpack.
             metadata: Whether to receive message metadata alongside messages.
         """
-        payload = json.loads(message.value().decode("utf-8"))
-        payload = Deserializer.deserialize(payload)
+        payload = Deserializer.deserialize(message)
         if metadata:
             return (payload, Metadata.from_message(message))
         else:
@@ -471,16 +490,27 @@ class Producer:
             headers = list(headers.items())
         if test:
             headers.append(('_test', b"true"))
-        try:
-            payload = message.serialize()
-        except AttributeError:
-            payload = {"format": "blob", "content": message}
-        try:
-            return (json.dumps(payload).encode("utf-8"), headers)
-        except TypeError:
-            raise TypeError("Unable to pack a message of type "
-                            + message.__class__.__name__
-                            + " which cannot be serialized to JSON")
+        try:  # first try telling the message to serialize itself
+            encoded = message.serialize()
+            headers.append(("_format", encoded["format"].encode("utf-8")))
+            payload = encoded["content"]
+        except AttributeError:  # message is not a model object which can self-serialize
+            try:  # serialize the message as JSON if possible
+                blob = models.JSONBlob(content=message)
+                encoded = blob.serialize()
+                headers.append(("_format", encoded["format"].encode("utf-8")))
+                payload = encoded["content"]
+            except TypeError:  # message can't be turned into JSON
+                if isinstance(message, bytes):
+                    blob = models.Blob(content=message)
+                    encoded = blob.serialize()
+                    headers.append(("_format", encoded["format"].encode("utf-8")))
+                    payload = encoded["content"]
+                else:
+                    raise TypeError("Unable to pack a message of type "
+                                    + message.__class__.__name__
+                                    + " which is not bytes and cannot be serialized to JSON")
+        return (payload, headers)
 
     def flush(self):
         """Request that any messages locally queued for sending be sent immediately.

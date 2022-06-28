@@ -17,7 +17,7 @@ REPO_URL = https://github.com/scimma/hop-client
 
 .PHONY: test
 test :
-	python -m pytest -v --cov=hop tests
+	python -m pytest -v --cov=hop --cov-report=term-missing tests
 
 .PHONY: lint
 lint :
