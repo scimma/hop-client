@@ -89,6 +89,10 @@ also make additional information available, for example, the :code:`AvroBlob`
 also has a :code:`schema` property which contains the schema with which the
 message was sent.
 
+Please note that the :code:`AvroBlob` message model serializes using the
+`Avro container format <https://avro.apache.org/docs/current/spec.html#Object+Container+Files>`_,
+not the Avro variant of the `Confluent wire format <https://docs.confluent.io/platform/current/schema-registry/serdes-develop/index.html#wire-format>`_.
+
 Register External Message Models
 ---------------------------------
 
