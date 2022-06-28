@@ -109,7 +109,8 @@ There are three steps involved in creating and registering a custom message mode
 Define a message model
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-To do this, you need to define a dataclass that subclasses :code:`hop.models.MessageModel`
+To do this, you need to define a dataclass that subclasses :code:`hop.models.MessageModel`,
+choose an identifier (name) that will be used to refer to your model,
 and implement functionality to load your message mode via
 the :code:`load()` class method. As an example, assuming the message is represented as
 JSON on disk:
@@ -128,6 +129,8 @@ JSON on disk:
         flavor: str
         has_filling: bool
 
+        format_name: "donut"  # optional
+
         @classmethod
         def load(cls, input_):
             # input_ is a file object
@@ -139,6 +142,24 @@ JSON on disk:
 
             # unpack the JSON dictionary and return the model
             return cls(**donut)
+
+If you do not explicitly define the format name for your model, as a string property named
+:code:`format_name`, the class name, converted to all lower case, will be used.
+
+By default, the base :code:`MessageModel` class will provide serialization and deserialization of
+the fields defined in your model to and from JSON. If you want greater control over how these
+processes work, your model class can define its own :code:`serialize` and :code:`deserialize`
+methods. If you choose to implement these methods yourself, :code:`serialize` must return a
+dictionary with two keys: `"format"` which maps to your model's identifier string, and `"content"`
+which maps to the encoded form of the model instance's data, as a :code:`bytes` object. Using
+:code:`hop.models.format_name` is the recommended way to determine the value for the `"format"` key,
+as it will automatically follow the standard convention.
+:code:`deserialize` must be a class method which accepts encoded data (as :code:`bytes`) and
+produces an instance of your model after decoding. It is also possible to customize the
+:code:`load_file` convenience class method, which normally just attempts to open the specified path
+as a file for reading and passes the resulting file object to :code:`load`; the most common reason
+to customize this method is for models which need to ensure that input files are opened in binary
+mode.
 
 For more information on dataclasses, see the `Python Docs <https://docs.python.org/3/library/dataclasses.html>`_.
 
@@ -152,15 +173,17 @@ pairs mapping a message model name and the model:
 .. code:: python
 
     from hop import plugins
+    from hop.models import format_name
 
     ...
 
     @plugins.register
     def get_models():
-        return {
-            "donut": Donut,
-        }
+        model_classes = [Donut]
+        return {format_name(cls): cls for cls in model_classes}
 
+Using :code:`hop.models.format_name` to compose the keys is recommended because it means that you
+only need to define the format name once, as part of the class definition.
 
 Set up entry points within your package
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
