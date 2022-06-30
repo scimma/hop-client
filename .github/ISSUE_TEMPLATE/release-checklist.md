@@ -32,8 +32,8 @@ assignees: ''
 * [ ] Review signoff on the PR to create a new version tag.
 * [ ] Make a tag based on the proposed git reference via `git tag vX.Y.Z`
 * [ ] Running `python setup.py --version` shows the correct version.
-* [ ] `make dist-pypi` creates both source and binary packages for PyPI without error.
-* [ ] `make dist-pypi-check` shows no issues with the built packages.
+* [ ] `make pypi-dist` creates both source and binary packages for PyPI without error.
+* [ ] `make pypi-dist-check` shows no issues with the built packages.
 * [ ] Push the tag via `git push --tags`.
 * [ ] Ensure the release CI pipeline passes all stages.
 * [ ] Check that PyPI package is available for the proposed version: https://pypi.org/project/hop-client/#files
