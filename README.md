@@ -160,7 +160,7 @@ pip install .[dev,docs]
 
 ### Releases
 
-To create a new release, first make a Github Issue for the specific release using the [release template]([url](https://github.com/scimma/hop-client/issues/new?assignees=&labels=&template=release-checklist.md&title=Release+version+%3Cversion%3E)). Complete the steps in the `Pre-release` section; once that section is finished, complete the `Release` section. Ensure that the new version release string follows the [semver](https://semver.org/) conventions, e.g., `v0.0.1`.
+To create a new release, first make a Github Issue for the specific release using the [release template](https://github.com/scimma/hop-client/issues/new?assignees=&labels=&template=release-checklist.md&title=Release+version+%3Cversion%3E). Complete the steps in the `Pre-release` section; once that section is finished, complete the `Release` section. Ensure that the new version release string follows the [semver](https://semver.org/) conventions, e.g., `v0.0.1`.
 
 These steps will result in a new Github release, as well as a new package version uploaded to `PyPI` and `conda-forge` via Github Actions.
 
