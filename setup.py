@@ -53,7 +53,7 @@ setup(
     python_requires = '>=3.6.*',
     install_requires = install_requires,
     extras_require = extras_require,
-    setup_requires = ['setuptools_scm < 7.0.0'],
+    setup_requires = ['setuptools_scm'],
     zip_safe=False,
     use_scm_version = {
         'write_to': 'hop/_version.py'
