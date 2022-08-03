@@ -271,6 +271,15 @@ auth = [{
          }]
 """
 
+# This is the OIDC configuration structure, which is very similar
+AUTH_CONFIG_OIDC = """
+auth = [{
+         username="username",
+         password="password",
+         token_endpoint="https://example.com/oauth2/token"
+         }]
+"""
+
 
 class MockBroker:
     """Mock a Kafka broker.
@@ -411,6 +420,11 @@ def legacy_auth_config():
 @pytest.fixture(scope="session")
 def auth_config():
     return AUTH_CONFIG
+
+
+@pytest.fixture(scope="session")
+def auth_config_oidc():
+    return AUTH_CONFIG_OIDC
 
 
 @pytest.fixture(scope="session")

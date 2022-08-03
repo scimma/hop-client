@@ -44,6 +44,9 @@ def test_auth_mechanism():
     assert a.mechanism == str(auth.SASLMethod.SCRAM_SHA_512)
     a = auth.Auth("foo", "bar", method=auth.SASLMethod.SCRAM_SHA_256)
     assert a.mechanism == str(auth.SASLMethod.SCRAM_SHA_256)
+    a = auth.Auth("foo", "bar", token_endpoint="https://example.com/oauth2/token")
+    assert a.mechanism == str(auth.SASLMethod.OAUTHBEARER)
+    assert a.token_endpoint == "https://example.com/oauth2/token"
 
 
 def test_auth_protocol():
@@ -77,6 +80,14 @@ def test_load_auth(auth_config, tmpdir):
         auth_data = auth.load_auth()
         assert len(auth_data) == 1
         assert auth_data[0].username == "username"
+
+
+def test_load_auth_oidc(auth_config_oidc, tmpdir):
+    with temp_config(tmpdir, auth_config_oidc) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        auth_data = auth.load_auth()
+        assert len(auth_data) == 1
+        assert auth_data[0].username == "username"
+        assert auth_data[0].token_endpoint == "https://example.com/oauth2/token"
 
 
 def test_load_auth_non_existent(auth_config, tmpdir):
@@ -507,7 +518,7 @@ def test_read_new_credential_interactive(tmpdir):
     password = "bar"
     for hostname in ["", "example.com"]:
         with patch("getpass.getpass", MagicMock(return_value=password)), \
-                patch("hop.auth.input", MagicMock(side_effect=[username, hostname])):
+                patch("hop.auth.input", MagicMock(side_effect=[username, hostname, ""])):
             new_cred = auth.read_new_credential()
             assert new_cred.username == username
             assert new_cred.password == password
@@ -521,14 +532,14 @@ def test_read_new_credential_interactive_invalid(tmpdir):
 
     # missing username
     with patch("getpass.getpass", MagicMock(return_value=password)), \
-            patch("hop.auth.input", MagicMock(side_effect=["", hostname])), \
+            patch("hop.auth.input", MagicMock(side_effect=["", hostname, ""])), \
             pytest.raises(RuntimeError) as err:
         auth.read_new_credential()
     assert err.value.args[0] == "Username may not be empty"
 
     # missing password
     with patch("getpass.getpass", MagicMock(return_value="")), \
-            patch("hop.auth.input", MagicMock(side_effect=[username, hostname])), \
+            patch("hop.auth.input", MagicMock(side_effect=[username, hostname, ""])), \
             pytest.raises(RuntimeError) as err:
         auth.read_new_credential()
     assert err.value.args[0] == "Password may not be empty"
