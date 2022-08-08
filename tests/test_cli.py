@@ -274,7 +274,7 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
         assert "No accessible topics" in ret.stdout
 
         mock_consumer.assert_called()
-        mock_consumer.return_value.list_topics.assert_called_with()
+        mock_consumer.return_value.list_topics.assert_called_with(timeout=-1.)
 
     expected_topics = ["foo", "bar"]
     unexpected_topics = ["baz"]
@@ -297,7 +297,7 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
             assert topic not in ret.stdout
 
         mock_consumer.assert_called()
-        mock_consumer.return_value.list_topics.assert_called_with()
+        mock_consumer.return_value.list_topics.assert_called_with(timeout=-1.)
 
     query_topics = ["foo", "bar", "baz"]
     # listing of specific topics, none of which exist
@@ -311,7 +311,7 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
 
         mock_consumer.assert_called()
         for topic in query_topics:
-            mock_consumer.return_value.list_topics.assert_any_call(topic=topic)
+            mock_consumer.return_value.list_topics.assert_any_call(topic=topic, timeout=-1.)
 
     # listing of specific topics, some of which exist and some of which do not
     with patch("confluent_kafka.Consumer", make_consumer_mock(topic_results)) as mock_consumer:
@@ -328,7 +328,7 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
 
         mock_consumer.assert_called()
         for topic in query_topics:
-            mock_consumer.return_value.list_topics.assert_any_call(topic=topic)
+            mock_consumer.return_value.list_topics.assert_any_call(topic=topic, timeout=-1.)
 
     # general listing with authentication
     with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir), \
@@ -344,7 +344,7 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
             assert topic not in ret.stdout
 
         mock_consumer.assert_called()
-        mock_consumer.return_value.list_topics.assert_called_with()
+        mock_consumer.return_value.list_topics.assert_called_with(timeout=-1.)
 
     # attempting to use multiple brokers should provoke an error
     ret = script_runner.run("hop", "list-topics", "kafka://example.com,example.net")

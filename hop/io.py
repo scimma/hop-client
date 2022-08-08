@@ -532,7 +532,7 @@ class Producer:
         return self._producer.__exit__(*exc)
 
 
-def list_topics(url: str, auth: Union[bool, Auth] = True):
+def list_topics(url: str, auth: Union[bool, Auth] = True, timeout=-1.0):
     """List the accessible topics on the Kafka broker referred to by url.
 
     Args:
@@ -547,6 +547,9 @@ def list_topics(url: str, auth: Union[bool, Auth] = True):
             True. To disable authentication, set to False. If a username is
             specified as part of url but auth is a :class:`Auth <hop.auth.Auth>`
             instance the url information will be ignored.
+        timeout: A floating point value, indicating the maximum number of
+            seconds to wait to connect to a broker, or a negative value to
+            indicate no limit.
 
     Returns:
         A dictionary mapping topic names to
@@ -554,6 +557,7 @@ def list_topics(url: str, auth: Union[bool, Auth] = True):
 
     Raises:
         ValueError: If more than one broker is specified.
+        confluent_kafka.KafkaException: If connecting to the broker times out.
     """
     username, broker_addresses, query_topics = kafka.parse_kafka_url(url)
     if len(broker_addresses) > 1:
@@ -576,11 +580,11 @@ def list_topics(url: str, auth: Union[bool, Auth] = True):
     valid_topics = {}
     if query_topics is not None:
         for topic in query_topics:
-            topic_data = consumer.list_topics(topic=topic).topics
+            topic_data = consumer.list_topics(topic=topic, timeout=timeout).topics
             for topic in topic_data.keys():
                 if topic_data[topic].error is None:
                     valid_topics[topic] = topic_data[topic]
     else:
-        topic_data = consumer.list_topics().topics
+        topic_data = consumer.list_topics(timeout=timeout).topics
         valid_topics = {t: d for t, d in topic_data.items() if d.error is None}
     return valid_topics
