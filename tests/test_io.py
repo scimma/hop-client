@@ -3,6 +3,7 @@ from dataclasses import asdict, fields
 import json
 import logging
 from pathlib import Path
+import time
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -10,6 +11,7 @@ import pytest
 from hop.auth import Auth
 from hop import io
 from hop.models import AvroBlob, Blob, GCNCircular, JSONBlob, VOEvent, format_name
+import confluent_kafka
 
 from conftest import temp_environ, temp_config, message_parameters_dict_data
 
@@ -548,7 +550,7 @@ def make_mock_listing_consumer(topics=[]):
         which has a list_topics method which acts as if a predetermined set of
         topics exist.
     """
-    def get_topics(topic=None):
+    def get_topics(topic=None, timeout=None):
         nonlocal topics
         result = {}
         if topic is None:
@@ -674,3 +676,13 @@ def test_list_topics_auth(auth_config, tmpdir):
         assert("sasl.password" in cons_args[0])
         assert(cons_args[0]["sasl.username"] == "user2")
         assert(cons_args[0]["sasl.password"] == "pass2")
+
+
+def test_list_topics_timeout():
+    cred = Auth("user", "pass")
+    for timeout in [0.5, 1.0, 1.5]:
+        start = time.time()
+        with pytest.raises(confluent_kafka.KafkaException) as err:
+            io.list_topics("kafka://not-a-valid-broker.scimma.org", auth=cred, timeout=timeout)
+        stop = time.time()
+        assert(abs((stop - start) - timeout) < 0.1)

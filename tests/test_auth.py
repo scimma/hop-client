@@ -83,7 +83,8 @@ def test_load_auth(auth_config, tmpdir):
 
 
 def test_load_auth_oidc(auth_config_oidc, tmpdir):
-    with temp_config(tmpdir, auth_config_oidc) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+    with temp_config(tmpdir, auth_config_oidc) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir):
         auth_data = auth.load_auth()
         assert len(auth_data) == 1
         assert auth_data[0].username == "username"
