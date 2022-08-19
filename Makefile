@@ -36,8 +36,7 @@ doc :
 
 .PHONY: changelog
 changelog :
-	sed -i 's@## \[Unreleased]@## \[Unreleased]\n\n## \[$(VERSION)] - $(shell date +'%Y-%m-%d')@' CHANGELOG.md
-	sed -i 's@.*\[Unreleased]:.*@\[Unreleased]: $(REPO_URL)/compare/v$(VERSION)...HEAD\n[$(VERSION)]: $(REPO_URL)/releases/tag/v$(VERSION)@' CHANGELOG.md
+	VERSION=$(VERSION) REPO_URL=$(REPO_URL) ./update_changelog.sh CHANGELOG.md && mv CHANGELOG.md.new CHANGELOG.md
 
 .PHONY: pypi-dist
 pypi-dist :
