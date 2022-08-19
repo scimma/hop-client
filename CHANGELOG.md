@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2022-08-19
+### Added
+- Support for authentication using the "OAUTHBEARER" mechanism.
+- An optional `timeout` parameter for `hop.io.list_topics` which can be used to be used to
+  prevent overly long or indefinite delays from this function when brokers are offline.
+
 ## [0.6.0] - 2022-06-28
 ### Changed
 - All messages returned from `hop.io.Consumer` will now be instances of message model
