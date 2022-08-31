@@ -263,15 +263,20 @@ class AvroBlob(MessageModel):
 
     """
 
-    content: List[JSONType]  # serializing as Avro supports essentially the same types as JSON
+    # serializing as Avro supports essentially the same types as JSON
+    content: Union[JSONType, List[JSONType]]
     schema: dict = None
     format_name = "avro"
+    single_record: bool = True
 
-    def __init__(self, content: List[JSONType], schema: dict = None):
-        if not isinstance(content, collections.abc.Sequence):
-            raise TypeError("AvroBlob requires content to be a sequence of records")
+    def __init__(self, content: Union[JSONType, List[JSONType]], schema: dict = None,
+                 single_record: bool = True):
+        if not single_record and not isinstance(content, collections.abc.Sequence):
+            raise TypeError("AvroBlob requires content to be a sequence of records when "
+                            "single_record = False")
         self.content = content
         self.schema = schema
+        self.single_record = single_record
 
     def __str__(self):
         return str(self.content)
@@ -283,34 +288,50 @@ class AvroBlob(MessageModel):
             A dictionary with "format" and "content" keys.
 
         """
+        if self.single_record:
+            records = [self.content]
+        else:
+            records = self.content
+
         if self.schema is None:  # make up an ad-hoc schema
-            self.schema = avro_utils.SchemaGenerator().find_common_type(self.content)
+            self.schema = avro_utils.SchemaGenerator().find_common_type(records)
 
         stringio = BytesIO()
         fastavro.writer(stringio,
                         self.schema,
-                        self.content
+                        records
                         )
         return {"format": format_name(type(self)), "content": stringio.getvalue()}
 
     @classmethod
-    def _read_avro(cls, stream):
+    def _read_avro(cls, stream, single_record=True):
         extracted = []
         reader = fastavro.reader(stream)
         for record in reader:
             extracted.append(record)
-        return cls(content=extracted, schema=reader.writer_schema)
+        if single_record:
+            if len(extracted) > 1:
+                raise TypeError("AvroBlob requires content to be a single "
+                                "record when single_record = True, number of "
+                                "records in message being deserialized is "
+                                f"{len(extracted)}.")
+            content = extracted[0]
+        else:
+            content = extracted
+        return cls(content=content, schema=reader.writer_schema, single_record=single_record)
 
     @classmethod
-    def deserialize(cls, data):
-        return cls._read_avro(BytesIO(data))
+    def deserialize(cls, data, single_record=True):
+        return cls._read_avro(BytesIO(data), single_record=single_record)
 
     @classmethod
-    def load(cls, blob_input):
+    def load(cls, blob_input, single_record=True):
         """Create a blob message from input avro data.
 
         Args:
             blob_input: The encoded Avro data or file object.
+            single_record: True if input avro data only contains one record.
+              True by default.
 
         Returns:
             The Blob.
@@ -322,10 +343,10 @@ class AvroBlob(MessageModel):
             if not isinstance(blob_input, bytes):
                 raise TypeError
             raw = BytesIO(blob_input)
-        return cls._read_avro(raw)
+        return cls._read_avro(raw, single_record=single_record)
 
     @classmethod
-    def load_file(cls, filename):
+    def load_file(cls, filename, single_record=True):
         """Create a new message model from a file.
 
         Args:
@@ -336,7 +357,7 @@ class AvroBlob(MessageModel):
 
         """
         with open(filename, "rb") as f:
-            return cls.load(f)
+            return cls.load(f, single_record=single_record)
 
     def __eq__(self, other):
         if type(self) != type(other):
