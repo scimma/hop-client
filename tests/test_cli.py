@@ -4,6 +4,7 @@ import pytest
 import json
 from io import StringIO
 import io
+from uuid import uuid4
 
 from hop import __version__
 from conftest import temp_environ, temp_config
@@ -94,6 +95,7 @@ def test_cli_publish_blob_types(mock_broker, mock_producer, mock_consumer):
     args.test = False
     start_at = io.StartPosition.EARLIEST
     read_url = "kafka://group@hostname:port/topic"
+    fixed_uuid = uuid4()
 
     mock_adc_producer = mock_producer(mock_broker, "topic")
     mock_adc_consumer = mock_consumer(mock_broker, "topic", "group")
@@ -102,14 +104,16 @@ def test_cli_publish_blob_types(mock_broker, mock_producer, mock_consumer):
     for msg in msgs:
         with patch("sys.stdin", StringIO(json.dumps(msg))) as mock_stdin, \
                 patch("hop.io.producer.Producer", return_value=mock_adc_producer), \
-                patch("hop.io.consumer.Consumer", return_value=mock_adc_consumer):
+                patch("hop.io.consumer.Consumer", return_value=mock_adc_consumer), \
+                patch("hop.io.uuid4", MagicMock(return_value=fixed_uuid)):
             publish._main(args)
 
             # each published message should be on the broker
             encoded = models.Blob(msg).serialize()
             expected_msg = {
                 "message": encoded["content"],
-                "headers": [("_format", encoded["format"].encode("utf-8"))],
+                "headers": [("_id", fixed_uuid.bytes),
+                            ("_format", encoded["format"].encode("utf-8"))],
             }
             assert mock_broker.has_message("topic", **expected_msg)
 

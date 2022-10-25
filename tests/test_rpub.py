@@ -8,6 +8,7 @@ import struct
 import time
 import threading
 from unittest.mock import patch, MagicMock
+from uuid import uuid4
 
 from adc.errors import KafkaException
 
@@ -809,8 +810,10 @@ def makeStream(*args, **kwargs):
 def test_rpublisher_empty_journal(tmpdir):
     journal_path = tmpdir.join("journal")
     url = "kafka://example.com/topic"
+    fixed_uuid = uuid4()
 
-    with patch("hop.io.Stream", makeStream()) as steam_middleman:
+    with patch("hop.io.Stream", makeStream()) as steam_middleman, \
+            patch("hop.io.uuid4", MagicMock(return_value=fixed_uuid)):
         with RobustProducer(url, journal_path=journal_path) as pub:
             pub.write("a message")
 
@@ -855,8 +858,10 @@ def test_rpublisher_existing_journal(tmpdir):
 def test_rpublisher_immediate_send_fail(tmpdir):
     journal_path = tmpdir.join("journal")
     url = "kafka://example.com/topic"
+    fixed_uuid = uuid4()
 
-    with patch("hop.io.Stream", makeStream(immediate_failure=True)) as steam_middleman:
+    with patch("hop.io.Stream", makeStream(immediate_failure=True)) as steam_middleman, \
+            patch("hop.io.uuid4", MagicMock(return_value=fixed_uuid)):
         with RobustProducer(url, journal_path=journal_path) as pub:
             pub.write("a message")
 
@@ -874,8 +879,10 @@ def test_rpublisher_poll_fail(tmpdir):
     print("test_rpublisher_poll_fail")
     journal_path = tmpdir.join("journal")
     url = "kafka://example.com/topic"
+    fixed_uuid = uuid4()
 
-    with patch("hop.io.Stream", makeStream(poll_failure=True)) as steam_middleman:
+    with patch("hop.io.Stream", makeStream(poll_failure=True)) as steam_middleman, \
+            patch("hop.io.uuid4", MagicMock(return_value=fixed_uuid)):
         with RobustProducer(url, journal_path=journal_path) as pub:
             pub.write("a message")
 

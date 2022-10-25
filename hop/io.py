@@ -7,6 +7,7 @@ import logging
 import random
 import string
 from typing import List, Tuple, Union
+from uuid import uuid4
 import warnings
 
 import confluent_kafka
@@ -488,6 +489,8 @@ class Producer:
             headers = []
         elif isinstance(headers, Mapping):
             headers = list(headers.items())
+        # Assign a UUID to the message
+        headers.append(("_id", uuid4().bytes))
         if test:
             headers.append(('_test', b"true"))
         try:  # first try telling the message to serialize itself
