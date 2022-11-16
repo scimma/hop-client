@@ -158,6 +158,8 @@ currently automatically produced and used are:
   UUIDs. If the message ID header is missing, other users may not be able to send messages
   which refer to the message, and systems which store messages may not be able to look it up
   directly.
+* :code:`_sender`: The value of this header is the username associated with the credential used to
+  send the message, if any.
 * :code:`_test`: The presence of this header, with any value, should be interpreted to mean that the
   message is a test, whose content may be safely ignored, or should otherwise not
   necessarily be acted upon normally.
