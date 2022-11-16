@@ -801,8 +801,9 @@ class FakeProducer:
 
 
 # build pointless layers surrounding the hop.io.Producer class
-def makeStream(*args, **kwargs):
+def makeStream(auth=None, *args, **kwargs):
     opener = MagicMock()
+    opener.auth = MagicMock(return_value=auth)
     opener.open = MagicMock(return_value=FakeProducer(*args, **kwargs))
     return MagicMock(return_value=opener)
 
@@ -853,6 +854,30 @@ def test_rpublisher_existing_journal(tmpdir):
         sent_messages = [item[0] for item in pub._stream.messages_written]
         for message in messages:
             assert message in sent_messages
+
+
+def test_rpublisher_with_auth(tmpdir):
+    journal_path = tmpdir.join("journal")
+    url = "kafka://example.com/topic"
+    fixed_uuid = uuid4()
+    auth = hop.auth.Auth("user", "password")
+
+    with patch("hop.io.Stream", makeStream(auth=auth)) as steam_middleman, \
+            patch("hop.io.uuid4", MagicMock(return_value=fixed_uuid)):
+        with RobustProducer(url, journal_path=journal_path) as pub:
+            pub.write("a message")
+
+            # The publisher will spin in _do_send as long as the state of sent messages is
+            # indeterminate. So, spin here in a thread-safe way until the callbacks show up, then
+            # invoke them to let it complete.
+            while True:
+                time.sleep(0.01)
+                with pub._stream.lock:
+                    msg_count = len(pub._stream.messages_written)
+                if msg_count == 1:
+                    pub._stream.flush()
+                    break
+        assert hop.io.Producer.pack("a message", None, auth=auth) in pub._stream.messages_written
 
 
 def test_rpublisher_immediate_send_fail(tmpdir):

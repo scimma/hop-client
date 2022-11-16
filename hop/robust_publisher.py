@@ -654,6 +654,7 @@ class RobustProducer(threading.Thread):
         self._cond = threading.Condition(self._lock)
 
         dummy = io.Stream(auth=auth)
+        self._auth = dummy.auth()
         self._stream = dummy.open(url, "w", error_callback=PublicationJournal.error_callback,
                                   **kwargs)
 
@@ -716,7 +717,7 @@ class RobustProducer(threading.Thread):
             TypeError: If the message is not a suitable type.
 
         """
-        message, headers = io.Producer.pack(message, headers)
+        message, headers = io.Producer.pack(message, headers, auth=self._auth)
         with self._cond:  # must hold the lock to manipulate journal
             seq_num = self._journal.queue_message(message, headers)
             self._cond.notify()  # wake up the sender loop if sleeping
