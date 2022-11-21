@@ -167,4 +167,12 @@ currently automatically produced and used are:
   message model should be used to decode the message content. If the format header is missing,
   an attempt will be made to decode the message content as JSON for backwards
   compatibility with old client versions, and if it is not valid JSON the message content
-  will be left raw (treated as a `Blob`). 
+  will be left raw (treated as a `Blob`).
+
+Because these header values are attached to messages by the publishing client, subscribers and
+systems receiving messages should be careful about the degree to which they trust the header values.
+For example, an ill-behaved publisher might re-use a message ID, or set an incorrect sender username.
+In most cases, however, due to the authentication and authorization systems enforced by the Kafka
+broker, subscribers receiving a message can generally trust its header values to the same extent
+that they trust the data in the message body, based on the entities they know are authorized to
+publish to the topic on which the message appears.
