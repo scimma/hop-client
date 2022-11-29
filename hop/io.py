@@ -7,6 +7,7 @@ import logging
 import random
 import string
 from typing import List, Tuple, Union
+from uuid import uuid4
 import warnings
 
 import confluent_kafka
@@ -402,7 +403,7 @@ class Producer:
     Instances of this class should be obtained from :meth:`Stream.open`.
     """
 
-    def __init__(self, broker_addresses, topic, **kwargs):
+    def __init__(self, broker_addresses, topic, auth, **kwargs):
         """
         Args:
             broker_addresses: The list of bootstrap Kafka broker URLs.
@@ -422,8 +423,10 @@ class Producer:
         self._producer = producer.Producer(producer.ProducerConfig(
             broker_urls=broker_addresses,
             topic=topic,
+            auth=auth,
             **kwargs,
         ))
+        self.auth = auth
         logger.info(f"publishing to topic: {topic}")
 
     def write(self, message, headers=None,
@@ -442,7 +445,7 @@ class Producer:
             test: Message should be marked as a test message by adding a header
                   with key '_test'.
         """
-        message, headers = self.pack(message, headers, test=test)
+        message, headers = self._pack(message, headers, test=test)
         self._producer.write(message, headers=headers, delivery_callback=delivery_callback)
 
     def write_raw(self, packed_message, headers=None,
@@ -464,7 +467,7 @@ class Producer:
         self._producer.write(packed_message, headers=headers, delivery_callback=delivery_callback)
 
     @staticmethod
-    def pack(message, headers=None, test=False):
+    def pack(message, headers=None, test=False, auth=None):
         """Pack and serialize a message.
 
         This is an advanced interface, which most users should not need to call directly, as
@@ -479,8 +482,9 @@ class Producer:
             test: Message should be marked as a test message by adding a header
                   with key '_test'.
 
-        Returns: A tuple containing the serialized message and the collection of headers which
-                 should be sent with it.
+        Returns:
+            A tuple containing the serialized message and the collection of headers which
+            should be sent with it.
 
         """
         # canonicalize headers to list form
@@ -488,6 +492,10 @@ class Producer:
             headers = []
         elif isinstance(headers, Mapping):
             headers = list(headers.items())
+        # Assign a UUID to the message
+        headers.append(("_id", uuid4().bytes))
+        if auth is not None:
+            headers.append(("_sender", auth.username.encode("utf-8")))
         if test:
             headers.append(('_test', b"true"))
         try:  # first try telling the message to serialize itself
@@ -511,6 +519,12 @@ class Producer:
                                     + message.__class__.__name__
                                     + " which is not bytes and cannot be serialized to JSON")
         return (payload, headers)
+
+    def _pack(self, message, headers, test):
+        """Internal wrapper for :meth:`pack <hop.io.Producer.pack>` which
+        automatically sets the auth parameter.
+        """
+        return self.pack(message, headers=headers, test=test, auth=self.auth)
 
     def flush(self):
         """Request that any messages locally queued for sending be sent immediately.

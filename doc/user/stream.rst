@@ -143,3 +143,36 @@ shown below:
     with stream.open("kafka://hostname:port/topic1", "r") as s:
         for message, metadata in s.read(metadata=True):
             print(message, metadata.headers)
+
+Standard Headers
+----------------
+
+The Hop client produces and uses certain message headers automatically. It is designed so that each
+header is intended to be optional, in the sense that messages lacking these headers can still be
+processed, but if a header is missing, functionality based on it may not be available. Headers
+currently automatically produced and used are:
+
+* :code:`_id`: The value of this header is a unique ID intended to allow referring to the specific
+  message without requiring context like its position within a Kafka topic. Message IDs are
+  currently generated as version 4 `RFC 4122 <https://datatracker.ietf.org/doc/html/rfc4122.html>`_
+  UUIDs. If the message ID header is missing, other users may not be able to send messages
+  which refer to the message, and systems which store messages may not be able to look it up
+  directly.
+* :code:`_sender`: The value of this header is the username associated with the credential used to
+  send the message, if any.
+* :code:`_test`: The presence of this header, with any value, should be interpreted to mean that the
+  message is a test, whose content may be safely ignored, or should otherwise not
+  necessarily be acted upon normally.
+* :code:`_format`: The value of this header is a UTF-8 string which is used to identify which
+  message model should be used to decode the message content. If the format header is missing,
+  an attempt will be made to decode the message content as JSON for backwards
+  compatibility with old client versions, and if it is not valid JSON the message content
+  will be left raw (treated as a `Blob`).
+
+Because these header values are attached to messages by the publishing client, subscribers and
+systems receiving messages should be careful about the degree to which they trust the header values.
+For example, an ill-behaved publisher might re-use a message ID, or set an incorrect sender username.
+In most cases, however, due to the authentication and authorization systems enforced by the Kafka
+broker, subscribers receiving a message can generally trust its header values to the same extent
+that they trust the data in the message body, based on the entities they know are authorized to
+publish to the topic on which the message appears.

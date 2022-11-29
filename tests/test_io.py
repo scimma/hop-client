@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 import time
 from unittest.mock import patch, MagicMock
+from uuid import uuid4
 
 import pytest
 
@@ -193,18 +194,24 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
     mock_adc_producer = mock_producer(mock_broker, topic)
     expected_msg = make_message_standard(circular_msg)
 
+    fixed_uuid = uuid4()
+
+    auth = Auth("user", "password")
     headers = {"some header": b"some value", "another header": b"other value"}
     canonical_headers = [("some header", b"some value"),
                          ("another header", b"other value"),
+                         ("_id", fixed_uuid.bytes),
+                         ("_sender", auth.username.encode("utf-8")),
                          ("_format", b"circular")]
     test_headers = canonical_headers.copy()
-    test_headers.insert(2, ('_test', b'true'))
-    none_test_headers = [('_test', b"true"), ("_format", b"circular")]
+    test_headers.insert(4, ('_test', b'true'))
+    none_test_headers = [("_id", fixed_uuid.bytes), ("_sender", auth.username.encode("utf-8")),
+                         ('_test', b"true"), ("_format", b"circular")]
 
-    with patch("hop.io.producer.Producer", autospec=True, return_value=mock_adc_producer):
+    with patch("hop.io.producer.Producer", autospec=True, return_value=mock_adc_producer), \
+            patch("hop.io.uuid4", MagicMock(return_value=fixed_uuid)):
 
         broker_url = f"kafka://localhost:port/{topic}"
-        auth = Auth("user", "password")
         start_at = io.StartPosition.EARLIEST
         until_eos = True
 
