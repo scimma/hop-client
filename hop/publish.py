@@ -1,4 +1,3 @@
-import json
 import logging
 import sys
 
@@ -46,16 +45,12 @@ def _main(args):
             message = loader.load_file(message_file)
             s.write(message)
 
-        # check if stdin is connected to TTY device
-        if not sys.stdin.isatty():
-            messages = sys.stdin.read().splitlines()
+        messages = sys.stdin.read().splitlines()
 
-            if messages:
-                assert args.format == io.Deserializer.BLOB.name, \
-                    "piping/redirection only allowed for BLOB formats"
+        if messages:
+            assert args.format == io.Deserializer.BLOB.name \
+                or args.format == io.Deserializer.JSON.name, \
+                "piping/redirection only allowed for BLOB and JSON formats"
 
-                try:
-                    for message in messages:
-                        s.write(loader.load(json.loads(message)), test=args.test)
-                except json.decoder.JSONDecodeError as err:
-                    raise ValueError("Blob messages must be valid JSON") from err
+            for message in messages:
+                s.write(loader.load(message), test=args.test)
