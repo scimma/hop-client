@@ -118,7 +118,7 @@ class Auth(auth.SASLAuth):
 
 
 def load_auth(config_file=None):
-    """Configures an Auth instance given a configuration file.
+    """Configures Auth instances from a configuration file.
 
     Args:
         config_file: Path to a configuration file, loading from
