@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2022-12-20
+### Changed
+- The command line tool now supports sending data which is piped to it either as JSON or as the raw
+  BLOB format.
+
+### Added
+- Messages are now sent with UUIDs, attached as the `_id` header, and the username of the sender as
+  the `_sender` header.
+
 ## [0.7.0] - 2022-08-19
 ### Added
 - Support for authentication using the "OAUTHBEARER" mechanism.
