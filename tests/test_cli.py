@@ -2,7 +2,7 @@ from unittest.mock import patch, mock_open, MagicMock
 import sys
 import pytest
 import json
-from io import StringIO
+from io import BytesIO, StringIO
 import io
 from uuid import uuid4
 
@@ -83,10 +83,10 @@ def test_cli_publish(script_runner, message_format, message_parameters_dict):
             assert ret.success
         else:  # only the blob format is supported, others should trigger an error
             assert not ret.success
-            assert "piping/redirection only allowed for BLOB formats" in ret.stderr
+            assert "piping/redirection only allowed for BLOB and JSON formats" in ret.stderr
 
 
-def test_cli_publish_blob_types(mock_broker, mock_producer, mock_consumer):
+def test_cli_publish_blob_msgs(mock_broker, mock_producer, mock_consumer):
     from hop import publish, io, models
     import json
     args = MagicMock()
@@ -99,10 +99,9 @@ def test_cli_publish_blob_types(mock_broker, mock_producer, mock_consumer):
 
     mock_adc_producer = mock_producer(mock_broker, "topic")
     mock_adc_consumer = mock_consumer(mock_broker, "topic", "group")
-    msgs = ["a string", ["a", "list", "of", "values"],
-            {"a": "dict", "with": ["multiple", "values"]}]
+    msgs = [b"a string", b"\x10\x00\x20\x0B"]
     for msg in msgs:
-        with patch("sys.stdin", StringIO(json.dumps(msg))) as mock_stdin, \
+        with patch("sys.stdin", BytesIO(msg)) as mock_stdin, \
                 patch("hop.io.producer.Producer", return_value=mock_adc_producer), \
                 patch("hop.io.consumer.Consumer", return_value=mock_adc_consumer), \
                 patch("hop.io.uuid4", MagicMock(return_value=fixed_uuid)):
@@ -128,13 +127,55 @@ def test_cli_publish_blob_types(mock_broker, mock_producer, mock_consumer):
                 assert msg in [msg.content for msg in extracted_msgs]
 
 
+def test_cli_publish_json_blob_msgs(mock_broker, mock_producer, mock_consumer):
+    from hop import publish, io, models
+    import json
+    args = MagicMock()
+    args.url = "kafka://hostname:port/topic"
+    args.format = io.Deserializer.JSON.name
+    args.test = False
+    start_at = io.StartPosition.EARLIEST
+    read_url = "kafka://group@hostname:port/topic"
+    fixed_uuid = uuid4()
+
+    mock_adc_producer = mock_producer(mock_broker, "topic")
+    mock_adc_consumer = mock_consumer(mock_broker, "topic", "group")
+    msgs = ["a string", ["a", "list", "of", "values"],
+            {"a": "dict", "with": ["multiple", "values"]}]
+    for msg in msgs:
+        with patch("sys.stdin", StringIO(json.dumps(msg))) as mock_stdin, \
+                patch("hop.io.producer.Producer", return_value=mock_adc_producer), \
+                patch("hop.io.consumer.Consumer", return_value=mock_adc_consumer), \
+                patch("hop.io.uuid4", MagicMock(return_value=fixed_uuid)):
+            publish._main(args)
+
+            # each published message should be on the broker
+            encoded = models.JSONBlob(msg).serialize()
+            expected_msg = {
+                "message": encoded["content"],
+                "headers": [("_id", fixed_uuid.bytes),
+                            ("_format", encoded["format"].encode("utf-8"))],
+            }
+            assert mock_broker.has_message("topic", **expected_msg)
+
+            # reading from the broker should yield messages which match the originals
+            with io.Stream(start_at=None, auth=False).open(read_url, "r") as s:
+                extracted_msgs = []
+                for extracted_msg in s:
+                    extracted_msgs.append(extracted_msg)
+                # there should be one new message
+                assert len(extracted_msgs) == 1
+                # and it should be the one we published
+                assert msg in [msg.content for msg in extracted_msgs]
+
+
 def test_cli_publish_bad_blob(mock_broker, mock_producer):
     # ensure that invalid JSON causes an exception to be raised
     from hop import publish, io
 
     args = MagicMock()
     args.url = "kafka://hostname:port/topic"
-    args.format = io.Deserializer.BLOB.name
+    args.format = io.Deserializer.JSON.name
     args.test = False
 
     mock_adc_producer = mock_producer(mock_broker, "topic")
