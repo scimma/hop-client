@@ -79,7 +79,7 @@ def get_model_data(model_name):
         "content": make_message(b'{"format":"blob", "content":{"foo":"bar", "baz":5}}')},
     # messages produced by foreign clients which don't apply our format labels
     {"format": "json", "content": make_message(b'{"foo":"bar", "baz":5}')},
-    {"format": "blob", "content": make_message(b'some arbitrary data\0that hop can\'t read')},
+    {"format": "blob", "content": make_message(b'some arbitrary data\xDE\xAD\xBE\xEFthat hop can\'t read')},
 ])
 def test_deserialize(message, message_parameters_dict, caplog):
 
