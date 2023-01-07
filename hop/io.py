@@ -218,7 +218,7 @@ class _DeserializerMixin:
                 return from_format(old["content"], old["format"], deserialize=False)
             # not labeled according to our scheme, but it is valid JSON
             return models.JSONBlob(content=old)
-        except json.JSONDecodeError:  # if we can't tell what the data is, pass it on unchanged
+        except (UnicodeDecodeError, json.JSONDecodeError):  # if we can't tell what the data is, pass it on unchanged
             logger.warning("Unknown message format; returning a Blob")
             return models.Blob(content=message.value())
 
