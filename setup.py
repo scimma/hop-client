@@ -19,7 +19,7 @@ extras_require = {
     'dev': [
         'autopep8',
         'flake8',
-        'pytest >= 5.0, < 5.4',
+        'pytest >= 6.2.5',
         'pytest-console-scripts',
         'pytest-cov',
         'pytest-runner',
