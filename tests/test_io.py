@@ -79,7 +79,8 @@ def get_model_data(model_name):
         "content": make_message(b'{"format":"blob", "content":{"foo":"bar", "baz":5}}')},
     # messages produced by foreign clients which don't apply our format labels
     {"format": "json", "content": make_message(b'{"foo":"bar", "baz":5}')},
-    {"format": "blob", "content": make_message(b'some arbitrary data\xDE\xAD\xBE\xEFthat hop can\'t read')},
+    {"format": "blob",
+        "content": make_message(b'some arbitrary data\xDE\xAD\xBE\xEFthat hop can\'t read')},
 ])
 def test_deserialize(message, message_parameters_dict, caplog):
 
@@ -580,27 +581,27 @@ def test_list_topics():
     # when there are some topics, they are all listed
     with patch("confluent_kafka.Consumer", make_mock_listing_consumer(["foo", "bar"])) as Consumer:
         listing = io.list_topics("kafka://example.com", auth=False)
-        assert(len(listing) == 2)
-        assert("foo" in listing)
-        assert("bar" in listing)
+        assert len(listing) == 2
+        assert "foo" in listing
+        assert "bar" in listing
 
         # when auth=False, no auth related properties are set
         Consumer.assert_called_once()
         cons_args = Consumer.call_args[0]
-        assert(len(cons_args) == 1)
-        assert("sasl.username" not in cons_args[0])
-        assert("sasl.password" not in cons_args[0])
+        assert len(cons_args) == 1
+        assert "sasl.username" not in cons_args[0]
+        assert "sasl.password" not in cons_args[0]
 
     # when there are no topics, the result is empty
     with patch("confluent_kafka.Consumer", make_mock_listing_consumer([])) as Consumer:
         listing = io.list_topics("kafka://example.com", auth=False)
-        assert(len(listing) == 0)
+        assert len(listing) == 0
 
     # result topics should be the intersection of ones which exist and which were requested
     with patch("confluent_kafka.Consumer", make_mock_listing_consumer(["foo", "bar"])) as Consumer:
         listing = io.list_topics("kafka://example.com/bar,baz", auth=False)
-        assert(len(listing) == 1)
-        assert("bar" in listing)
+        assert len(listing) == 1
+        assert "bar" in listing
 
 
 def test_list_topics_too_many_brokers():
@@ -620,11 +621,11 @@ def test_list_topics_auth(auth_config, tmpdir):
         # when auth=True, auth related properties should be set
         Consumer.assert_called_once()
         cons_args = Consumer.call_args[0]
-        assert(len(cons_args) == 1)
-        assert("sasl.username" in cons_args[0])
-        assert("sasl.password" in cons_args[0])
-        assert(cons_args[0]["sasl.username"] == "username")
-        assert(cons_args[0]["sasl.password"] == "password")
+        assert len(cons_args) == 1
+        assert "sasl.username" in cons_args[0]
+        assert "sasl.password" in cons_args[0]
+        assert cons_args[0]["sasl.username"] == "username"
+        assert cons_args[0]["sasl.password"] == "password"
 
     # when an Auth object is set, it should take precedence over automatic lookup
     with temp_config(tmpdir, auth_config) as config_dir, \
@@ -636,11 +637,11 @@ def test_list_topics_auth(auth_config, tmpdir):
         # when auth=Auth(...), auth related properties should be set correctly
         Consumer.assert_called_once()
         cons_args = Consumer.call_args[0]
-        assert(len(cons_args) == 1)
-        assert("sasl.username" in cons_args[0])
-        assert("sasl.password" in cons_args[0])
-        assert(cons_args[0]["sasl.username"] == auth.username)
-        assert(cons_args[0]["sasl.password"] == auth.password)
+        assert len(cons_args) == 1
+        assert "sasl.username" in cons_args[0]
+        assert "sasl.password" in cons_args[0]
+        assert cons_args[0]["sasl.username"] == auth.username
+        assert cons_args[0]["sasl.password"] == auth.password
 
     # when an Auth object is set, it should take precedence over automatic lookup,
     # even with userinfo in the URL
@@ -653,11 +654,11 @@ def test_list_topics_auth(auth_config, tmpdir):
         # when auth=Auth(...), auth related properties should be set correctly
         Consumer.assert_called_once()
         cons_args = Consumer.call_args[0]
-        assert(len(cons_args) == 1)
-        assert("sasl.username" in cons_args[0])
-        assert("sasl.password" in cons_args[0])
-        assert(cons_args[0]["sasl.username"] == auth.username)
-        assert(cons_args[0]["sasl.password"] == auth.password)
+        assert len(cons_args) == 1
+        assert "sasl.username" in cons_args[0]
+        assert "sasl.password" in cons_args[0]
+        assert cons_args[0]["sasl.username"] == auth.username
+        assert cons_args[0]["sasl.password"] == auth.password
 
     # when auth=True and userinfo, the correct credential should be automatically
     # looked up
@@ -678,11 +679,11 @@ def test_list_topics_auth(auth_config, tmpdir):
 
         Consumer.assert_called_once()
         cons_args = Consumer.call_args[0]
-        assert(len(cons_args) == 1)
-        assert("sasl.username" in cons_args[0])
-        assert("sasl.password" in cons_args[0])
-        assert(cons_args[0]["sasl.username"] == "user2")
-        assert(cons_args[0]["sasl.password"] == "pass2")
+        assert len(cons_args) == 1
+        assert "sasl.username" in cons_args[0]
+        assert "sasl.password" in cons_args[0]
+        assert cons_args[0]["sasl.username"] == "user2"
+        assert cons_args[0]["sasl.password"] == "pass2"
 
 
 def test_list_topics_timeout():
@@ -692,4 +693,4 @@ def test_list_topics_timeout():
         with pytest.raises(confluent_kafka.KafkaException) as err:
             io.list_topics("kafka://not-a-valid-broker.scimma.org", auth=cred, timeout=timeout)
         stop = time.time()
-        assert(abs((stop - start) - timeout) < 0.1)
+        assert abs((stop - start) - timeout) < 0.1

@@ -116,7 +116,7 @@ class PublicationJournal:
 
     @staticmethod
     def encode_int(value: int):
-        return(struct.pack(PublicationJournal.int_format, value))
+        return struct.pack(PublicationJournal.int_format, value)
 
     @staticmethod
     def decode_int(buffer: bytes):
@@ -124,7 +124,7 @@ class PublicationJournal:
 
     @staticmethod
     def encode_crc(crc: int):
-        return(struct.pack(PublicationJournal.crc_format, crc))
+        return struct.pack(PublicationJournal.crc_format, crc)
 
     @staticmethod
     def decode_crc(buffer: bytes):
@@ -292,8 +292,8 @@ class PublicationJournal:
 
     @staticmethod
     def _read_raw_from_journal(journal, pos_info, size, name, allow_eof=False):
-        """Read a specified size of raw data from a strream, producing an error if it cannot be fully
-            read and end of file is not indicated to be tolerable.
+        """Read a specified size of raw data from a strream, producing an error if it cannot be
+            fully read and end of file is not indicated to be tolerable.
 
         Args:
             journal: the stream from which to read
@@ -590,9 +590,9 @@ class PublicationJournal:
 
 class RobustProducer(threading.Thread):
     def __init__(self, url, auth=True, journal_path="publisher.journal", poll_wait=1.e-4, **kwargs):
-        """Construct a publisher which will retry sending messages if it does not receive confirmation
-        that they have arrived, including if it is itself taken offline (i.e. crashes) for some
-        reason.
+        """Construct a publisher which will retry sending messages if it does not receive
+        confirmation that they have arrived, including if it is itself taken offline (i.e. crashes)
+        for some reason.
 
         This is intended to provide *at least once* delivery of messages: If a message is confirmed
         received by the broker, it will not be sent again, but if any disruption of the network or
@@ -659,8 +659,8 @@ class RobustProducer(threading.Thread):
                                   **kwargs)
 
     def run(self):
-        """This method is not part of the public interface of this class, and should not be called directly
-        by users.
+        """This method is not part of the public interface of this class, and should not be called
+        directly by users.
 
         """
         while True:
@@ -703,8 +703,8 @@ class RobustProducer(threading.Thread):
                 pass
 
     def write(self, message, headers=None):
-        """Queue a message to be sent. Message sending occurs asynchronously on a background thread, so
-        this method returns immediately unless an error occurs queuing the message.
+        """Queue a message to be sent. Message sending occurs asynchronously on a background thread,
+        so this method returns immediately unless an error occurs queuing the message.
         :meth:`RobustProducer.start <RobustProducer.start>` must be called prior to calling this
         method.
 
@@ -724,8 +724,8 @@ class RobustProducer(threading.Thread):
         logger.debug(f"Queued message with sequence number {seq_num} to be sent")
 
     def start(self):
-        """Start the background communication thread used by the publisher to send messages. This should
-        be called prior to any calls to :meth:`RobustProducer.write <RobustProducer.write>`.
+        """Start the background communication thread used by the publisher to send messages. This
+        should be called prior to any calls to :meth:`RobustProducer.write <RobustProducer.write>`.
         This method should not be called more than once.
 
         """
@@ -734,8 +734,8 @@ class RobustProducer(threading.Thread):
         super(RobustProducer, self).start()
 
     def stop(self):
-        """Stop the background communication thread used by the publisher to send messages. This method
-        will block until the thread completes, which includes sending all queued messages.
+        """Stop the background communication thread used by the publisher to send messages. This
+        method will block until the thread completes, which includes sending all queued messages.
         :meth:`RobustProducer.write <RobustProducer.write>` should not be called after this method
         has been called.
         This method should not be called more than once.

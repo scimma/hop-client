@@ -310,8 +310,8 @@ def test_journal_ecoder_failure():
     PublicationJournal._decode_raw_data(good_data, even_number_decoder, 0, "my value")
     with pytest.raises(RuntimeError) as err:
         PublicationJournal._decode_raw_data(bad_data, even_number_decoder, 0, "my value")
-    assert("my value" in str(err.value))
-    assert("Data does not represent an even number" in str(err.value))
+    assert "my value" in str(err.value)
+    assert "Data does not represent an even number" in str(err.value)
 
 
 def test_journal_restore_state(tmpdir):

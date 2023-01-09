@@ -88,7 +88,6 @@ def test_cli_publish(script_runner, message_format, message_parameters_dict):
 
 def test_cli_publish_blob_msgs(mock_broker, mock_producer, mock_consumer):
     from hop import publish, io, models
-    import json
     args = MagicMock()
     args.url = "kafka://hostname:port/topic"
     args.format = io.Deserializer.BLOB.name
