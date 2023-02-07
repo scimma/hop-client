@@ -276,7 +276,7 @@ def _decompose_host_port(hp):
     match = split_re.match(hp)
     if match is None:
         return ("", None)
-    return (match.group(1),match.group(3))
+    return (match.group(1), match.group(3))
 
 
 def select_matching_auth(creds, hostname, username=None):
