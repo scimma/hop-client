@@ -261,6 +261,24 @@ def _interpret_auth_data(auth_data):
     return auth
 
 
+def _decompose_host_port(hp):
+    """
+    Split the host subcomponent of a URI from any port subcomponent which is present
+
+    Args:
+        hp:  A string which contains a host and may also contain a port specification, in the syntax
+             specified by RFC 3986.
+    Returns:
+        A tuple containing the host substring, and the port substring or None if no port was
+        explicitly specified.
+    """
+    split_re = re.compile(r"^([^[:][^:]*|\[[^\]]+\])(:([0-9]+))?$")
+    match = split_re.match(hp)
+    if match is None:
+        return ("", None)
+    return (match.group(1),match.group(3))
+
+
 def select_matching_auth(creds, hostname, username=None):
     """Selects the most appropriate credential to use when attempting to contact the given host.
 
@@ -278,8 +296,11 @@ def select_matching_auth(creds, hostname, username=None):
     """
 
     matches = []
+    inexact_matches = []
     exact_hostname_match = False
     inexact_hostname_match = False
+    target_host, target_port = _decompose_host_port(hostname)
+    default_port = "9092"
 
     for cred in creds:
         maybe_exact_hostname_match = False
@@ -287,9 +308,21 @@ def select_matching_auth(creds, hostname, username=None):
         # If the credential has a hostname, we require it to match.
         # If it doesn't, we have to assume it might suit the user's purposes.
         if len(cred.hostname) > 0:
-            if cred.hostname != hostname:
+            cred_host, cred_port = _decompose_host_port(cred.hostname)
+            print((target_port is None), (cred_port is None), (cred.hostname == hostname))
+            # If both or neither have a port specified, they can be directly compared
+            if (target_port is None) == (cred_port is None):
+                if cred.hostname != hostname:
+                    continue
+                else:
+                    maybe_exact_hostname_match = True
+            # If the hosts differ there is no match
+            elif cred_host != target_host:
                 continue
-            else:
+            # Otherwise, the host is the same, and only one has a port specified.
+            # If that port is the default port, it matches with the implicit default port of the
+            # other.
+            elif target_port == default_port or cred_port == default_port:
                 # the hostname does match, but this credential might be rejected for other reasons
                 # so we cannot directly update the global exact_hostname_match
                 maybe_exact_hostname_match = True
@@ -300,13 +333,16 @@ def select_matching_auth(creds, hostname, username=None):
         if username is not None and cred.username != username:
             continue
 
-        matches.append(cred)
+        if maybe_exact_hostname_match:
+            matches.append(cred)
+        elif maybe_inexact_hostname_match:
+            inexact_matches.append(cred)
         exact_hostname_match |= maybe_exact_hostname_match
         inexact_hostname_match |= maybe_inexact_hostname_match
 
-    # if there were both exact and inexact matches, cull the inexact matches
-    if inexact_hostname_match and exact_hostname_match:
-        matches = [match for match in matches if match.hostname == hostname]
+    # If there were no exact matches, take the inexact matches
+    if inexact_hostname_match and not exact_hostname_match:
+        matches = inexact_matches
 
     if len(matches) == 0:
         err = f"No matching credential found for hostname '{hostname}'"
@@ -342,12 +378,14 @@ def _validate_hostname(input: str):
         input: A string entered by the user when prompted for a hostname.
 
     Returns:
-        The sanitized hostname.
+        The sanitized hostname or the empty string if the user enetered nothing.
 
     Raises:
         RuntimeError: If the user input is not acceptable.
     """
-    name_re = re.compile("^(kafka://)?([^:/]*(:[0-9]*)?)$")
+    if len(input) == 0:
+        return input
+    name_re = re.compile(r"^(kafka://)?(([^[:/]+|\[[^\]/]+\])(:[0-9]*)?)$")
     match = name_re.match(input)
     if match is None:
         raise RuntimeError("Unable to parse hostname. "
