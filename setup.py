@@ -18,7 +18,7 @@ install_requires = [
 extras_require = {
     'dev': [
         'autopep8',
-        'flake8',
+        'flake8 >= 3.3.0',
         'pytest >= 6.2.5',
         'pytest-console-scripts',
         'pytest-cov',
