@@ -302,6 +302,16 @@ def test_prune_outdated_auth(tmpdir):
         assert "baz" in new_config_data
 
 
+def test_select_auth_inexact_host():
+    choices = [auth.Auth("user1", "pass1"), # no host
+               auth.Auth("user2", "pass2", host="some_host"),
+               auth.Auth("user3", "pass3", host="other_host:9092")]
+    # A credential with no host specified should match any host not exactly matched by any other
+    # credential's host, when no username is specified
+    selected = auth.select_matching_auth(choices, "example.com", None)
+    assert selected == choices[0]
+
+
 def test_select_auth_no_match(auth_config, tmpdir):
     no_match = "No matching credential found"
 
@@ -399,6 +409,22 @@ def test_select_auth_ambiguity():
     assert f"{too_many} for hostname 'example.com'" in err.value.args[0]
     assert "user which has no associated hostname" in err.value.args[0]
     assert "user which has no associated hostname" in err.value.args[0]
+
+
+def test_select_auth_default_port():
+   choices = [auth.Auth("user", "pass", host="host"),
+              auth.Auth("user", "pass", host="other_host:9092")]
+   # A target with the default port explicitly specified should match a credential with the default
+   # port left implicit.
+   selected = auth.select_matching_auth(choices, "host:9092")
+   assert selected == choices[0]
+
+   choices = [auth.Auth("user", "pass", host="host:9092"),
+              auth.Auth("user", "pass", host="other_host")]
+   # A target with the port implicitly defaulted should match a credential with the default
+   # port left explicitly specified.
+   selected = auth.select_matching_auth(choices, "host")
+   assert selected == choices[0]
 
 
 def test_auth_location_fallback(tmpdir):
@@ -550,8 +576,10 @@ def test_hostname_validation():
     username = "foo"
     password = "bar"
     # good cases
-    for hostname in ["example.com", "example.com:9092",
-                     "kafka://example.com", "kafka://example.com:9092"]:
+    for hostname in ["", "example.com", "example.com:9092",
+                     "kafka://example.com", "kafka://example.com:9092",
+                     "127.0.0.1", "127.0.0.1:9092",
+                     "[1:2::3]", "[1:2::3]:9092"]:
         processed_hostname = auth._validate_hostname(hostname)
         if "kafka://" in hostname:
             assert processed_hostname == hostname[8:]
