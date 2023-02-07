@@ -309,7 +309,6 @@ def select_matching_auth(creds, hostname, username=None):
         # If it doesn't, we have to assume it might suit the user's purposes.
         if len(cred.hostname) > 0:
             cred_host, cred_port = _decompose_host_port(cred.hostname)
-            print((target_port is None), (cred_port is None), (cred.hostname == hostname))
             # If both or neither have a port specified, they can be directly compared
             if (target_port is None) == (cred_port is None):
                 if cred.hostname != hostname:
