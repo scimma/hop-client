@@ -364,6 +364,8 @@ class Consumer:
 
         Args:
             metadata: A Metadata instance containing broker-specific metadata.
+            asynchronous: Whether to allow the commit to happen asynchronously
+                          in the background.
 
         """
         self._consumer.mark_done(metadata._raw, asynchronous)
