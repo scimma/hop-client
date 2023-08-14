@@ -359,14 +359,14 @@ class Consumer:
         else:
             return payload
 
-    def mark_done(self, metadata):
+    def mark_done(self, metadata, asynchronous: bool = True):
         """Mark a message as fully-processed.
 
         Args:
             metadata: A Metadata instance containing broker-specific metadata.
 
         """
-        self._consumer.mark_done(metadata._raw)
+        self._consumer.mark_done(metadata._raw, asynchronous)
 
     def close(self):
         """End all subscriptions and shut down.
