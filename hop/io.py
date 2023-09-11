@@ -359,6 +359,37 @@ class Consumer:
         else:
             return payload
 
+    def read_raw(self, metadata=False, autocommit=True, **kwargs):
+        """Read messages from a stream without applying any deserialization.
+
+        This is an advanced interface; for most purposes it is preferrable to use
+        :meth:`Consumer.read <hop.io.Consumer.read>` instead.
+
+        Args:
+            metadata: Whether to receive message metadata alongside messages.
+            autocommit: Whether messages are automatically marked as handled
+                via `mark_done` when the next message is yielded. Defaults to True.
+            batch_size: The number of messages to request from Kafka at a time.
+                Lower numbers can give lower latency, while higher numbers will
+                be more efficient, but may add latency.
+            batch_timeout: The period of time to wait to get a full batch of
+                messages from Kafka. Similar to batch_size, lower numbers can
+                reduce latency while higher numbers can be more efficient at the
+                cost of greater latency.
+                If specified, this argument should be a datetime.timedelta
+                object.
+        """
+        logger.info("processing messages from stream")
+        for message in self._consumer.stream(autocommit=autocommit, **kwargs):
+            if self.ignoretest and self.is_test(message):
+                continue
+            payload = message.value()
+            if metadata:
+                yield (payload, Metadata.from_message(message))
+            else:
+                yield payload
+        logger.info("finished processing messages")
+
     def mark_done(self, metadata):
         """Mark a message as fully-processed.
 
