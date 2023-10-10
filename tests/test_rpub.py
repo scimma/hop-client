@@ -803,7 +803,7 @@ class FakeProducer:
 # build pointless layers surrounding the hop.io.Producer class
 def makeStream(auth=None, *args, **kwargs):
     opener = MagicMock()
-    opener.auth = MagicMock(return_value=auth)
+    opener.auth = None if auth is None else auth
     opener.open = MagicMock(return_value=FakeProducer(*args, **kwargs))
     return MagicMock(return_value=opener)
 
@@ -815,7 +815,7 @@ def test_rpublisher_empty_journal(tmpdir):
 
     with patch("hop.io.Stream", makeStream()) as steam_middleman, \
             patch("hop.io.uuid4", MagicMock(return_value=fixed_uuid)):
-        with RobustProducer(url, journal_path=journal_path) as pub:
+        with RobustProducer(url, journal_path=journal_path, auth=False) as pub:
             pub.write("a message")
 
             # The publisher will spin in _do_send as long as the state of sent messages is
@@ -842,7 +842,7 @@ def test_rpublisher_existing_journal(tmpdir):
     del j
 
     with patch("hop.io.Stream", makeStream()) as steam_middleman:
-        with RobustProducer(url, journal_path=journal_path) as pub:
+        with RobustProducer(url, journal_path=journal_path, auth=False) as pub:
             while True:
                 time.sleep(0.01)
                 with pub._stream.lock:
@@ -862,9 +862,9 @@ def test_rpublisher_with_auth(tmpdir):
     fixed_uuid = uuid4()
     auth = hop.auth.Auth("user", "password")
 
-    with patch("hop.io.Stream", makeStream(auth=auth)) as steam_middleman, \
+    with patch("hop.io.Stream", makeStream(auth=[auth])) as steam_middleman, \
             patch("hop.io.uuid4", MagicMock(return_value=fixed_uuid)):
-        with RobustProducer(url, journal_path=journal_path) as pub:
+        with RobustProducer(url, journal_path=journal_path, auth=True) as pub:
             pub.write("a message")
 
             # The publisher will spin in _do_send as long as the state of sent messages is
@@ -887,7 +887,7 @@ def test_rpublisher_immediate_send_fail(tmpdir):
 
     with patch("hop.io.Stream", makeStream(immediate_failure=True)) as steam_middleman, \
             patch("hop.io.uuid4", MagicMock(return_value=fixed_uuid)):
-        with RobustProducer(url, journal_path=journal_path) as pub:
+        with RobustProducer(url, journal_path=journal_path, auth=False) as pub:
             pub.write("a message")
 
             while True:
@@ -908,7 +908,7 @@ def test_rpublisher_poll_fail(tmpdir):
 
     with patch("hop.io.Stream", makeStream(poll_failure=True)) as steam_middleman, \
             patch("hop.io.uuid4", MagicMock(return_value=fixed_uuid)):
-        with RobustProducer(url, journal_path=journal_path) as pub:
+        with RobustProducer(url, journal_path=journal_path, auth=False) as pub:
             pub.write("a message")
 
             while True:

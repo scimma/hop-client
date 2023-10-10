@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import heapq
 from io import BytesIO
 import logging
@@ -9,8 +7,10 @@ import threading
 import zlib
 
 from . import io
+from .auth import select_matching_auth
 
 import confluent_kafka
+from adc import kafka
 from adc.errors import KafkaException
 
 
@@ -654,7 +654,11 @@ class RobustProducer(threading.Thread):
         self._cond = threading.Condition(self._lock)
 
         dummy = io.Stream(auth=auth)
-        self._auth = dummy.auth()
+        if dummy.auth is not None:
+            username, broker_addresses, _ = kafka.parse_kafka_url(url)
+            self._credential = select_matching_auth(dummy.auth, broker_addresses[0], username)
+        else:
+            self._credential = None
         self._stream = dummy.open(url, "w", error_callback=PublicationJournal.error_callback,
                                   **kwargs)
 
@@ -717,7 +721,7 @@ class RobustProducer(threading.Thread):
             TypeError: If the message is not a suitable type.
 
         """
-        message, headers = io.Producer.pack(message, headers, auth=self._auth)
+        message, headers = io.Producer.pack(message, headers, auth=self._credential)
         with self._cond:  # must hold the lock to manipulate journal
             seq_num = self._journal.queue_message(message, headers)
             self._cond.notify()  # wake up the sender loop if sleeping
