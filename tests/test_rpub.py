@@ -803,7 +803,7 @@ class FakeProducer:
 # build pointless layers surrounding the hop.io.Producer class
 def makeStream(auth=None, *args, **kwargs):
     opener = MagicMock()
-    opener.auth = None if auth is None else auth
+    opener.auth = auth or None
     opener.open = MagicMock(return_value=FakeProducer(*args, **kwargs))
     return MagicMock(return_value=opener)
 
