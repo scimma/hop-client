@@ -129,6 +129,8 @@ def test_stream_read(circular_msg):
         messages = 0
         with stream.open(broker_url1, "r") as s:
             for msg in s:
+                assert isinstance(msg, GCNCircular), \
+                    "Message should be deserialized to the expected model type"
                 messages += 1
         assert messages == 1
 
@@ -188,6 +190,72 @@ def test_stream_read_multiple(circular_msg):
 
         assert messages[topic1] == 1
         assert messages[topic2] == 1
+
+
+def test_stream_read_raw(circular_msg):
+    topic = "gcn"
+    group_id = "test-group"
+    start_at = io.StartPosition.EARLIEST
+
+    fake_message = make_message(
+        GCNCircular.load(get_model_data("circular")).serialize()["content"],
+        headers=[("_format", b"circular")])
+
+    mock_instance = MagicMock()
+    mock_instance.stream = MagicMock(return_value=[fake_message])
+    stream = io.Stream(start_at=start_at, until_eos=True, auth=False)
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+        broker_url1 = f"kafka://hostname:port/{topic}"
+        broker_url2 = f"kafka://{group_id}@hostname:port/{topic}"
+
+        messages = 0
+        with stream.open(broker_url1, "r") as s:
+            for msg in s.read_raw():
+                print(msg)
+                # Since the message should be raw, we should be able to
+                # deserialize it using the correct model class.
+                des = GCNCircular.deserialize(msg)
+                assert des
+                messages += 1
+        assert messages == 1
+
+        messages = 0
+        with stream.open(broker_url2, "r") as s:
+            for result in s.read_raw(metadata=True):
+                assert len(result) == 2, "Result should be a 2-tuple"
+                msg = result[0]
+                metadata = result[1]
+                des = GCNCircular.deserialize(msg)
+                assert des
+                messages += 1
+        assert messages == 1
+
+
+def test_stream_read_test_raw(circular_msg):
+    start_at = io.StartPosition.EARLIEST
+    message_data = {"format": "circular", "content": circular_msg}
+    fake_message = make_message_standard(circular_msg)
+
+    def test_headers():
+        return [('_test', b'true')]
+
+    fake_message.headers = test_headers
+    mock_instance = MagicMock()
+    mock_instance.stream = MagicMock(return_value=[fake_message])
+    stream = io.Stream(start_at=start_at, until_eos=True, auth=False)
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+        broker_url = "kafka://hostname:port/test-topic"
+        messages = 0
+        with stream.open(broker_url, "r") as s:
+            for msg in s.read_raw():
+                messages += 1
+        assert messages == 0
+
+        messages = 0
+        with stream.open(broker_url, "r", ignoretest=False) as s:
+            for msg in s.read_raw():
+                messages += 1
+        assert messages == 1
 
 
 def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
