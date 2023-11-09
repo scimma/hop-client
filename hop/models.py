@@ -339,7 +339,7 @@ class AvroBlob(MessageModel):
             return cls.load(f)
 
     def __eq__(self, other):
-        if type(self) != type(other):
+        if type(self) is not type(other):
             return False
         # compare only content, not schemas
         return self.content == other.content
