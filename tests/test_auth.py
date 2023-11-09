@@ -156,9 +156,10 @@ def test_load_auth_options(auth_config, tmpdir):
     with temp_config(tmpdir, auth_config) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), patch("hop.auth.Auth") as auth_mock:
         auth.load_auth()
-        assert auth_mock.called_with(ssl=True)
         from adc.auth import SASLMethod
-        assert auth_mock.called_with(mechanism=SASLMethod.SCRAM_SHA_512)
+        auth_mock.assert_called_with('username', 'password', host='',
+                                     ssl=True, method=SASLMethod.SCRAM_SHA_512,
+                                     token_endpoint=None)
 
     # But it should be possible to disable SSL
     use_plaintext = """auth = [{
@@ -169,7 +170,9 @@ def test_load_auth_options(auth_config, tmpdir):
     with temp_config(tmpdir, use_plaintext) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), patch("hop.auth.Auth") as auth_mock:
         auth.load_auth()
-        assert auth_mock.called_with(ssl=False)
+        auth_mock.assert_called_with('username', 'password', host='',
+                                     ssl=False, method=SASLMethod.SCRAM_SHA_512,
+                                     token_endpoint=None)
 
     # An SSL CA data path should be honored
     with_ca_data = """auth = [{
@@ -180,7 +183,10 @@ def test_load_auth_options(auth_config, tmpdir):
     with temp_config(tmpdir, with_ca_data) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), patch("hop.auth.Auth") as auth_mock:
         auth.load_auth()
-        assert auth_mock.called_with(ssl_ca_location="/foo/bar/baz")
+        auth_mock.assert_called_with('username', 'password', host='',
+                                     ssl=True, method=SASLMethod.SCRAM_SHA_512,
+                                     token_endpoint=None,
+                                     ssl_ca_location="/foo/bar/baz")
 
     # Alternate mechanisms should be honored
     plain_mechanism = """auth = [{
@@ -191,7 +197,9 @@ def test_load_auth_options(auth_config, tmpdir):
     with temp_config(tmpdir, plain_mechanism) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), patch("hop.auth.Auth") as auth_mock:
         auth.load_auth()
-        assert auth_mock.called_with(mechanism=SASLMethod.PLAIN)
+        auth_mock.assert_called_with('username', 'password', host='',
+                                     ssl=True, method=SASLMethod.PLAIN,
+                                     token_endpoint=None)
 
     # Associated hostnames should be included
     with_host = """auth = [{
