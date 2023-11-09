@@ -390,14 +390,16 @@ class Consumer:
                 yield payload
         logger.info("finished processing messages")
 
-    def mark_done(self, metadata):
+    def mark_done(self, metadata, asynchronous: bool = True):
         """Mark a message as fully-processed.
 
         Args:
             metadata: A Metadata instance containing broker-specific metadata.
+            asynchronous: Whether to allow the commit to happen asynchronously
+                          in the background.
 
         """
-        self._consumer.mark_done(metadata._raw)
+        self._consumer.mark_done(metadata._raw, asynchronous)
 
     def close(self):
         """End all subscriptions and shut down.
