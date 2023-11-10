@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2023-11-10
+### Changed
+- Create Blob objects instead of crashing on binary data when deserializing
+- Fix handling of IPv6 addresses and default port numbers
+- Fix authentication procedure in RobustPublisher
+
+### Added
+- Allow messages to be consumed without deserialization
+- Expose ability to commit offsets synchronously
+
 ## [0.8.0] - 2022-12-20
 ### Changed
 - The command line tool now supports sending data which is piped to it either as JSON or as the raw
