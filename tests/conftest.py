@@ -243,7 +243,7 @@ MESSAGE_AVRO = \
     b'\x2e\x33\x42\xea\xa7\x2a\xc4\x52'
 
 # Equivalent to the data encoded in MESSAGE_AVRO
-AVRO_DATA_EQUIVALENT = [{
+AVRO_DATA_EQUIVALENT = {
     "arr": [1, 2, 3, 4],
     "sub_objects": [{"a": 1, "b": 2}, {"c": 3, "d": 4}],
     "thingy": {
@@ -254,7 +254,7 @@ AVRO_DATA_EQUIVALENT = [{
     },
     "data": b"A\x00B\x04",
     "logic": [True, False],
-}]
+}
 
 # This was the original configuration structure, which permitted only a single credential
 AUTH_CONFIG_LEGACY = """\
@@ -486,6 +486,7 @@ def blob_msg():
     return {"content": MESSAGE_BLOB}
 
 
+# avro_data needs to be loaded with single_record=False here because
 message_parameters_dict_data = {
     # Generalize model_name, expected_model, test_file, and model_text
     # for easy access during tests. Useful when combined with parametrization
