@@ -8,7 +8,7 @@ with open(os.path.join(this_dir, 'README.md'), 'rb') as f:
 
 # requirements
 install_requires = [
-    "adc-streaming >= 2.1.0",
+    "adc-streaming >= 2.2.0",
     "dataclasses ; python_version < '3.7'",
     "fastavro >= 1.4.0",
     "pluggy >= 0.11",
