@@ -401,6 +401,12 @@ class Consumer:
         """
         self._consumer.mark_done(metadata._raw, asynchronous)
 
+    def stop(self):
+        """Stops the runloop of the consumer. Useful when running the
+        consumer in a different thread.
+        """
+        self._consumer.stop()
+
     def close(self):
         """End all subscriptions and shut down.
 

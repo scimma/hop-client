@@ -258,6 +258,25 @@ def test_stream_read_test_raw(circular_msg):
         assert messages == 1
 
 
+def test_stream_stop(circular_msg):
+    start_at = io.StartPosition.EARLIEST
+    fake_message = make_message_standard(circular_msg)
+
+    mock_instance = MagicMock()
+    mock_instance.stream = MagicMock(return_value=[fake_message])
+    mock_instance.stop = MagicMock()
+    stream = io.Stream(start_at=start_at, until_eos=True, auth=False)
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+        broker_url = f"kafka://hostname:port/gcn"
+
+        with stream.open(broker_url, "r") as s:
+            for msg in s:
+                assert isinstance(msg, GCNCircular), \
+                    "Message should be deserialized to the expected model type"
+            s.stop()
+        mock_instance.stop.assert_called_once()
+
+
 def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
     topic = "gcn"
     mock_adc_producer = mock_producer(mock_broker, topic)
