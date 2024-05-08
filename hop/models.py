@@ -4,6 +4,7 @@ import email
 import fastavro
 from io import BytesIO
 import json
+import re
 from typing import Any, Dict, List, Union
 import collections.abc
 
@@ -136,6 +137,54 @@ class VOEvent(MessageModel):
         """
         with open(filename, "rb") as f:
             return cls.load(f)
+
+
+@dataclass
+class GCNTextNotice(MessageModel):
+    """A GCN Notice in the plain text format.
+
+    The original message data is stored in the raw property,
+    and the parsed message is available via the fields property,
+    which is a dictionary.
+    """
+
+    raw: bytes
+    fields: dict
+
+    def serialize(self):
+        return {"format": format_name(type(self)), "content": self.raw}
+
+    @classmethod
+    def deserialize(cls, data):
+        fields = {}
+        line_pattern = re.compile("([^:]*): *(.*)")
+        last_key = None
+        for line in data.decode("utf-8").strip().splitlines():
+            m = re.match(line_pattern, line)
+            if m is None:
+                # if the line does not match the "key: value" format,
+                # we assume it is a continuation of a previous value
+                if last_key is not None:
+                    fields[last_key] += '\n' + line.lstrip()
+            else:
+                # if the key is repeated,
+                # we treat the new value as a continuation of the previous one
+                last_key = m.group(1).strip().lower()
+                value = m.group(2).strip()
+                if last_key in fields:
+                    fields[last_key] += '\n' + value
+                else:
+                    fields[last_key] = value
+
+        return cls(raw=data, fields=fields)
+
+    @classmethod
+    def load(cls, input):
+        if hasattr(input, "read"):
+            raw = input.read()
+        else:
+            raw = input
+        return cls.deserialize(raw)
 
 
 @dataclass
@@ -352,6 +401,7 @@ class AvroBlob(MessageModel):
 def get_models():
     model_classes = [
         VOEvent,
+        GCNTextNotice,
         GCNCircular,
         Blob,
         JSONBlob,
