@@ -11,7 +11,7 @@ import pytest
 
 from hop.auth import Auth
 from hop import io
-from hop.models import AvroBlob, Blob, GCNCircular, JSONBlob, VOEvent, format_name
+from hop.models import AvroBlob, Blob, GCNCircular, GCNTextNotice, JSONBlob, VOEvent, format_name
 import confluent_kafka
 
 from conftest import temp_environ, temp_config, message_parameters_dict_data
@@ -62,6 +62,8 @@ def get_model_data(model_name):
     # properly formatted, new-style messages
     {"format": "voevent",
         "content": make_message_standard(VOEvent.load(get_model_data("voevent")))},
+    {"format": "gcn_text_notice",
+        "content": make_message_standard(GCNTextNotice.load(get_model_data("gcn_text_notice")))},
     {"format": "circular",
         "content": make_message_standard(GCNCircular.load(get_model_data("circular")))},
     {"format": "json", "content": make_message_standard(JSONBlob.load(get_model_data("json")))},
@@ -267,7 +269,7 @@ def test_stream_stop(circular_msg):
     mock_instance.stop = MagicMock()
     stream = io.Stream(start_at=start_at, until_eos=True, auth=False)
     with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
-        broker_url = f"kafka://hostname:port/gcn"
+        broker_url = "kafka://hostname:port/gcn"
 
         with stream.open(broker_url, "r") as s:
             for msg in s:
@@ -560,7 +562,7 @@ def test_plugin_loading(caplog):
     lse_mock = MagicMock(side_effect=raise_ex)
     pm1.load_setuptools_entrypoints = lse_mock
 
-    builtin_models = ["VOEVENT", "CIRCULAR", "JSON", "AVRO", "BLOB"]
+    builtin_models = ["VOEVENT", "GCNTEXTNOTICE", "CIRCULAR", "JSON", "AVRO", "BLOB"]
 
     with patch("pluggy.PluginManager", MagicMock(return_value=pm1)), \
             caplog.at_level(logging.WARNING):

@@ -40,6 +40,38 @@ def test_voevent(voevent_fileobj):
         == voevent.WhereWhen["ObsDataLocation"]["ObservatoryLocation"]["id"]
 
 
+def test_gcn_text_notice(gcn_text_notice_fileobj, gcn_text_notice_data):
+    text_notice = models.GCNTextNotice.load(gcn_text_notice_fileobj)
+
+    # the object should retain the raw data unchanged for lossless round-tripping
+    assert text_notice.raw == gcn_text_notice_data
+
+    # check the data was parsed sensibly
+    expected_fields = ["title", "notice_date", "notice_type", "stream", "run_num", "event_num",
+                       "src_ra", "src_dec", "src_error", "src_error50", "discovery_date",
+                       "discovery_time", "revision", "energy", "signalness", "far", "sun_postn",
+                       "sun_dist", "moon_postn", "moon_dist", "gal_coords", "ecl_coords",
+                       "comments"]
+    for field in expected_fields:
+        assert field in text_notice.fields
+
+    expected_title = "GCN/AMON NOTICE"
+    assert text_notice.fields["title"] == expected_title
+    expected_energy = "1.2126e+02 [TeV]"
+    assert text_notice.fields["energy"] == expected_energy
+    # multi-line values should be accumulated
+    expected_src_ra = \
+        "103.7861d {+06h 55m 09s} (J2000),\n" \
+        "104.1106d {+06h 56m 27s} (current),\n" \
+        "103.1176d {+06h 52m 28s} (1950)"
+    assert text_notice.fields["src_ra"] == expected_src_ra
+    # repeated keys should have their values accumulated
+    expected_comments = \
+        "IceCube Bronze event.\n" \
+        "The position error is statistical only, there is no systematic added."
+    assert text_notice.fields["comments"] == expected_comments
+
+
 def test_gcn_circular(circular_text, circular_msg, circular_data_raw):
     with patch("builtins.open", mock_open(read_data=circular_text)):
         gcn_file = "example.gcn3"

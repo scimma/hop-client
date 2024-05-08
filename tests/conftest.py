@@ -166,6 +166,37 @@ VOEVENT_XML = """\
 </voe:VOEvent>\
 """
 
+MESSAGE_GCN_TEXT = \
+    b'TITLE:            GCN/AMON NOTICE\n' \
+    b'NOTICE_DATE:      Fri 12 Apr 24 05:34:35 UT\n' \
+    b'NOTICE_TYPE:      ICECUBE Astrotrack Bronze \n' \
+    b'STREAM:           25\n' \
+    b'RUN_NUM:          139279\n' \
+    b'EVENT_NUM:        10803235\n' \
+    b'SRC_RA:           103.7861d {+06h 55m 09s} (J2000),\n' \
+    b'                  104.1106d {+06h 56m 27s} (current),\n' \
+    b'                  103.1176d {+06h 52m 28s} (1950)\n' \
+    b'SRC_DEC:           +5.8716d {+05d 52\' 18"} (J2000),\n' \
+    b'                   +5.8390d {+05d 50\' 20"} (current),\n' \
+    b'                   +5.9364d {+05d 56\' 11"} (1950)\n' \
+    b'SRC_ERROR:        69.22 [arcmin radius, stat-only, 90% containment]\n' \
+    b'SRC_ERROR50:      26.96 [arcmin radius, stat-only, 50% containment]\n' \
+    b'DISCOVERY_DATE:   20412 TJD;   103 DOY;   24/04/12 (yy/mm/dd)\n' \
+    b'DISCOVERY_TIME:   20026 SOD {05:33:46.89} UT\n' \
+    b'REVISION:         0\n' \
+    b'ENERGY:           1.2126e+02 [TeV]\n' \
+    b'SIGNALNESS:       3.0910e-01 [dn]\n' \
+    b'FAR:              3.4096 [yr^-1]\n' \
+    b'SUN_POSTN:         21.10d {+01h 24m 24s}   +8.87d {+08d 52\' 11"}\n' \
+    b'SUN_DIST:          82.22 [deg]   Sun_angle= -5.5 [hr] (East of Sun)\n' \
+    b'MOON_POSTN:        67.46d {+04h 29m 50s}  +26.13d {+26d 07\' 33"}\n' \
+    b'MOON_DIST:         40.41 [deg]\n' \
+    b'GAL_COORDS:       208.12,  3.50 [deg] galactic lon,lat of the event\n' \
+    b'ECL_COORDS:       104.34,-16.88 [deg] ecliptic lon,lat of the event\n' \
+    b'COMMENTS:         IceCube Bronze event.  \n' \
+    b'COMMENTS:         The position error is statistical only, there is no systematic added.  '
+
+
 MESSAGE_BLOB = "This is a sample blob message. It is unstructured and does not require special parsing."
 
 MESSAGE_JSON = b'{"foo":"bar", "baz":5}'
@@ -477,6 +508,16 @@ def voevent_text():
 
 
 @pytest.fixture(scope="session")
+def gcn_text_notice_fileobj():
+    return io.BytesIO(MESSAGE_GCN_TEXT)
+
+
+@pytest.fixture(scope="session")
+def gcn_text_notice_data():
+    return MESSAGE_GCN_TEXT
+
+
+@pytest.fixture(scope="session")
 def blob_text():
     return MESSAGE_BLOB
 
@@ -502,6 +543,12 @@ message_parameters_dict_data = {
         "expected_model": models.VOEvent,
         "test_file": "example_voevent.xml",
         "model_text": VOEVENT_XML.encode(),
+    },
+    "gcn_text_notice": {
+        "model_name": "GCNTextNotice",
+        "expected_model": models.GCNTextNotice,
+        "test_file": "example_gcn.txt",
+        "model_text": MESSAGE_GCN_TEXT,
     },
     "json": {
         "model_name": "JSONBlob",
