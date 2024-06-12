@@ -281,9 +281,7 @@ def test_stream_stop(circular_msg):
 
 def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
     topic = "gcn"
-    mock_adc_producer = mock_producer(mock_broker, topic)
     expected_msg = make_message_standard(circular_msg)
-
     fixed_uuid = uuid4()
 
     auth = Auth("user", "password")
@@ -298,7 +296,8 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
     none_test_headers = [("_id", fixed_uuid.bytes), ("_sender", auth.username.encode("utf-8")),
                          ('_test', b"true"), ("_format", b"circular")]
 
-    with patch("hop.io.producer.Producer", autospec=True, return_value=mock_adc_producer), \
+    mb = mock_broker
+    with patch("hop.io.producer.Producer", side_effect=lambda c: mock_producer(mb, c.topic)), \
             patch("hop.io.uuid4", MagicMock(return_value=fixed_uuid)):
 
         broker_url = f"kafka://localhost:port/{topic}"
@@ -306,10 +305,6 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
         until_eos = True
 
         stream = io.Stream(start_at=start_at, until_eos=until_eos, auth=auth)
-
-        # verify only 1 topic is allowed in write mode
-        with pytest.raises(ValueError):
-            stream.open("kafka://localhost:9092/topic1,topic2", "w")
 
         # verify warning is raised when groupid is set in write mode
         with pytest.warns(UserWarning):
@@ -337,14 +332,40 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
         s.close()
         assert mock_broker.has_message(topic, expected_msg.value(), canonical_headers)
 
+        mock_broker.reset()
+        # more than one topics should now be allowed in write mode
+        with stream.open("kafka://localhost:9092/topic1,topic2", "w") as s:
+            with pytest.raises(Exception):
+                # however, a topic must be specified when calling write with multiple topics
+                # specified on construction
+                s.write(circular_msg, headers)
+
+            # selecting a topic explicitly when calling write should work
+            s.write(circular_msg, headers, topic="topic1")
+            assert mock_broker.has_message("topic1", expected_msg.value(), canonical_headers)
+            s.write(circular_msg, headers, topic="topic2")
+            assert mock_broker.has_message("topic2", expected_msg.value(), canonical_headers)
+
+        mock_broker.reset()
+        # no topic can also be specified in write mode
+        with stream.open("kafka://localhost:9092/", "w") as s:
+            with pytest.raises(Exception):
+                # however, a topic must be specified when calling write
+                s.write(circular_msg, headers)
+
+            s.write(circular_msg, headers, topic="topic1")
+            assert mock_broker.has_message("topic1", expected_msg.value(), canonical_headers)
+            s.write(circular_msg, headers, topic="topic2")
+            assert mock_broker.has_message("topic2", expected_msg.value(), canonical_headers)
+
 
 def test_stream_write_raw(circular_msg, circular_text, mock_broker, mock_producer):
     topic = "gcn"
-    mock_adc_producer = mock_producer(mock_broker, topic)
     encoded_msg = io.Producer.pack(circular_msg)
     headers = {"some header": "some value"}
     canonical_headers = list(headers.items())
-    with patch("hop.io.producer.Producer", autospec=True, return_value=mock_adc_producer):
+    mb = mock_broker
+    with patch("hop.io.producer.Producer", side_effect=lambda c: mock_producer(mb, c.topic)):
         stream = io.Stream(auth=False)
 
         broker_url = f"kafka://localhost:9092/{topic}"
@@ -360,6 +381,14 @@ def test_stream_write_raw(circular_msg, circular_text, mock_broker, mock_produce
         s.write_raw(encoded_msg, canonical_headers)
         s.close()
         assert mock_broker.has_message(topic, encoded_msg, canonical_headers)
+
+        with stream.open("kafka://localhost:9092/topic1,topic2", "w") as s:
+            with pytest.raises(Exception):
+                s.write_raw(encoded_msg, canonical_headers)
+            s.write_raw(encoded_msg, canonical_headers, topic="topic1")
+            assert mock_broker.has_message("topic1", encoded_msg, canonical_headers)
+            s.write_raw(encoded_msg, canonical_headers, topic="topic2")
+            assert mock_broker.has_message("topic2", encoded_msg, canonical_headers)
 
 
 def test_stream_auth(auth_config, tmpdir):
@@ -385,7 +414,7 @@ def test_stream_auth(auth_config, tmpdir):
     assert s4.auth == "blarg"
 
 
-def test_stream_open(auth_config, tmpdir):
+def test_stream_open(auth_config, mock_broker, mock_producer, tmpdir):
     stream = io.Stream(auth=False)
 
     # verify only read/writes are allowed
@@ -398,7 +427,7 @@ def test_stream_open(auth_config, tmpdir):
         stream.open("bad://example.com/topic", "r")
     assert "invalid kafka URL: must start with 'kafka://'" in err.value.args
 
-    # verify that URLs with no topic are rejected
+    # verify that URLs with no topic are rejected when reading
     with pytest.raises(ValueError) as err:
         stream.open("kafka://example.com/", "r")
     assert "no topic(s) specified in kafka URL" in err.value.args
@@ -409,7 +438,9 @@ def test_stream_open(auth_config, tmpdir):
         assert "Multiple broker addresses are not supported" in err.value.args
 
     # verify that complete URLs are accepted
+    mb = mock_broker
     with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir), \
+            patch("hop.io.producer.Producer", side_effect=lambda c: mock_producer(mb, c.topic)), \
             patch("adc.consumer.Consumer.subscribe", MagicMock()) as subscribe:
         stream = io.Stream()
         # opening a valid URL for reading should succeed
