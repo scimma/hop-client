@@ -82,13 +82,32 @@ Kafka topics, and takes the form:
 
 .. code:: bash
 
-   kafka://[username@]broker/topic[,topic2[,...]]
+   kafka://[username@]broker/[topic[,topic2[,...]]]
 
 The broker takes the form :code:`hostname[:port]` and gives the URL to connect to a
 Kafka broker. Optionally, a :code:`username` can be provided, which is used to select 
 among available credentials to use when communicating with the broker. 
-Finally, one can publish to a topic or subscribe to one or more topics to consume messages
-from.
+Finally, one can specify a number of topics to which to publish or subscribe.
+
+Publishing to Multiple Topics
+-------------------------------
+
+A single stream object can be used to publish to multiple topics, and doing so uses resources
+more efficiently by spawning fewer worker threads, opening fewer sockets, etc., than opening a
+separate stream for each of several topics, but requires attention to one extra detail: When a
+stream is opened for multiple topics, the topic must be specified when calling :code:`write()`,
+in order to make unambiguous to which topic that particular message should be published:
+
+.. code:: python
+
+    from hop import stream
+
+    with stream.open("kafka://hostname:port/topic1,topic2", "w") as s:
+        s.write({"my": "message"}, topic="topic2")
+
+In fact, when opening a stream for writing, it is not necessary for the target URL to contain
+a topic at all; if it does not, the topic to which to publish must always be specified when
+calling :code:`write()`.
 
 Committing Messages Manually
 ------------------------------

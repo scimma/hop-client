@@ -367,8 +367,13 @@ def mock_producer():
                 self.broker = broker
                 self.topic = topic
 
-            def write(self, msg, headers=[], delivery_callback=None):
-                self.broker.write(self.topic, msg, headers)
+            def write(self, msg, headers=[], delivery_callback=None, topic=None):
+                if topic is None:
+                    if self.topic is not None:
+                        topic = self.topic
+                    else:
+                        raise Exception("No topic specified for write")
+                self.broker.write(topic, msg, headers)
 
             def close(self):
                 pass

@@ -88,8 +88,8 @@ class Stream(object):
             in write mode or a :class:`Consumer` instance in read mode.
 
         Raises:
-            ValueError: If the mode is not set to read/write, if more than
-                one topic is specified in write mode, or if more than one broker is specified
+            ValueError: If the mode is not set to read/write, if no topic
+                is specified in read mode, or if more than one broker is specified
 
         """
         username, broker_addresses, topics = kafka.parse_kafka_url(url)
@@ -98,21 +98,20 @@ class Stream(object):
         logger.debug("connecting to addresses=%s  username=%s  topics=%s",
                      broker_addresses, group_id, topics)
 
-        if topics is None:
-            raise ValueError("no topic(s) specified in kafka URL")
-
         if self.auth is not None:
             credential = select_matching_auth(self.auth, broker_addresses[0], username)
         else:
             credential = None
 
         if mode == "w":
-            if len(topics) != 1:
-                raise ValueError("must specify exactly one topic in write mode")
+            if topics is None or len(topics) != 1:
+                topics = [None]
             if group_id is not None:
                 warnings.warn("group ID has no effect when opening a stream in write mode")
             return Producer(broker_addresses, topics[0], auth=credential, **kwargs)
         elif mode == "r":
+            if topics is None or len(topics) == 0:
+                raise ValueError("no topic(s) specified in kafka URL")
             if group_id is None:
                 username = credential.username if credential is not None else None
                 group_id = _generate_group_id(username, 10)
@@ -220,7 +219,7 @@ class _DeserializerMixin:
             return models.JSONBlob(content=old)
         # if we can't tell what the data is, pass it on unchanged
         except (UnicodeDecodeError, json.JSONDecodeError):
-            logger.warning("Unknown message format; returning a Blob")
+            logger.info("Unknown message format; returning a Blob")
             return models.Blob(content=message.value())
 
     def load(self, input_):
@@ -470,7 +469,7 @@ class Producer:
         logger.info(f"publishing to topic: {topic}")
 
     def write(self, message, headers=None,
-              delivery_callback=errors.raise_delivery_errors, test=False):
+              delivery_callback=errors.raise_delivery_errors, test=False, topic=None):
         """Write messages to a stream.
 
 
@@ -484,12 +483,15 @@ class Producer:
                 is either delivered or permenantly fails to be delivered.
             test: Message should be marked as a test message by adding a header
                   with key '_test'.
+            topic: The topic to which the message should be sent. This need not be specified if
+                   the stream was opened with a URL containing exactly one topic name.
         """
         message, headers = self._pack(message, headers, test=test)
-        self._producer.write(message, headers=headers, delivery_callback=delivery_callback)
+        self._producer.write(message, headers=headers, delivery_callback=delivery_callback,
+                             topic=topic)
 
     def write_raw(self, packed_message, headers=None,
-                  delivery_callback=errors.raise_delivery_errors):
+                  delivery_callback=errors.raise_delivery_errors, topic=None):
         """Write a pre-encoded message to the stream.
 
         This is an advanced interface; for most purposes it is preferrable to use
@@ -502,9 +504,12 @@ class Producer:
                 mapping strings to strings, or as a list of 2-tuples of strings.
             delivery_callback: A callback which will be called when each message
                 is either delivered or permenantly fails to be delivered.
+            topic: The topic to which the message should be sent. This need not be specified if
+                   the stream was opened with a URL containing exactly one topic name.
         """
 
-        self._producer.write(packed_message, headers=headers, delivery_callback=delivery_callback)
+        self._producer.write(packed_message, headers=headers, delivery_callback=delivery_callback,
+                             topic=topic)
 
     @staticmethod
     def pack(message, headers=None, test=False, auth=None):
