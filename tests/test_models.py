@@ -131,18 +131,34 @@ def test_avro(avro_data_raw, avro_data, avro_msg):
     serialized = avro.serialize()["content"]
     assert models.AvroBlob.load(serialized) == avro
 
-    # test that serializing the same object tree without a schema produces equivalent results
-    avro2 = models.AvroBlob(avro_data_raw)
+    # test single_record = False codepath
+    with patch("builtins.open", mock_open(read_data=avro_data)):
+        avro2 = models.AvroBlob.load(avro_data, single_record=False)
+
+    # verify data is correct after deserializing
+    assert avro2.content == [avro_data_raw]
+
+    # verify wrapper format is correct
+    assert avro2.serialize()["format"] == "avro"
+
+    # verify that serializing again produces the same result
     serialized2 = avro2.serialize()["content"]
+    assert models.AvroBlob.load(serialized2, single_record=False) == avro2
+
+    # test that serializing the same object tree without a schema produces equivalent results
+    avro3 = models.AvroBlob(avro_data_raw)
+    serialized3 = avro3.serialize()["content"]
+
     # serialized2 may not be the same as avro_data because the schemas can differ
-    assert models.AvroBlob.load(serialized2) == avro
+    assert models.AvroBlob.load(serialized3) == avro3
 
 
 def test_avro_invalid_data_type_serialization():
-    # data must be a sequence of records
+    # data must be a sequence of records if single_record = False
     with pytest.raises(TypeError) as te:
-        models.AvroBlob({1: "abc", False: "def"}).serialize()
-    assert "AvroBlob requires content to be a sequence of records" in str(te.value)
+        models.AvroBlob({1: "abc", False: "def"}, single_record=False).serialize()
+    assert "AvroBlob requires content to be a sequence of records when " \
+           "single_record = False" in str(te.value)
 
     # dictionary keys can only be strings
     with pytest.raises(ValueError) as ve:
