@@ -16,7 +16,7 @@ import pluggy
 from adc import consumer, errors, kafka, producer
 
 from .configure import get_config_path
-from .auth import Auth
+from .auth import Auth, AmbiguousCredentialError
 from .auth import load_auth
 from .auth import select_matching_auth
 from . import models
@@ -99,7 +99,13 @@ class Stream(object):
                      broker_addresses, group_id, topics)
 
         if self.auth is not None:
-            credential = select_matching_auth(self.auth, broker_addresses[0], username)
+            try:
+                credential = select_matching_auth(self.auth, broker_addresses[0], username)
+            except AmbiguousCredentialError as err:
+                msg = err.message
+                msg += "\nTo select a specific credential to use, embed its username in the URL:"
+                msg += f"\n  kafka://<username>@{broker_addresses[0]}/{','.join(topics)}"
+                raise AmbiguousCredentialError(msg)
         else:
             credential = None
 

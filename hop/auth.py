@@ -117,6 +117,21 @@ class Auth(auth.SASLAuth):
                 and self.token_endpoint == other.token_endpoint)
 
 
+class AmbiguousCredentialError(RuntimeError):
+    """An exception used to indicate that an attempt to select a credential from a collection
+    did not result in a unique best match.
+
+    Parameters
+    ----------
+    message : `str`
+        A description of the ambiguity which was encountered.
+    """
+
+    def __init__(self, message):
+        self.message = message
+        super(RuntimeError, self).__init__(message)
+
+
 def load_auth(config_file=None):
     """Configures Auth instances from a configuration file.
 
@@ -292,7 +307,8 @@ def select_matching_auth(creds, hostname, username=None):
         A single Auth object which should be used to authenticate.
 
     Raises:
-        RuntimeError: Too many or too few credentials matched.
+        RuntimeError: No credentials matched.
+        AmbiguousCredentialError: More than one credential matched.
     """
 
     matches = []
@@ -353,12 +369,12 @@ def select_matching_auth(creds, hostname, username=None):
         err = f"Ambiguous credentials found for hostname '{hostname}'"
         err += f" with username '{username}'" if username is not None \
             else " with no username specified"
-        err += "Matched credentials:"
+        err += "\nMatched credentials:"
         for match in matches:
             err += f"\n  {match.username}"
             err += " which has no associated hostname" if len(match.hostname) == 0 \
                 else f" for {match.hostname}"
-        raise RuntimeError(err)
+        raise AmbiguousCredentialError(err)
 
     # At this point we should have exactly one match
     return matches[0]
@@ -566,8 +582,8 @@ def delete_credential(name: str):
         to delete.
 
     Raises:
-        RuntimeError: If no credentials or more than one credential matches the specified name,
-                      making the operation impossible or ambiguous.
+        RuntimeError: No credentials matched.
+        AmbiguousCredentialError: More than one credential matched.
     """
     # first load any existing credentials
     try:
@@ -603,7 +619,8 @@ def delete_credential(name: str):
             err += f" with hostname '{hostname}'"
         raise RuntimeError(err)
     elif len(matches) > 1:
-        raise RuntimeError(_construct_ambiguous_deletion_message(username, hostname, matches))
+        raise AmbiguousCredentialError(
+            _construct_ambiguous_deletion_message(username, hostname, matches))
 
     # At this point we should have exactly one match, which we can delete
     del creds[match_indices[0]]

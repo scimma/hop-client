@@ -9,7 +9,7 @@ from uuid import uuid4
 
 import pytest
 
-from hop.auth import Auth
+from hop.auth import Auth, AmbiguousCredentialError
 from hop import io
 from hop.models import AvroBlob, Blob, GCNCircular, GCNTextNotice, JSONBlob, VOEvent, format_name
 import confluent_kafka
@@ -453,6 +453,17 @@ def test_stream_open(auth_config, mock_broker, mock_producer, tmpdir):
         # opening a valid URL for writing should succeed
         producer = stream.open("kafka://example.com/topic", "w")
         producer.write("data")
+
+
+def test_stream_open_ambiguous_creds():
+    creds = [
+        Auth("user1", "pass1", host="example.com"),
+        Auth("user2", "pass2", host="example.com"),
+    ]
+    stream = io.Stream(auth=creds)
+    with pytest.raises(AmbiguousCredentialError) as err:
+        stream.open("kafka://example.com/topic")
+    assert "To select a specific credential" in err.value.args[0]
 
 
 def test_unpack(circular_msg):
