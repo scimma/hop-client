@@ -6,6 +6,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2024-07-31
+### Changed
+- The `hop.io.Producer` can be used to publish to more than one topic with a single instance.
+  To support this capability, the `write` method now accepts an optional `topic` argument to
+  direct to which topic to publish.
+- The error message resulting when attempting to open a stream with ambiguous credentials has been
+  further clarified.
+
+### Added
+- Users can now explicitly stop the `hop.io.Consumer`'s processing loop.
+  (Thanks to @myNameIsPatrick)
+- A message model for GCN text format notices has been added. The original notice text is preserved
+  unmodified, but parsing is performed to provide convenient programmatic access to the message
+  fields in memory.
+
 ## [0.9.0] - 2023-11-10
 ### Changed
 - Create Blob objects instead of crashing on binary data when deserializing
