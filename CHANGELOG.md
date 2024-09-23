@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2024-09-23
+### Added
+- `setuptools` is explicitly listed as a dependency to work better in environments where it is not
+  provided by default.
+
 ## [0.10.0] - 2024-07-31
 ### Changed
 - The `hop.io.Producer` can be used to publish to more than one topic with a single instance.
