@@ -12,7 +12,6 @@ install_requires = [
     "dataclasses ; python_version < '3.7'",
     "fastavro >= 1.4.0",
     "pluggy >= 0.11",
-    "setuptools >= 68.0",
     "toml >= 0.9.4",
     "xmltodict >= 0.9.0"
 ]
