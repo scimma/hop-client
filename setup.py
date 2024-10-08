@@ -51,7 +51,7 @@ setup(
         ],
     },
 
-    python_requires = '>=3.6',
+    python_requires = '>=3.8',
     install_requires = install_requires,
     extras_require = extras_require,
     setup_requires = ['setuptools_scm'],
