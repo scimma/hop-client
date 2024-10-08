@@ -1,4 +1,4 @@
-import pkg_resources
+from importlib.metadata import version
 import confluent_kafka
 
 
@@ -11,7 +11,7 @@ def print_packages_versions():
         if pkg == "librdkafka":
             print("%s==%s" % (pkg, confluent_kafka.libversion()[0]))
         else:
-            print("%s==%s" % (pkg, pkg_resources.get_distribution(pkg).version))
+            print("%s==%s" % (pkg, version(pkg)))
 
 
 def get_packages():
