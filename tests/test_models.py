@@ -1,6 +1,9 @@
 from unittest.mock import patch, mock_open
+from io import BytesIO
 import json
 import pytest
+
+import fastavro
 
 from hop import models
 
@@ -189,3 +192,20 @@ def test_avro_operators(avro_data, avro_data_raw):
     # hashing is not implemented because python fails to implement it for dict
     with pytest.raises(NotImplementedError):
         hash(avro_with_schema)
+
+
+def test_avro_multi_record_deserialization():
+    original = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    outio = BytesIO()
+    schema = {'type': 'array', 'items': 'long'}
+    fastavro.writer(outio, schema, original)
+    raw = outio.getvalue()
+
+    # default behavior should be to require a single record
+    with pytest.raises(TypeError) as te:
+        loaded = models.AvroBlob.load(raw)
+    assert "AvroBlob requires content to be a single record" in str(te.value)
+
+    # allowing multiple records should load as such
+    loaded = models.AvroBlob.load(raw, single_record=False)
+    assert loaded.content == original
