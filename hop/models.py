@@ -400,6 +400,8 @@ class AvroBlob(MessageModel):
 
         Args:
             filename: The path to a file.
+            single_record: True if input avro data only contains one record.
+              True by default.
 
         Returns:
             The message model.

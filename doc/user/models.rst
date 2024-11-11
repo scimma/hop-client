@@ -71,14 +71,19 @@ given, but a deliberately designed schema may also be used.
         s.write(JSONBlob({"priority": 1, "payload": "data"}))
 
         # Write an Avro message with an ad-hoc schema
-        # Avro may contain arbitrarily many records,
-        # so it always expects a list or records to be written
-        s.write(AvroBlob([{"priority": 1, "payload": b'\x02Binary data\x03'}]))
+        s.write(AvroBlob({"priority": 1, "payload": b'\x02Binary data\x03'}))
 
         # Write an Avro message with a specific schema
         schema = fastavro.load_schema("my_schema.avsc")
-        s.write(AvroBlob([{priority: 1, payload: b'\x02Binary data\x03'}],
+        s.write(AvroBlob({priority: 1, payload: b'\x02Binary data\x03'},
                          schema=schema))
+
+        # By default, the input to an AvroBlob will be treated as a single
+        # record, but it can be treated as multiple records if desired;
+        # see below for details
+        s.write(AvroBlob([{"data": "foo", "flag":False},
+                          {"data": "bar", "flag":True}],
+                         single_record=False))
 
 
 All unstructured messages are unpacked by the hop client back into message
@@ -90,8 +95,18 @@ also has a :code:`schema` property which contains the schema with which the
 message was sent.
 
 Please note that the :code:`AvroBlob` message model serializes using the
-`Avro container format <https://avro.apache.org/docs/current/spec.html#Object+Container+Files>`_,
+`Avro container format <https://avro.apache.org/docs/++version++/specification/#object-container-files`_,
 not the Avro variant of the `Confluent wire format <https://docs.confluent.io/platform/current/schema-registry/serdes-develop/index.html#wire-format>`_.
+
+The Avro object container file format is defined to contain a sequence of
+records, with each record conforming to the common schema.
+When constructing an :code:`AvroBlob` object from Python, it is then
+potentially ambiguous if the content used is a sequence (list) whether it is
+meant to be treated as a single record (which is a list), or a set of records
+(the individual list items).
+As it is expected that it is more common that messages will be single records,
+:code:`AvroBlob` defaults to this assumption, but this behavior can be
+controlled by changing the `single_record` argument.
 
 Register External Message Models
 ---------------------------------
