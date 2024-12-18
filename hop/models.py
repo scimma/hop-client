@@ -264,6 +264,21 @@ class Blob(MessageModel):
             raw = blob_input
         return cls(content=raw)
 
+    @classmethod
+    def load_file(cls, filename):
+        """Create a new message model from a file.
+
+        Args:
+            filename: The path to a file.
+
+        Returns:
+            The message model.
+
+        """
+        # arbitrary data should not be subjected to line-ending conversion, etc.
+        with open(filename, "rb") as f:
+            return cls.load(f)
+
 
 @dataclass
 class JSONBlob(MessageModel):
@@ -420,6 +435,35 @@ class AvroBlob(MessageModel):
         raise NotImplementedError("AvroBlob objects are not hashable")
 
 
+@dataclass
+class ExternalMessage(MessageModel):
+    """Defines a message which refers to data stored externally at some URL
+    """
+
+    url: str
+    format_name = "external"
+
+    @classmethod
+    def load(cls, input):
+        """Create a blob message from input text.
+
+        Args:
+            blob_input: The unstructured message text or file object.
+
+        Returns:
+            The Blob.
+
+        """
+        if hasattr(input, "read"):
+            raw = input.read()
+        else:
+            raw = input
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
+        decoded = json.loads(raw)
+        return cls(url=decoded["url"])
+
+
 @plugins.register
 def get_models():
     model_classes = [
@@ -429,5 +473,6 @@ def get_models():
         Blob,
         JSONBlob,
         AvroBlob,
+        ExternalMessage,
     ]
     return {format_name(cls): cls for cls in model_classes}

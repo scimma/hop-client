@@ -6,15 +6,18 @@ from pathlib import Path
 import time
 from unittest.mock import patch, MagicMock
 from uuid import uuid4
+import bson
 
 import pytest
 
 from hop.auth import Auth, AmbiguousCredentialError
 from hop import io
-from hop.models import AvroBlob, Blob, GCNCircular, GCNTextNotice, JSONBlob, VOEvent, format_name
+from hop.models import (AvroBlob, Blob, ExternalMessage, GCNCircular, GCNTextNotice, JSONBlob,
+                        VOEvent, format_name)
 import confluent_kafka
 
-from conftest import temp_environ, temp_config, message_parameters_dict_data
+from conftest import (temp_environ, temp_config, message_parameters_dict_data, PhonyConnection,
+                      mock_pool_manager)
 
 logger = logging.getLogger("hop")
 
@@ -29,7 +32,7 @@ def content_mock(message_model):
     return content
 
 
-def make_message(content, headers=[], topic="test-topic", partition=0, offset=0):
+def make_message(content, headers=[], topic="test-topic", partition=0, offset=0, key="test-key"):
     message = MagicMock()
     message.value.return_value = content
     message.headers.return_value = headers
@@ -37,7 +40,7 @@ def make_message(content, headers=[], topic="test-topic", partition=0, offset=0)
     message.partition.return_value = partition
     message.offset.return_value = offset
     message.timestamp.return_value = (0, 1234567890)
-    message.key.return_value = "test-key"
+    message.key.return_value = key
     return message
 
 
@@ -110,6 +113,71 @@ def test_deserialize(message, message_parameters_dict, caplog):
                 "not recognized; returning a Blob"
             assert isinstance(test_model, Blob)
             assert output in caplog.text
+
+
+def test_get_offload_server():
+    # everything working as it should
+    fake_message = make_message(b'{"LargeMessageUploadEndpoint":"https://example.com"}')
+    mock_consumer = MagicMock(stream=MagicMock(return_value=[fake_message]))
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_consumer)):
+        endpoint = io._get_offload_server("my-broker.net", auth=None)
+        assert endpoint == "https://example.com"
+        mock_consumer.close.assert_called_once()
+
+    # topic does not exist
+    mock_consumer = MagicMock(subscribe=MagicMock(side_effect=ValueError("topic does not exist")))
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_consumer)):
+        endpoint = io._get_offload_server("my-broker.net", auth=None)
+        assert endpoint is None
+        mock_consumer.close.assert_called_once()
+
+    # no message on topic
+    mock_consumer = MagicMock(stream=MagicMock(return_value=[]))
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_consumer)):
+        endpoint = io._get_offload_server("my-broker.net", auth=None)
+        assert endpoint is None
+        mock_consumer.close.assert_called_once()
+
+    # message not UTF-8
+    fake_message = make_message(b"\xF0")
+    mock_consumer = MagicMock(stream=MagicMock(return_value=[fake_message]))
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_consumer)):
+        endpoint = io._get_offload_server("my-broker.net", auth=None)
+        assert endpoint is None
+        mock_consumer.close.assert_called_once()
+
+    # message UTF-8 but not JSON
+    fake_message = make_message(b"\t\vThis is not JSON\v\t")
+    mock_consumer = MagicMock(stream=MagicMock(return_value=[fake_message]))
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_consumer)):
+        endpoint = io._get_offload_server("my-broker.net", auth=None)
+        assert endpoint is None
+        mock_consumer.close.assert_called_once()
+
+    # endpoint key missing
+    fake_message = make_message(b'{"foo":"bar", "baz":"quux"}')
+    mock_consumer = MagicMock(stream=MagicMock(return_value=[fake_message]))
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_consumer)):
+        endpoint = io._get_offload_server("my-broker.net", auth=None)
+        assert endpoint is None
+        mock_consumer.close.assert_called_once()
+
+    # endpoint key wrong type
+    fake_message = make_message(b'{"LargeMessageUploadEndpoint":7}')
+    mock_consumer = MagicMock(stream=MagicMock(return_value=[fake_message]))
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_consumer)):
+        endpoint = io._get_offload_server("my-broker.net", auth=None)
+        assert endpoint is None
+        mock_consumer.close.assert_called_once()
+
+    # unencrypted endpoint
+    fake_message = make_message(b'{"LargeMessageUploadEndpoint":"http://example.com"}')
+    mock_consumer = MagicMock(stream=MagicMock(return_value=[fake_message]))
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_consumer)):
+        with pytest.warns(UserWarning):
+            endpoint = io._get_offload_server("my-broker.net", auth=None)
+        assert endpoint == "http://example.com"
+        mock_consumer.close.assert_called_once()
 
 
 def test_stream_read(circular_msg):
@@ -260,6 +328,289 @@ def test_stream_read_test_raw(circular_msg):
         assert messages == 1
 
 
+def test_http_error_to_kafka():
+    expected_errors = {
+        400: confluent_kafka.KafkaError.INVALID_REQUEST,
+        401: confluent_kafka.KafkaError.SASL_AUTHENTICATION_FAILED,
+        403: confluent_kafka.KafkaError.TOPIC_AUTHORIZATION_FAILED,
+        404: confluent_kafka.KafkaError.RESOURCE_NOT_FOUND,
+        413: confluent_kafka.KafkaError.MSG_SIZE_TOO_LARGE,
+        450: confluent_kafka.KafkaError.INVALID_REQUEST,
+        500: confluent_kafka.KafkaError.UNKNOWN,
+        502: confluent_kafka.KafkaError.NETWORK_EXCEPTION,
+        505: confluent_kafka.KafkaError.UNSUPPORTED_VERSION,
+    }
+    for http_code in expected_errors:
+        msg = f"error {http_code}"
+        kerr = io._http_error_to_kafka(http_code, msg)
+        assert kerr.code() == expected_errors[http_code], f"for HTTP error code {http_code}"
+        assert kerr.str() == msg
+
+
+class FakeRead:
+    def __init__(self, data):
+        self.data = data
+        self.counter = 0
+
+    def __call__(self, *args):
+        self.counter += 1
+        if self.counter == 1:
+            return self.data
+        return None
+
+
+def test_Consumer_fetch_external_no_auth():
+    orig_data = b"datadatadata"
+    orig_id = b'|\xdc\xfa\xa0v\x94Iu\x8c\xcd\xeaJ\x7f6\xf5r'
+    orig_timestamp = 172000
+    payload = bson.dumps({"message": orig_data,
+                          "metadata": {"headers": [("_id", orig_id)],
+                                       "timestamp": orig_timestamp}
+                          })
+
+    # success, no metadata requested
+    url = "https://example.com/msg/1234"
+    reference_message = make_message_standard(ExternalMessage(url=url))
+    response = MagicMock(status=200, read=FakeRead(payload))
+    del response.stream
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
+            patch("hop.io.consumer.Consumer", MagicMock()):
+        c = io.Consumer("cID", ["example.com:9092"], "test-topic")
+        output = c._fetch_external(url, False, reference_message)
+        assert isinstance(output, Blob)
+        assert output.content == orig_data
+
+    # success, with metadata requested
+    response = MagicMock(status=200, read=FakeRead(payload))
+    del response.stream
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
+            patch("hop.io.consumer.Consumer", MagicMock()):
+        c = io.Consumer("cID", ["example.com:9092"], "test-topic")
+        output = c._fetch_external(url, True, reference_message)
+        assert len(output) == 2
+        assert isinstance(output[0], Blob)
+        assert output[0].content == orig_data
+        assert isinstance(output[1], io.Metadata)
+        assert output[1].topic == "test-topic"
+        assert output[1].timestamp == orig_timestamp
+        assert ("_id", orig_id) in output[1].headers
+
+    # HTTP failure, no error callback
+    response = MagicMock(status=500, read=FakeRead(b"Error!"))
+    del response.stream
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
+            patch("hop.io.consumer.Consumer", MagicMock()):
+        c = io.Consumer("cID", ["example.com:9092"], "test-topic")
+        m = c._fetch_external(url, True, reference_message)
+        assert m.error() is not None
+        assert m.error().code() == confluent_kafka.KafkaError.UNKNOWN
+
+    # HTTP failure, with error callback
+    response = MagicMock(status=500, read=FakeRead(b"Error!"))
+    del response.stream
+    ecallback = MagicMock()
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
+            patch("hop.io.consumer.Consumer", MagicMock()):
+        c = io.Consumer("cID", ["example.com:9092"], "test-topic", error_callback=ecallback)
+        m = c._fetch_external(url, True, reference_message)
+        assert m.error() is not None
+        assert m.error().code() == confluent_kafka.KafkaError.UNKNOWN
+        ecallback.assert_called_once()
+        assert len(ecallback.call_args.args) == 1
+        assert ecallback.call_args.args[0].code() == confluent_kafka.KafkaError.UNKNOWN
+
+    # Data not BSON, no error callback
+    response = MagicMock(status=200, read=FakeRead(b"Not valid BSON"))
+    del response.stream
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
+            patch("hop.io.consumer.Consumer", MagicMock()):
+        c = io.Consumer("cID", ["example.com:9092"], "test-topic")
+        m = c._fetch_external(url, True, reference_message)
+        assert m.error() is not None
+        assert m.error().code() == confluent_kafka.KafkaError._VALUE_DESERIALIZATION
+
+    # Data not BSON, with error callback
+    response = MagicMock(status=200, read=FakeRead(b"Not valid BSON"))
+    del response.stream
+    ecallback = MagicMock()
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
+            patch("hop.io.consumer.Consumer", MagicMock()):
+        c = io.Consumer("cID", ["example.com:9092"], "test-topic", error_callback=ecallback)
+        m = c._fetch_external(url, True, reference_message)
+        assert m.error() is not None
+        assert m.error().code() == confluent_kafka.KafkaError._VALUE_DESERIALIZATION
+        ecallback.assert_called_once()
+        assert len(ecallback.call_args.args) == 1
+        assert ecallback.call_args.args[0].code() \
+            == confluent_kafka.KafkaError._VALUE_DESERIALIZATION
+
+    # Valid BSON but malformed message record, no error callback
+    response = MagicMock(status=200, read=FakeRead(bson.dumps({1: 2, 3: 4})))
+    del response.stream
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
+            patch("hop.io.consumer.Consumer", MagicMock()):
+        c = io.Consumer("cID", ["example.com:9092"], "test-topic")
+        m = c._fetch_external(url, True, reference_message)
+        assert m.error() is not None
+        assert m.error().code() == confluent_kafka.KafkaError._VALUE_DESERIALIZATION
+
+    # Valid BSON but malformed message record, with error callback
+    response = MagicMock(status=200, read=FakeRead(bson.dumps({1: 2, 3: 4})))
+    del response.stream
+    ecallback = MagicMock()
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
+            patch("hop.io.consumer.Consumer", MagicMock()):
+        c = io.Consumer("cID", ["example.com:9092"], "test-topic", error_callback=ecallback)
+        m = c._fetch_external(url, True, reference_message)
+        assert m.error() is not None
+        assert m.error().code() == confluent_kafka.KafkaError._VALUE_DESERIALIZATION
+        ecallback.assert_called_once()
+        assert len(ecallback.call_args.args) == 1
+        assert ecallback.call_args.args[0].code() \
+            == confluent_kafka.KafkaError._VALUE_DESERIALIZATION
+
+
+def test_Consumer_fetch_external_with_auth():
+    orig_data = b"datadatadata"
+    orig_id = b'|\xdc\xfa\xa0v\x94Iu\x8c\xcd\xeaJ\x7f6\xf5r'
+    orig_timestamp = 172000
+    payload = bson.dumps({"message": orig_data,
+                          "metadata": {"headers": [("_id", orig_id)],
+                                       "timestamp": orig_timestamp}
+                          })
+    auth = Auth("user", "pencil")
+
+    # use auth, endpoint not cached, matches trusted
+    url = "https://example.com/msg/1234"
+    reference_message = make_message_standard(ExternalMessage(url=url))
+    response = MagicMock(status=200, read=FakeRead(payload))
+    del response.stream
+    conn = PhonyConnection([response])
+    with patch("requests.adapters.PoolManager", mock_pool_manager(conn)), \
+            patch("hop.io.consumer.Consumer", MagicMock()), \
+            patch("hop.io._get_offload_server",
+                  MagicMock(return_value="https://example.com")):
+        c = io.Consumer("cID", ["example.com:9092"], "test-topic", auth=auth)
+        output = c._fetch_external(url, False, reference_message)
+        assert isinstance(output, Blob)
+        assert output.content == orig_data
+        assert len(conn.requests) > 0
+        assert "Authorization" in conn.requests[0]["headers"]
+
+    # use auth, endpoint cached
+    response = MagicMock(status=200, read=FakeRead(payload))
+    del response.stream
+    conn = PhonyConnection([response])
+    with patch("requests.adapters.PoolManager", mock_pool_manager(conn)), \
+            patch("hop.io.consumer.Consumer", MagicMock()), \
+            patch("hop.io._get_offload_server", MagicMock()) as go:
+        # Re-use existing c
+        output = c._fetch_external(url, False, reference_message)
+        assert isinstance(output, Blob)
+        assert output.content == orig_data
+        assert len(conn.requests) > 0
+        assert "Authorization" in conn.requests[0]["headers"]
+        go.assert_not_called()
+
+    # use auth, endpoint not cached, does not match trusted
+    url = "https://example.com/msg/1234"
+    reference_message = make_message_standard(ExternalMessage(url=url))
+    response = MagicMock(status=200, read=FakeRead(payload))
+    del response.stream
+    conn = PhonyConnection([response])
+    with patch("requests.adapters.PoolManager", mock_pool_manager(conn)), \
+            patch("hop.io.consumer.Consumer", MagicMock()), \
+            patch("hop.io._get_offload_server",
+                  MagicMock(return_value="https://example.net")):
+        c = io.Consumer("cID", ["example.com:9092"], "test-topic", auth=auth)
+        output = c._fetch_external(url, False, reference_message)
+        assert isinstance(output, Blob)
+        assert output.content == orig_data
+        assert len(conn.requests) > 0
+        assert "Authorization" not in conn.requests[0]["headers"]
+
+
+def test_Consumer_check_bson_message_structure():
+    url = "https://example.com/some_message"
+    valid = {"message": b"datadatadata",
+             "metadata": {"headers": [("_id", b'|\xdc\xfa\xa0v\x94Iu\x8c\xcd\xeaJ\x7f6\xf5r')],
+                          "timestamp": 172000}
+             }
+    io.Consumer._check_bson_message_structure(valid, url)
+
+    # wrong top-level type
+    err = io.Consumer._check_bson_message_structure("a_string", url)
+    assert err == f"Message data from {url} is not a mapping"
+
+    no_message = {"metadata": {"headers": [("_id", b'|\xdc\xfa\xa0v\x94Iu\x8c\xcd\xeaJ\x7f6\xf5r')],
+                               "timestamp": 172000}
+                  }
+    err = io.Consumer._check_bson_message_structure(no_message, url)
+    assert err == f"Original message data not present in message data from {url}"
+
+    wrong_message_type = {"message": 22,
+                          "metadata": {"headers": [("foo", b"bar")],
+                                       "timestamp": 172000}
+                          }
+    err = io.Consumer._check_bson_message_structure(wrong_message_type, url)
+    assert err == f"Original message data not present in message data from {url}"
+
+    no_metadata = {"message": b"datadatadata"}
+    err = io.Consumer._check_bson_message_structure(no_metadata, url)
+    assert err == f"Metadata not present or malformed in message data from {url}"
+
+    wrong_metadata_type = {"message": b"datadatadata", "metadata": 3.14}
+    err = io.Consumer._check_bson_message_structure(wrong_metadata_type, url)
+    assert err == f"Metadata not present or malformed in message data from {url}"
+
+    no_headers = {"message": b"datadatadata", "metadata": {"timestamp": 172000}}
+    err = io.Consumer._check_bson_message_structure(no_headers, url)
+    assert err == "Original message headers not present or malformed in message data" \
+                  f" from {url}"
+
+    wrong_headers_type = {"message": b"datadatadata",
+                          "metadata": {"headers": 99,
+                                       "timestamp": 172000}
+                          }
+    err = io.Consumer._check_bson_message_structure(wrong_headers_type, url)
+    assert err == "Original message headers not present or malformed in message data" \
+                  f" from {url}"
+
+    wrong_header_type = {"message": b"datadatadata",
+                         "metadata": {"headers": ["foo"],
+                                      "timestamp": 172000}
+                         }
+    err = io.Consumer._check_bson_message_structure(wrong_header_type, url)
+    assert err == f"Malformed original message header in message data from {url}"
+
+    wrong_header_key_type = {"message": b"datadatadata",
+                             "metadata": {"headers": [(9, b"bar")],
+                                          "timestamp": 172000}
+                             }
+    err = io.Consumer._check_bson_message_structure(wrong_header_key_type, url)
+    assert err == f"Malformed original message header in message data from {url}"
+
+    wrong_header_value_type = {"message": b"datadatadata",
+                               "metadata": {"headers": [("foo", 11.5)],
+                                            "timestamp": 172000}
+                               }
+    err = io.Consumer._check_bson_message_structure(wrong_header_value_type, url)
+    assert err == f"Malformed original message header in message data from {url}"
+
+    no_timestamp = {"message": b"datadatadata",
+                    "metadata": {"headers": [("foo", b"bar")]}
+                    }
+    err = io.Consumer._check_bson_message_structure(no_timestamp, url)
+    assert err == f"Timestamp not present or malformed in message data from {url}"
+
+    wrong_timestamp_type = {"message": b"datadatadata",
+                            "metadata": {"headers": [("foo", b"bar")],
+                                         "timestamp": "lunchtime"}
+                            }
+    err = io.Consumer._check_bson_message_structure(wrong_timestamp_type, url)
+    assert err == f"Timestamp not present or malformed in message data from {url}"
+
+
 def test_stream_stop(circular_msg):
     start_at = io.StartPosition.EARLIEST
     fake_message = make_message_standard(circular_msg)
@@ -298,7 +649,7 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
 
     mb = mock_broker
     with patch("hop.io.producer.Producer", side_effect=lambda c: mock_producer(mb, c.topic)), \
-            patch("hop.io.uuid4", MagicMock(return_value=fixed_uuid)):
+            patch("hop.io.uuid.uuid4", MagicMock(return_value=fixed_uuid)):
 
         broker_url = f"kafka://localhost:port/{topic}"
         start_at = io.StartPosition.EARLIEST
@@ -469,11 +820,24 @@ def test_stream_open_ambiguous_creds():
 def test_unpack(circular_msg):
     kafka_msg = make_message_standard(circular_msg)
 
-    unpacked_msg = io.Consumer._unpack(kafka_msg)
-    assert unpacked_msg == circular_msg
+    with patch("hop.io.consumer.Consumer", MagicMock()):
+        c = io.Consumer("group", "kafka://example.com", ["topic"])
+        unpacked_msg = c._unpack(kafka_msg)
+        assert unpacked_msg == circular_msg
 
-    unpacked_msg2, metadata = io.Consumer._unpack(kafka_msg, metadata=True)
-    assert unpacked_msg2 == unpacked_msg
+        unpacked_msg2, metadata = c._unpack(kafka_msg, metadata=True)
+        assert unpacked_msg2 == unpacked_msg
+
+
+def test_unpack_external():
+    url = "https://external.service/msg"
+    kafka_msg = make_message_standard(ExternalMessage(url=url))
+
+    with patch("hop.io.consumer.Consumer", MagicMock()), \
+            patch("hop.io.Consumer._fetch_external", MagicMock()):
+        c = io.Consumer("group", "kafka://example.com", ["topic"])
+        unpacked_msg = c._unpack(kafka_msg)
+        c._fetch_external.assert_called_with(url, False, kafka_msg)
 
 
 def test_mark_done(circular_msg):
@@ -528,7 +892,9 @@ def test_pack_unpack_roundtrip(message, message_parameters_dict, caplog):
     kafka_msg = make_message(packed_msg, headers)
 
     # unpack the message
-    unpacked_msg = io.Consumer._unpack(kafka_msg)
+    with patch("hop.io.consumer.Consumer", MagicMock()):
+        c = io.Consumer("group", "kafka://example.com", ["topic"])
+        unpacked_msg = c._unpack(kafka_msg)
 
     # verify based on format
     if format in ("voevent", "circular"):
@@ -550,8 +916,10 @@ def test_pack_unpack_roundtrip_unstructured():
         packed_msg, headers = io.Producer.pack(orig_message)
         print(f"pasked_msg: {packed_msg}")
         kafka_msg = make_message(packed_msg, headers)
-        unpacked_msg = io.Consumer._unpack(kafka_msg)
-        assert unpacked_msg.content == orig_message
+        with patch("hop.io.consumer.Consumer", MagicMock()):
+            c = io.Consumer("group", "kafka://example.com", ["topic"])
+            unpacked_msg = c._unpack(kafka_msg)
+            assert unpacked_msg.content == orig_message
 
     # non-serializable objects should raise an error
     with pytest.raises(TypeError):
@@ -604,7 +972,7 @@ def test_plugin_loading(caplog):
     lse_mock = MagicMock(side_effect=raise_ex)
     pm1.load_setuptools_entrypoints = lse_mock
 
-    builtin_models = ["VOEVENT", "GCNTEXTNOTICE", "CIRCULAR", "JSON", "AVRO", "BLOB"]
+    builtin_models = ["VOEVENT", "GCNTEXTNOTICE", "CIRCULAR", "JSON", "AVRO", "BLOB", "EXTERNAL"]
 
     with patch("pluggy.PluginManager", MagicMock(return_value=pm1)), \
             caplog.at_level(logging.WARNING):
