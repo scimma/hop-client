@@ -68,7 +68,7 @@ def test_cli_publish(script_runner, message_format, message_parameters_dict):
         assert ret.stderr == ""
 
         # verify message was processed
-        if message_format == "voevent":
+        if message_format in ["voevent", "blob"]:
             mock_file.assert_called_with(test_file, "rb")
         else:
             mock_file.assert_called_with(test_file, "r")
@@ -95,6 +95,8 @@ def test_cli_publish_blob_msgs(mock_broker, mock_producer, mock_consumer):
     start_at = io.StartPosition.EARLIEST
     read_url = "kafka://group@hostname:port/topic"
     fixed_uuid = uuid4()
+    fake_uuid = MagicMock()
+    fake_uuid.uuid4 = MagicMock(return_value=fixed_uuid)
 
     mock_adc_producer = mock_producer(mock_broker, "topic")
     mock_adc_consumer = mock_consumer(mock_broker, "topic", "group")
@@ -103,7 +105,7 @@ def test_cli_publish_blob_msgs(mock_broker, mock_producer, mock_consumer):
         with patch("sys.stdin", BytesIO(msg)) as mock_stdin, \
                 patch("hop.io.producer.Producer", return_value=mock_adc_producer), \
                 patch("hop.io.consumer.Consumer", return_value=mock_adc_consumer), \
-                patch("hop.io.uuid4", MagicMock(return_value=fixed_uuid)):
+                patch("hop.io.uuid", fake_uuid):
             publish._main(args)
 
             # each published message should be on the broker
@@ -136,6 +138,8 @@ def test_cli_publish_json_blob_msgs(mock_broker, mock_producer, mock_consumer):
     start_at = io.StartPosition.EARLIEST
     read_url = "kafka://group@hostname:port/topic"
     fixed_uuid = uuid4()
+    fake_uuid = MagicMock()
+    fake_uuid.uuid4 = MagicMock(return_value=fixed_uuid)
 
     mock_adc_producer = mock_producer(mock_broker, "topic")
     mock_adc_consumer = mock_consumer(mock_broker, "topic", "group")
@@ -145,7 +149,7 @@ def test_cli_publish_json_blob_msgs(mock_broker, mock_producer, mock_consumer):
         with patch("sys.stdin", StringIO(json.dumps(msg))) as mock_stdin, \
                 patch("hop.io.producer.Producer", return_value=mock_adc_producer), \
                 patch("hop.io.consumer.Consumer", return_value=mock_adc_consumer), \
-                patch("hop.io.uuid4", MagicMock(return_value=fixed_uuid)):
+                patch("hop.io.uuid", fake_uuid):
             publish._main(args)
 
             # each published message should be on the broker

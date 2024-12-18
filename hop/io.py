@@ -1,4 +1,4 @@
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from enum import Enum
@@ -6,12 +6,15 @@ import json
 import logging
 import random
 import string
-from typing import List, Tuple, Union
-from uuid import uuid4
+from typing import List, Optional, Tuple, Union
+from urllib.parse import urlparse
+import uuid
 import warnings
 
+import bson
 import confluent_kafka
 import pluggy
+import requests
 
 from adc import consumer, errors, kafka, producer
 
@@ -19,6 +22,7 @@ from .configure import get_config_path
 from .auth import Auth, AmbiguousCredentialError
 from .auth import load_auth
 from .auth import select_matching_auth
+from . import http_scram
 from . import models
 from . import plugins
 
@@ -288,6 +292,91 @@ class Metadata:
         )
 
 
+def _get_offload_server(broker_addresses: List[str], auth: Optional[Auth]):
+    """Find out the large message offload server, if any, associated with a broker or set of
+    brokers.
+
+    Args:
+        broker_addresses: The list of bootstrap Kafka broker URLs.
+        auth: The credential, if any to use for authentication with the broker(s)
+
+    Returns: The URL of the offload server, or None if the broker does not report one
+    """
+
+    logger.debug(f"Looking up message offload endpoint for {broker_addresses}")
+    username = auth.username if auth is not None else None
+    # This always uses a random group ID because we always want to perform
+    # a read regardless of what other clients are doing.
+    group_id = _generate_group_id(username, 10)
+    config = {
+        "auth": auth,
+        "broker_urls": broker_addresses,
+        "error_callback": errors.log_client_errors,
+        "group_id": group_id,
+        # There should be only one message, and we want to read it, not
+        # wait for a new one, so we always seek to the earliest offset.
+        "start_at": StartPosition.EARLIEST,
+        "read_forever": False,
+    }
+    mconsumer = consumer.Consumer(consumer.ConsumerConfig(**config))
+    raw_metadata = None
+    # For now, the large message offload address is the only thing stored in the metadata.
+    # In future, we might have other things, and this function should evolve to be a general
+    # metadata utility.
+    lmo_endpoint = None  # Assume not available until proven otherwise
+    try:
+        mconsumer.subscribe("sys.metadata")
+    except ValueError:
+        logger.debug(f"Failed to subscribe to topic sys.metadata on {broker_addresses}")
+        mconsumer.close()
+    else:
+        try:
+            for metamsg in mconsumer.stream(batch_size=1):
+                raw_metadata = metamsg.value()
+                break
+        finally:
+            mconsumer.close()
+    if raw_metadata is not None:
+        try:
+            metadata = json.loads(raw_metadata.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            pass
+        else:
+            if isinstance(metadata, Mapping) and "LargeMessageUploadEndpoint" in metadata:
+                if isinstance(metadata["LargeMessageUploadEndpoint"], str):
+                    lmo_endpoint = metadata["LargeMessageUploadEndpoint"]
+    else:
+        logger.debug(f"Got no data from sys.metadata on {broker_addresses}")
+    if lmo_endpoint and urlparse(lmo_endpoint).scheme == "http":
+        warnings.warn("Large message offload service is bare HTTP; man-in-the-middle attacks "
+                      "could exploit credentials used with it.")
+    return lmo_endpoint
+
+
+def _http_error_to_kafka(status: int, msg: str = ""):
+    err_code = confluent_kafka.KafkaError.UNKNOWN
+    if status == 400:
+        err_code = confluent_kafka.KafkaError.INVALID_REQUEST
+    elif status == 401:
+        err_code = confluent_kafka.KafkaError.SASL_AUTHENTICATION_FAILED
+    elif status == 403:
+        err_code = confluent_kafka.KafkaError.TOPIC_AUTHORIZATION_FAILED
+    elif status == 404:
+        err_code = confluent_kafka.KafkaError.RESOURCE_NOT_FOUND
+    elif status == 413:
+        err_code = confluent_kafka.KafkaError.MSG_SIZE_TOO_LARGE
+    elif status >= 400 and status < 500:
+        err_code = confluent_kafka.KafkaError.INVALID_REQUEST
+    elif status >= 502 and status <= 504:
+        err_code = confluent_kafka.KafkaError.NETWORK_EXCEPTION
+    elif status == 505:
+        err_code = confluent_kafka.KafkaError.UNSUPPORTED_VERSION
+    fatal = False
+    retriable = err_code == confluent_kafka.KafkaError.NETWORK_EXCEPTION
+    txn_requires_abort = False
+    return confluent_kafka.KafkaError(err_code, msg, fatal, retriable, txn_requires_abort)
+
+
 class Consumer:
     """
     An event stream opened for reading one or more topics.
@@ -317,14 +406,17 @@ class Consumer:
         :meta private:
         """
         logger.info(f"connecting to kafka://{','.join(broker_addresses)}")
-        self._consumer = consumer.Consumer(consumer.ConsumerConfig(
+        self._conf = consumer.ConsumerConfig(
             broker_urls=broker_addresses,
             group_id=group_id,
             **kwargs,
-        ))
+        )
+        self._consumer = consumer.Consumer(self._conf)
         logger.info(f"subscribing to topics: {topics}")
         self._consumer.subscribe(topics)
         self.ignoretest = ignoretest
+        self.auth = kwargs["auth"] if "auth" in kwargs else None
+        self.broker_addresses = broker_addresses
 
     def read(self, metadata=False, autocommit=True, **kwargs):
         """Read messages from a stream.
@@ -350,8 +442,7 @@ class Consumer:
             yield self._unpack(message, metadata=metadata)
         logger.info("finished processing messages")
 
-    @staticmethod
-    def _unpack(message, metadata=False):
+    def _unpack(self, message, metadata=False):
         """Deserialize and unpack messages.
 
         Args:
@@ -359,6 +450,8 @@ class Consumer:
             metadata: Whether to receive message metadata alongside messages.
         """
         payload = Deserializer.deserialize(message)
+        if isinstance(payload, models.ExternalMessage):
+            return self._fetch_external(payload.url, metadata, message)
         if metadata:
             return (payload, Metadata.from_message(message))
         else:
@@ -394,6 +487,129 @@ class Consumer:
             else:
                 yield payload
         logger.info("finished processing messages")
+
+    class ExternalMessage:
+        def __init__(self, data: bytes, headers: List[Tuple[str, bytes]], topic, partition, offset,
+                     timestamp: int, key, error: Optional[confluent_kafka.KafkaError] = None):
+            self._data = data
+            self._headers = [tuple(header) for header in headers]
+            self._topic = topic
+            self._partition = partition
+            self._offset = offset
+            self._timestamp = timestamp
+            self._key = key
+            self._error = error
+
+        @classmethod
+        def make_error(cls, error):
+            return cls(b"", [], "", 0, 0, 0, "", error)
+
+        def value(self):
+            return self._data
+
+        def headers(self):
+            return self._headers
+
+        def topic(self):
+            return self._topic
+
+        def partition(self):
+            return self._partition
+
+        def offset(self):
+            return self._offset
+
+        def timestamp(self):
+            # We don't actually know the timestamp type. Does anyone care?
+            return (confluent_kafka.TIMESTAMP_CREATE_TIME, self._timestamp)
+
+        def key(self):
+            return self._key
+
+        def error(self):
+            return self._error
+
+    def _fetch_external(self, url: str, metadata: bool, parent_msg):
+        logger.debug(f"Attempting to fetch external message payload from {url}")
+        auth = None
+        # We don't want to use our credential with just any server; while the server cannot
+        # steal it, it does get the opportunity to act with our authority, which a malicious
+        # server could abuse. Therefore, we authenticate only if the server is the one specifically
+        # associated with the broker (according to the broker, which we trust).
+        if self.auth is not None:
+            try:
+                # check if we have this information cached
+                trusted_offload_url = getattr(self, "trusted_offload_url")
+            except AttributeError:
+                # if not, load metadata from the broker
+                self.trusted_offload_url = urlparse(_get_offload_server(self.broker_addresses,
+                                                                        self.auth))
+                trusted_offload_url = self.trusted_offload_url
+            parsed = urlparse(url)
+            if trusted_offload_url is not None and \
+                    parsed.scheme == trusted_offload_url.scheme and \
+                    parsed.netloc == trusted_offload_url.netloc:
+                auth = http_scram.SCRAMAuth(self.auth, shortcut=True)
+                logger.debug(f" Will send auth info in HTTP request")
+        resp = requests.get(url, auth=auth)
+        if not resp.ok:
+            err = _http_error_to_kafka(resp.status_code, f"Failed to fetch message data from {url}:"
+                                       f" HTTP Error {resp.status_code}")
+            if self._conf.error_callback is not None:
+                self._conf.error_callback(err)
+            return self.ExternalMessage.make_error(err)
+        try:
+            decoded = bson.loads(resp.content)
+        except Exception:
+            err = confluent_kafka.KafkaError(confluent_kafka.KafkaError._VALUE_DESERIALIZATION,
+                                             f"Message data from {url} is not valid BSON",
+                                             False, False, False)
+            if self._conf.error_callback is not None:
+                self._conf.error_callback(err)
+            return self.ExternalMessage.make_error(err)
+        err_msg = self._check_bson_message_structure(decoded, url)
+        if err_msg is not None:
+            err = confluent_kafka.KafkaError(confluent_kafka.KafkaError._VALUE_DESERIALIZATION,
+                                             err_msg, False, False, False)
+            if self._conf.error_callback is not None:
+                self._conf.error_callback(err)
+            return self.ExternalMessage.make_error(err)
+        message = self.ExternalMessage(data=decoded["message"],
+                                       headers=decoded["metadata"]["headers"],
+                                       topic=parent_msg.topic(),
+                                       partition=parent_msg.partition(),
+                                       offset=parent_msg.offset(),
+                                       timestamp=decoded["metadata"]["timestamp"],
+                                       # TODO: we do not currently keep the key in the archive
+                                       key=None,
+                                       )
+        payload = Deserializer.deserialize(message)
+        if metadata:
+            return (payload, Metadata.from_message(message))
+        else:
+            return payload
+
+    @staticmethod
+    def _check_bson_message_structure(decoded, url):
+        if not isinstance(decoded, Mapping):
+            return f"Message data from {url} is not a mapping"
+        if "message" not in decoded or not isinstance(decoded["message"], bytes):
+            return f"Original message data not present in message data from {url}"
+        if "metadata" not in decoded or not isinstance(decoded["metadata"], Mapping):
+            return f"Metadata not present or malformed in message data from {url}"
+        if "headers" not in decoded["metadata"] or \
+                not isinstance(decoded["metadata"]["headers"], Collection):
+            return "Original message headers not present or malformed in message data" \
+                   f" from {url}"
+        for header in decoded["metadata"]["headers"]:
+            if not isinstance(header, Collection) or len(header) != 2 \
+                    or not isinstance(header[0], str) or not isinstance(header[1], bytes):
+                return f"Malformed original message header in message data from {url}"
+        if "timestamp" not in decoded["metadata"] \
+                or not isinstance(decoded["metadata"]["timestamp"], int):
+            return f"Timestamp not present or malformed in message data from {url}"
+
+        return None
 
     def mark_done(self, metadata, asynchronous: bool = True):
         """Mark a message as fully-processed.
@@ -544,7 +760,7 @@ class Producer:
         elif isinstance(headers, Mapping):
             headers = list(headers.items())
         # Assign a UUID to the message
-        headers.append(("_id", uuid4().bytes))
+        headers.append(("_id", uuid.uuid4().bytes))
         if auth is not None:
             headers.append(("_sender", auth.username.encode("utf-8")))
         if test:

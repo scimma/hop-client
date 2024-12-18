@@ -209,3 +209,21 @@ def test_avro_multi_record_deserialization():
     # allowing multiple records should load as such
     loaded = models.AvroBlob.load(raw, single_record=False)
     assert loaded.content == original
+
+
+def test_externalmessage():
+    inputs = [
+        '{"url": "http://example.com"}',
+        b'{"url": "http://example.com"}',
+    ]
+    for input in inputs:
+        for read in [True, False]:
+            if read:
+                with patch("builtins.open", mock_open(read_data=input)):
+                    m = models.ExternalMessage.load(open("notarealfile"))
+            else:
+                m = models.ExternalMessage.load(input)
+            assert m.url == "http://example.com"
+
+    with pytest.raises(json.JSONDecodeError):
+        models.ExternalMessage.load("\tnot valid JSON\t")

@@ -629,3 +629,34 @@ def temp_config(tmpdir, data, perms=stat.S_IRUSR | stat.S_IWUSR):
     finally:
         # remove file
         os.remove(config_path)
+
+
+class PhonyConnection:
+    """A mock which pretends to be a urllib3.connection.HTTPConnection well enough to fool requests
+    in simple situations, allowing testing HTTP connections without actually performing any network
+    requests.
+    """
+
+    def __init__(self, responses):
+        self.responses = responses
+        self.counter = 0
+        self.requests = []
+
+    def urlopen(self, **kwargs):
+        self.requests.append(kwargs)
+        if self.counter >= len(self.responses):
+            raise RuntimeError("urlopen called too many times on PhonyConnection")
+        response = self.responses[self.counter]
+        self.counter += 1
+        response.url = kwargs["url"]
+        return response
+
+
+def mock_pool_manager(conn: PhonyConnection):
+    """Produce a mock to stand in for urllib3.poolmanager.PoolManager which returns a pre-defined
+    connection object.
+    """
+    pm = MagicMock()
+    pm.connection_from_url = MagicMock(return_value=conn)
+    pm.connection_from_host = MagicMock(return_value=conn)
+    return MagicMock(return_value=pm)

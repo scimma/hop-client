@@ -13,7 +13,9 @@ install_requires = [
     "fastavro >= 1.4.0",
     "pluggy >= 0.11",
     "toml >= 0.9.4",
-    "xmltodict >= 0.9.0"
+    "xmltodict >= 0.9.0",
+    "scramp",
+    "bson",
 ]
 extras_require = {
     'dev': [
