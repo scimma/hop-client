@@ -1,11 +1,13 @@
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
+from datetime import timedelta
 from functools import lru_cache
 from enum import Enum
 import json
 import logging
 import random
 import string
+import time
 from typing import List, Optional, Tuple, Union
 from urllib.parse import urlparse
 import uuid
@@ -16,7 +18,9 @@ import confluent_kafka
 import pluggy
 import requests
 
-from adc import consumer, errors, kafka, producer
+from adc import consumer, errors, kafka
+from adc import producer as adc_producer
+from confluent_kafka.admin import AdminClient, ConfigResource, ResourceType
 
 from .configure import get_config_path
 from .auth import Auth, AmbiguousCredentialError
@@ -114,11 +118,11 @@ class Stream(object):
             credential = None
 
         if mode == "w":
-            if topics is None or len(topics) != 1:
-                topics = [None]
+            if topics is None:
+                topics = []
             if group_id is not None:
                 warnings.warn("group ID has no effect when opening a stream in write mode")
-            return Producer(broker_addresses, topics[0], auth=credential, **kwargs)
+            return Producer(broker_addresses, topics, auth=credential, **kwargs)
         elif mode == "r":
             if topics is None or len(topics) == 0:
                 raise ValueError("no topic(s) specified in kafka URL")
@@ -311,7 +315,7 @@ def _get_offload_server(broker_addresses: List[str], auth: Optional[Auth]):
     config = {
         "auth": auth,
         "broker_urls": broker_addresses,
-        "error_callback": errors.log_client_errors,
+        "error_callback": errors.raise_delivery_errors,
         "group_id": group_id,
         # There should be only one message, and we want to read it, not
         # wait for a new one, so we always seek to the earliest offset.
@@ -331,9 +335,8 @@ def _get_offload_server(broker_addresses: List[str], auth: Optional[Auth]):
         mconsumer.close()
     else:
         try:
-            for metamsg in mconsumer.stream(batch_size=1):
+            for metamsg in mconsumer.stream():
                 raw_metadata = metamsg.value()
-                break
         finally:
             mconsumer.close()
     if raw_metadata is not None:
@@ -405,6 +408,8 @@ class Consumer:
 
         :meta private:
         """
+        if isinstance(broker_addresses, str):
+            broker_addresses = [broker_addresses]
         logger.info(f"connecting to kafka://{','.join(broker_addresses)}")
         self._conf = consumer.ConsumerConfig(
             broker_urls=broker_addresses,
@@ -550,7 +555,7 @@ class Consumer:
                     parsed.scheme == trusted_offload_url.scheme and \
                     parsed.netloc == trusted_offload_url.netloc:
                 auth = http_scram.SCRAMAuth(self.auth, shortcut=True)
-                logger.debug(f" Will send auth info in HTTP request")
+                logger.debug(" Will send auth info in HTTP request")
         resp = requests.get(url, auth=auth)
         if not resp.ok:
             err = _http_error_to_kafka(resp.status_code, f"Failed to fetch message data from {url}:"
@@ -659,12 +664,24 @@ class Consumer:
 
 
 class Producer:
+    @dataclass
+    class TopicRecord:
+        last_check_time: float
+        max_message_size: int
+        producer: adc_producer.Producer
+
+    @dataclass
+    class ProducerRecord:
+        producer: adc_producer.Producer
+        n_users: int
+
     """
     An event stream opened for writing to a topic.
     Instances of this class should be obtained from :meth:`Stream.open`.
     """
 
-    def __init__(self, broker_addresses, topic, auth, **kwargs):
+    def __init__(self, broker_addresses, topics, auth,
+                 topic_check_period: timedelta = timedelta(seconds=1800), **kwargs):
         """
         Args:
             broker_addresses: The list of bootstrap Kafka broker URLs.
@@ -677,18 +694,136 @@ class Producer:
             produce_timeout: A datetime.timedelta object specifying the maximum
                 time to wait for a message to be sent to Kafka. If zero, sending
                 will never time out.
+            topic_check_period: Period to wait before checking whether the settings
+                of a target topic have changed.
 
         :meta private:
         """
-        logger.info(f"connecting to kafka://{','.join(broker_addresses)}")
-        self._producer = producer.Producer(producer.ProducerConfig(
-            broker_urls=broker_addresses,
-            topic=topic,
-            auth=auth,
-            **kwargs,
-        ))
+        self.topics = {}
+        self.producers = {}
+        self.broker_addresses = broker_addresses
         self.auth = auth
-        logger.info(f"publishing to topic: {topic}")
+        self.topic_check_period = topic_check_period
+
+        self.producer_args = kwargs
+        self.producer_args["auth"] = self.auth
+        if isinstance(broker_addresses, str):
+            broker_addresses = [broker_addresses]
+        self.producer_args["broker_urls"] = self.broker_addresses
+
+        if len(topics) == 1:
+            self.default_topic = topics[0]
+        else:
+            self.default_topic = None
+
+        if len(topics) != 0:
+            logger.info(f"connecting to kafka://{','.join(broker_addresses)}")
+            settings = self._check_topic_settings(topics)
+            for topic, topic_settings in settings.items():
+                self._set_producer_for_topic(topic, topic_settings)
+            logger.info(f"publishing to topic(s): {topics}")
+
+    def _check_topic_settings(self, topics):
+        aconfig = adc_producer.ProducerConfig(broker_urls=self.broker_addresses,
+                                              auth=self.auth,
+                                              topic=None,
+                                              )
+        aclient = AdminClient(aconfig._to_confluent_kafka())
+        logger.debug(f"Fetching settings for topics: {topics}")
+        query = [ConfigResource(restype=ResourceType.TOPIC, name=topic) for topic in topics]
+        futures = aclient.describe_configs(query)
+        return {resource.name: future.result() for resource, future in futures.items()}
+
+    def _release_producer_for_topic(self, topic):
+        t_record = self.topics[topic]
+        p_record = self.producers[t_record.max_message_size]
+        p_record.n_users -= 1
+        if p_record.n_users == 0:
+            p_record.producer.flush()
+            p_record.producer.close()
+            del self.producers[t_record.max_message_size]
+
+    def _set_producer_for_topic(self, topic, settings):
+        max_size = int(settings["max.message.bytes"].value)
+        logger.debug(f"Maximum message size for topic {topic} is {max_size} bytes")
+        # check whether we already have some producer configured for this size,
+        # and if so update its number of uses, otherwise construct a new producer with one user
+        if max_size in self.producers:
+            logger.debug(" Have an existing producer for this message size limit")
+            p_record = self.producers[max_size]
+            p_record.n_users += 1
+        else:
+            logger.debug(" Creating new producer for this message size limit")
+            producer = adc_producer.Producer(adc_producer.ProducerConfig(
+                message_max_bytes=max_size,
+                topic=None,  # this will be explicitly managed when calling write()
+                **self.producer_args
+            ))
+            p_record = Producer.ProducerRecord(producer=producer, n_users=1)
+            self.producers[max_size] = p_record
+        t_record = Producer.TopicRecord(last_check_time=time.time(),
+                                        max_message_size=max_size, producer=p_record.producer)
+        self.topics[topic] = t_record
+        return t_record
+
+    def _record_for_topic(self, topic):
+        if topic in self.topics:
+            now = time.time()
+            if self.topics[topic].last_check_time + self.topic_check_period.total_seconds() < now:
+                settings = self._check_topic_settings([topic])
+                if settings[topic]["max.message.bytes"].value \
+                        != self.topics[topic].max_message_size:
+                    logger.debug(f"Maximum message size for topic {topic} has changed from "
+                                 f"{self.topics[topic].max_message_size} to "
+                                 f"{settings[topic]['max.message.bytes'].value} bytes")
+                    self._release_producer_for_topic(topic)
+                    return self._set_producer_for_topic(topic, settings[topic])
+            return self.topics[topic]
+        else:
+            settings = self._check_topic_settings([topic])
+            return self._set_producer_for_topic(topic, settings[topic])
+
+    @staticmethod
+    def _estimate_message_size(packed_message, headers, key=None):
+        """Estimate how many bytes the message will occupy including its
+        headers for purpose of comparison to the target topic's configured
+        maximum message size.
+
+        Args:
+            packed_message: The message to write, which must already be correctly encoded by
+                            :meth:`Producer.pack <hop.io.Producer.pack>`
+            headers: Any headers to attach to the message, either as a dictionary
+                mapping strings to strings, or as a list of 2-tuples of strings.
+            key: The optional message key
+
+        Return: The estimated message size, not accounting for any reduction due
+                to compression.
+        """
+        # This is the format/protocol overhead, measured for Kafka 2.8 and 3.3.1
+        overhead = 70
+        # This is the overhead per header entry
+        header_overhead = 2
+        size = overhead + len(packed_message)
+
+        def ensure_bytes_like(thing):
+            """Force an object which may be string-like to be bytes-like"""
+            try:  # check whether thing is bytes-like
+                memoryview(thing)
+                return thing  # keep as-is
+            except TypeError:
+                return thing.encode("utf-8")
+
+        if key is not None:
+            size += len(ensure_bytes_like(key))
+        if isinstance(headers, Mapping):
+            for header in headers.items():
+                size += len(ensure_bytes_like(header[0])) + \
+                    len(ensure_bytes_like(header[1])) + header_overhead
+        else:
+            for header in headers:
+                size += len(ensure_bytes_like(header[0])) + \
+                    len(ensure_bytes_like(header[1])) + header_overhead
+        return size
 
     def write(self, message, headers=None,
               delivery_callback=errors.raise_delivery_errors, test=False, topic=None):
@@ -708,9 +843,8 @@ class Producer:
             topic: The topic to which the message should be sent. This need not be specified if
                    the stream was opened with a URL containing exactly one topic name.
         """
-        message, headers = self._pack(message, headers, test=test)
-        self._producer.write(message, headers=headers, delivery_callback=delivery_callback,
-                             topic=topic)
+        packed_message, full_headers = self._pack(message, headers, test=test)
+        self.write_raw(packed_message, full_headers, delivery_callback, topic)
 
     def write_raw(self, packed_message, headers=None,
                   delivery_callback=errors.raise_delivery_errors, topic=None):
@@ -729,9 +863,99 @@ class Producer:
             topic: The topic to which the message should be sent. This need not be specified if
                    the stream was opened with a URL containing exactly one topic name.
         """
+        if topic is None and self.default_topic is not None:
+            topic = self.default_topic
+        if topic is None:
+            raise Exception("No topic specified for write: "
+                            "Either configure a topic when opening the Stream, "
+                            "or specify the topic argument to write()")
 
-        self._producer.write(packed_message, headers=headers, delivery_callback=delivery_callback,
-                             topic=topic)
+        estimated_size = self._estimate_message_size(packed_message, headers)
+        t_record = self._record_for_topic(topic)
+        if estimated_size > t_record.max_message_size:
+            if not hasattr(self, "offload_url"):
+                self.offload_url = _get_offload_server(self.broker_addresses, self.auth)
+            if self.offload_url is not None:
+                logger.debug(f"Message is too large (est. {estimated_size} bytes) to fit on the "
+                             f"topic; offloading to {self.offload_url}")
+                packed_message, headers, err = self._offload_message(packed_message, headers, topic)
+                if err is not None:
+                    if delivery_callback is not None:
+                        delivery_callback(err, Consumer.ExternalMessage.make_error(err))
+                    return
+                # p_size = self._estimate_message_size(packed_message, headers)
+                # Possible edge case: if p_size is _still_ greater than the message size limit,
+                # we will have a problem sending the placeholder message
+            else:
+                err = confluent_kafka.KafkaError(confluent_kafka.KafkaError.MSG_SIZE_TOO_LARGE,
+                                                 f"Unable to send message which is {estimated_size}"
+                                                 " bytes with headers to topic with message size"
+                                                 f" limit of {t_record.max_message_size}",
+                                                 False, False, False)
+                if delivery_callback is not None:
+                    delivery_callback(err, Consumer.ExternalMessage.make_error(err))
+                return
+        t_record.producer.write(packed_message, headers=headers,
+                                delivery_callback=delivery_callback, topic=topic)
+
+    def _offload_message(self, message, headers, topic):
+        """Send a large mesage to an offload API server via HTTP, and generate a replacement
+        reference message to be sent to kafka in its place.
+
+        Args:
+            message: The message to be sent which must already be correctly encoded by
+                     :meth:`Producer.pack <hop.io.Producer.pack>`
+            headers: Any headers to attach to the message as a list of (str, bytes) 2-tuples.
+        Return: A tuple consiting of the replacement message payload, replacement message headers,
+                and an error object. In the case of success the first two tuple enries are valid
+                and suitable for passing to the Kafka producer's write, and the third tuple entry
+                is None. In the case of failure, the first two entries are None, and the error is a
+                confluent_kafka.KafkaError object.
+        """
+        offload_suffix = "+oversized"
+        write_url = f"{self.offload_url}/topic/{topic}{offload_suffix}"
+        msg_id = None
+        test = False
+        for header in headers:
+            if header[0] == "_test" and header[1] == b"true":
+                test = True
+            if header[0] == "_id":
+                try:
+                    msg_id = str(uuid.UUID(bytes=header[1]))
+                except ValueError:
+                    pass
+        if msg_id is None:
+            err = confluent_kafka.KafkaError(confluent_kafka.KafkaError._BAD_MSG,
+                                             "Message has no ID ('_id' header). "
+                                             "Was it properly processed by Producer.pack?",
+                                             False, False, False)
+            return (None, None, err)
+        data = bson.dumps({"message": message, "headers": headers})
+        try:
+            # We assume that no server will allow un-authenticated writes, so we use shortcut=True
+            # to start attempting a SCRAM handshake as quickly as possible.
+            resp = requests.post(write_url, data=data,
+                                 auth=http_scram.SCRAMAuth(self.auth, shortcut=True))
+        except RuntimeError as ex:
+            err = confluent_kafka.KafkaError(confluent_kafka.KafkaError.SASL_AUTHENTICATION_FAILED,
+                                             "Failed to send large message to offload server at "
+                                             f"{write_url}: {str(ex)}", False, False, False)
+            return (None, None, err)
+        if not resp.ok:
+            err = _http_error_to_kafka(resp.status_code,
+                                       "Failed to send large message to offload server at "
+                                       f"{write_url}: POST request failed with status "
+                                       f"{resp.status_code}: {resp.content}")
+            return (None, None, err)
+        msg_url = f"{self.offload_url}/msg/{msg_id}"
+        placeholder = models.ExternalMessage(url=msg_url)
+        # It is important that the placeholder be assigned its own ID, so it does not collide in the
+        # archive with the 'real' message to which it refers.
+        # The only header we copy to the placeholder is the test header, as it makes sense to keep
+        # that synchronized, enabling subscribers to skip fetching large test messages, but
+        # otherwise subscribers will obtain all headers from fetching the original message, so they
+        # do not need to be on the placeholder.
+        return self.pack(placeholder, test=test, auth=self.auth) + (None,)
 
     @staticmethod
     def pack(message, headers=None, test=False, auth=None):
@@ -796,21 +1020,36 @@ class Producer:
     def flush(self):
         """Request that any messages locally queued for sending be sent immediately.
         """
-        self._producer.flush()
+        still_queued = 0
+        for p_record in self.producers.values():
+            still_queued += p_record.producer.flush()
+        return still_queued
 
     def close(self):
         """Wait for enqueued messages to be written and shut down.
 
         """
         logger.info("closing connection")
-        return self._producer.close()
+        still_queued = 0
+        for p_record in self.producers.values():
+            still_queued += p_record.producer.close()
+        self.producers = {}
+        self.topics = {}
+        return still_queued
 
     def __enter__(self):
         return self
 
-    def __exit__(self, *exc):
-        self.close()
-        return self._producer.__exit__(*exc)
+    def __exit__(self, type, value, traceback):
+        if type == KeyboardInterrupt:
+            print("Aborted (CTRL-C).")
+            return True
+        if type is None and value is None and traceback is None:
+            unsent = self.close()
+            if unsent > 0:
+                raise Exception(f"{unsent} messages remain unsent, some data may have been lost!")
+            return False
+        return False
 
 
 def list_topics(url: str, auth: Union[bool, Auth] = True, timeout=-1.0):

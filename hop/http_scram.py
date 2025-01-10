@@ -92,11 +92,9 @@ class SCRAMAuth(requests.auth.AuthBase):
         # Next, make sure that both of the fields we need were actually sent in the dictionary
         if auth_data.get("sid", None) is None:
             self._thread_local.num_calls = 0
-            return r
             raise RuntimeError("Missing sid in SCRAM server first: " + m.group(1))
         if auth_data.get("data", None) is None:
             self._thread_local.num_calls = 0
-            return r
             raise RuntimeError("Missing data in SCRAM server first: " + m.group(1))
 
         self._thread_local.sid = auth_data.get("sid")

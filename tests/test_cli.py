@@ -86,7 +86,7 @@ def test_cli_publish(script_runner, message_format, message_parameters_dict):
             assert "piping/redirection only allowed for BLOB and JSON formats" in ret.stderr
 
 
-def test_cli_publish_blob_msgs(mock_broker, mock_producer, mock_consumer):
+def test_cli_publish_blob_msgs(mock_broker, mock_producer, mock_consumer, mock_admin_client):
     from hop import publish, io, models
     args = MagicMock()
     args.url = "kafka://hostname:port/topic"
@@ -103,8 +103,9 @@ def test_cli_publish_blob_msgs(mock_broker, mock_producer, mock_consumer):
     msgs = [b"a string", b"\x10\x00\x20\x0B"]
     for msg in msgs:
         with patch("sys.stdin", BytesIO(msg)) as mock_stdin, \
-                patch("hop.io.producer.Producer", return_value=mock_adc_producer), \
+                patch("hop.io.adc_producer.Producer", return_value=mock_adc_producer), \
                 patch("hop.io.consumer.Consumer", return_value=mock_adc_consumer), \
+                patch("hop.io.AdminClient", return_value=mock_admin_client(mock_broker)), \
                 patch("hop.io.uuid", fake_uuid):
             publish._main(args)
 
@@ -128,7 +129,7 @@ def test_cli_publish_blob_msgs(mock_broker, mock_producer, mock_consumer):
                 assert msg in [msg.content for msg in extracted_msgs]
 
 
-def test_cli_publish_json_blob_msgs(mock_broker, mock_producer, mock_consumer):
+def test_cli_publish_json_blob_msgs(mock_broker, mock_producer, mock_consumer, mock_admin_client):
     from hop import publish, io, models
     import json
     args = MagicMock()
@@ -147,8 +148,9 @@ def test_cli_publish_json_blob_msgs(mock_broker, mock_producer, mock_consumer):
             {"a": "dict", "with": ["multiple", "values"]}]
     for msg in msgs:
         with patch("sys.stdin", StringIO(json.dumps(msg))) as mock_stdin, \
-                patch("hop.io.producer.Producer", return_value=mock_adc_producer), \
+                patch("hop.io.adc_producer.Producer", return_value=mock_adc_producer), \
                 patch("hop.io.consumer.Consumer", return_value=mock_adc_consumer), \
+                patch("hop.io.AdminClient", return_value=mock_admin_client(mock_broker)), \
                 patch("hop.io.uuid", fake_uuid):
             publish._main(args)
 
@@ -172,7 +174,7 @@ def test_cli_publish_json_blob_msgs(mock_broker, mock_producer, mock_consumer):
                 assert msg in [msg.content for msg in extracted_msgs]
 
 
-def test_cli_publish_bad_blob(mock_broker, mock_producer):
+def test_cli_publish_bad_blob(mock_broker, mock_producer, mock_admin_client):
     # ensure that invalid JSON causes an exception to be raised
     from hop import publish, io
 
@@ -187,7 +189,8 @@ def test_cli_publish_bad_blob(mock_broker, mock_producer):
     for msg in msgs:
         # note that we do not serialize the messages as JSON
         with patch("sys.stdin", StringIO(msg)) as mock_stdin, \
-                patch("hop.io.producer.Producer", return_value=mock_adc_producer), \
+                patch("hop.io.adc_producer.Producer", return_value=mock_adc_producer), \
+                patch("hop.io.AdminClient", return_value=mock_admin_client(mock_broker)), \
                 pytest.raises(ValueError):
             publish._main(args)
 
