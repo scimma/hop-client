@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+import confluent_kafka
 from hop import models
 from hop.io import StartPosition
 
@@ -320,14 +321,40 @@ class MockBroker:
 
     """
 
-    def __init__(self):
+    def __init__(self, default_max_size=1024 * 1024):
+        self._default_max_size = default_max_size
         self.reset()
 
     def reset(self):
         self._messages = defaultdict(list)
         self._offsets = defaultdict(dict)
+        self._max_sizes = defaultdict(lambda: self._default_max_size)
 
-    def write(self, topic, msg, headers=[]):
+    def set_default_topic_max_message_size(self, size):
+        self._default_max_size = size
+        new_sizes = defaultdict(lambda: self._default_max_size)
+        for topic in self._max_sizes.keys():
+            new_sizes[topic] = self._max_sizes[topic]
+        self._max_sizes = new_sizes
+
+    def set_topic_max_message_size(self, topic, size):
+        self._max_sizes[topic] = size
+
+    def get_topic_max_message_size(self, topic):
+        return self._max_sizes[topic]
+
+    def insert_message(self, topic, msg, headers=[]):
+        self._messages[topic].append((msg, headers))
+
+    def write(self, topic, msg, headers=[], delivery_callback=None):
+        assert delivery_callback is not None
+        if len(msg) > self._max_sizes[topic]:
+            if delivery_callback is None:
+                raise RuntimeError("Write failed but no delivery callback set to handle the error")
+            err = confluent_kafka.KafkaError(confluent_kafka.KafkaError.MSG_SIZE_TOO_LARGE,
+                                             "Message too large", False, False, True)
+            delivery_callback(err, None)  # TODO: synthetic message object?
+            return
         self._messages[topic].append((msg, headers))
 
     def has_message(self, topic, message, headers=[]):
@@ -354,18 +381,23 @@ class MockBroker:
                 pass
 
 
-@pytest.fixture(scope="session")
-def mock_broker():
-    return MockBroker()
+@pytest.fixture()
+def mock_broker(**kwargs):
+    return MockBroker(**kwargs)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def mock_producer():
     def _mock_producer(mock_broker, topic):
         class ProducerBrokerWrapper:
             def __init__(self, broker, topic):
                 self.broker = broker
                 self.topic = topic
+                self._delay_sending = False
+                self._delayed = []
+
+            def delay_sending(self, delay=True):
+                self._delay_sending = delay
 
             def write(self, msg, headers=[], delivery_callback=None, topic=None):
                 if topic is None:
@@ -373,10 +405,21 @@ def mock_producer():
                         topic = self.topic
                     else:
                         raise Exception("No topic specified for write")
-                self.broker.write(topic, msg, headers)
+                if self._delay_sending:
+                    self._delayed.append((msg, headers, delivery_callback, topic))
+                    return
+                self.broker.write(topic, msg, headers, delivery_callback=delivery_callback)
+
+            def send_delayed(self):
+                for msg, headers, delivery_callback, topic in self._delayed:
+                    self.broker.write(topic, msg, headers, delivery_callback=delivery_callback)
+                self._delayed.clear()
+
+            def __len__(self):
+                return len(self._delayed)
 
             def close(self):
-                pass
+                return len(self._delayed)
 
             def __enter__(self):
                 return self
@@ -390,7 +433,19 @@ def mock_producer():
     return _mock_producer
 
 
-@pytest.fixture(scope="session")
+class MockMessage:
+    def __init__(self, value, headers=[]):
+        self._value = value
+        self._headers = headers
+
+    def value(self):
+        return self._value
+
+    def headers(self):
+        return self._headers
+
+
+@pytest.fixture()
 def mock_consumer():
     def _mock_consumer(mock_broker, topics, group_id, start_at=StartPosition.EARLIEST):
         class ConsumerBrokerWrapper:
@@ -403,23 +458,15 @@ def mock_consumer():
                 self.start_at = start_at
 
             def subscribe(self, topics):
+                if isinstance(topics, str):
+                    topics = [topics]
                 for topic in topics:
-                    assert topic in set(self.topics)
+                    if topic not in self.topics:
+                        self.topics.append(topic)
 
             def stream(self, *args, **kwargs):
-                class Message:
-                    def __init__(self, value, headers=[]):
-                        self._value = value
-                        self._headers = headers
-
-                    def value(self):
-                        return self._value
-
-                    def headers(self):
-                        return self._headers
-
                 for message in self.broker.read(self.topics, self.group_id, self.start_at, **kwargs):
-                    yield Message(message[0], message[1])
+                    yield MockMessage(message[0], message[1])
 
             def close(self):
                 pass
@@ -434,6 +481,37 @@ def mock_consumer():
         return consumer
 
     return _mock_consumer
+
+
+@pytest.fixture()
+def mock_admin_client():
+    from confluent_kafka.admin import ConfigResource, ConfigEntry, ResourceType
+
+    def _mock_admin_client(mock_broker):
+        class MockAdminClient:
+            def __init__(self, broker):
+                self.broker = broker
+                self.describe_configs_queries = 0
+
+            def describe_configs(self, queries):
+                futures = {}
+                for query in queries:
+                    if query.restype != ResourceType.TOPIC:
+                        raise ValueError("Only TOPIC queries are emulated")
+                    f = MagicMock()
+                    max_message_bytes = self.broker.get_topic_max_message_size(query.name)
+                    f.result = MagicMock(return_value={"max.message.bytes": ConfigEntry(
+                        "max.message.bytes", max_message_bytes)})
+                    futures[ConfigResource(query.restype, query.name)] = f
+                    self.describe_configs_queries += 1
+                return futures
+
+            def reset_query_counter(self):
+                self.describe_configs_queries = 0
+
+        return MockAdminClient(mock_broker)
+
+    return _mock_admin_client
 
 
 @pytest.fixture(scope="session")

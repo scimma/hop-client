@@ -1,5 +1,6 @@
 from collections import Counter
 from dataclasses import asdict, fields
+from datetime import timedelta
 import json
 import logging
 from pathlib import Path
@@ -14,6 +15,7 @@ from hop.auth import Auth, AmbiguousCredentialError
 from hop import io
 from hop.models import (AvroBlob, Blob, ExternalMessage, GCNCircular, GCNTextNotice, JSONBlob,
                         VOEvent, format_name)
+from adc.errors import KafkaException
 import confluent_kafka
 
 from conftest import (temp_environ, temp_config, message_parameters_dict_data, PhonyConnection,
@@ -359,7 +361,7 @@ class FakeRead:
         return None
 
 
-def test_Consumer_fetch_external_no_auth():
+def test_consumer_fetch_external_no_auth():
     orig_data = b"datadatadata"
     orig_id = b'|\xdc\xfa\xa0v\x94Iu\x8c\xcd\xeaJ\x7f6\xf5r'
     orig_timestamp = 172000
@@ -470,7 +472,7 @@ def test_Consumer_fetch_external_no_auth():
             == confluent_kafka.KafkaError._VALUE_DESERIALIZATION
 
 
-def test_Consumer_fetch_external_with_auth():
+def test_consumer_fetch_external_with_auth():
     orig_data = b"datadatadata"
     orig_id = b'|\xdc\xfa\xa0v\x94Iu\x8c\xcd\xeaJ\x7f6\xf5r'
     orig_timestamp = 172000
@@ -530,7 +532,7 @@ def test_Consumer_fetch_external_with_auth():
         assert "Authorization" not in conn.requests[0]["headers"]
 
 
-def test_Consumer_check_bson_message_structure():
+def test_consumer_check_bson_message_structure():
     url = "https://example.com/some_message"
     valid = {"message": b"datadatadata",
              "metadata": {"headers": [("_id", b'|\xdc\xfa\xa0v\x94Iu\x8c\xcd\xeaJ\x7f6\xf5r')],
@@ -630,7 +632,7 @@ def test_stream_stop(circular_msg):
         mock_instance.stop.assert_called_once()
 
 
-def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
+def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer, mock_admin_client):
     topic = "gcn"
     expected_msg = make_message_standard(circular_msg)
     fixed_uuid = uuid4()
@@ -648,7 +650,8 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
                          ('_test', b"true"), ("_format", b"circular")]
 
     mb = mock_broker
-    with patch("hop.io.producer.Producer", side_effect=lambda c: mock_producer(mb, c.topic)), \
+    with patch("hop.io.adc_producer.Producer", side_effect=lambda c: mock_producer(mb, c.topic)), \
+            patch("hop.io.AdminClient", return_value=mock_admin_client(mb)), \
             patch("hop.io.uuid.uuid4", MagicMock(return_value=fixed_uuid)):
 
         broker_url = f"kafka://localhost:port/{topic}"
@@ -710,13 +713,15 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer):
             assert mock_broker.has_message("topic2", expected_msg.value(), canonical_headers)
 
 
-def test_stream_write_raw(circular_msg, circular_text, mock_broker, mock_producer):
+def test_stream_write_raw(circular_msg, circular_text, mock_broker, mock_producer,
+                          mock_admin_client):
     topic = "gcn"
     encoded_msg = io.Producer.pack(circular_msg)
     headers = {"some header": "some value"}
     canonical_headers = list(headers.items())
     mb = mock_broker
-    with patch("hop.io.producer.Producer", side_effect=lambda c: mock_producer(mb, c.topic)):
+    with patch("hop.io.adc_producer.Producer", side_effect=lambda c: mock_producer(mb, c.topic)), \
+            patch("hop.io.AdminClient", return_value=mock_admin_client(mock_broker)):
         stream = io.Stream(auth=False)
 
         broker_url = f"kafka://localhost:9092/{topic}"
@@ -742,6 +747,241 @@ def test_stream_write_raw(circular_msg, circular_text, mock_broker, mock_produce
             assert mock_broker.has_message("topic2", encoded_msg, canonical_headers)
 
 
+def test_stream_write_message_too_large_no_offload(mock_broker, mock_producer, mock_admin_client):
+    mb = mock_broker
+    topic = "topic"
+    broker_address = "localhost:9092"
+    broker_url = f"kafka://{broker_address}/{topic}"
+    mb.set_topic_max_message_size(topic, 32)
+    encoded_msg = io.Producer.pack(Blob(content=b'm' * 64))
+    mock_consumer = MagicMock(subscribe=MagicMock(side_effect=ValueError("topic does not exist")))
+
+    # With no offload endpoint supplied by the broker, attempting to send an over-large message
+    # should fail with the usual error
+    def producer_factory(c):
+        return mock_producer(mb, c.topic)
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_consumer)), \
+            patch("hop.io.adc_producer.Producer", side_effect=producer_factory), \
+            patch("hop.io.AdminClient", return_value=mock_admin_client(mb)):
+        stream = io.Stream(auth=Auth("user", "pencil", method="SCRAM-SHA-1"))
+        with stream.open(broker_url, "w") as s:
+            with pytest.raises(KafkaException):
+                s.write_raw(encoded_msg, [])
+            assert not mock_broker.has_message(topic, encoded_msg, [])
+            assert s.offload_url is None
+
+            # with no delivery callback, errors currently vanish into the void
+            s.write_raw(encoded_msg, [], delivery_callback=None)
+            assert not mock_broker.has_message(topic, encoded_msg, [])
+
+
+def test_write_with_large_mesage_offload(mock_broker, mock_producer, mock_admin_client):
+    mb = mock_broker
+    topic = "topic"
+    broker_address = "localhost:9092"
+    broker_url = f"kafka://{broker_address}/{topic}"
+    offload_url = "http://localhost:8000"
+    mb.set_topic_max_message_size(topic, 32)
+    encoded_msg = io.Producer.pack(Blob(content=b'm' * 64))
+    mock_get_offload = MagicMock(return_value=offload_url)
+    mock_offload_args = []
+
+    def make_mock_offload(placeholder_message, placeholder_headers=[], err=None):
+        def mock_offload(obj, message, headers, topic):
+            mock_offload_args.append((message, headers, topic))
+            return (placeholder_message, placeholder_headers, err)
+        return mock_offload
+
+    def producer_factory(c):
+        return mock_producer(mb, c.topic)
+
+    mo = make_mock_offload(b'{"url":"dummy"}')
+    with patch("hop.io._get_offload_server", mock_get_offload), \
+            patch("hop.io.adc_producer.Producer", side_effect=producer_factory), \
+            patch("hop.io.AdminClient", return_value=mock_admin_client(mb)), \
+            patch("hop.io.Producer._offload_message", mo):
+        stream = io.Stream(auth=Auth("user", "pencil", method="SCRAM-SHA-1"))
+        with stream.open(broker_url, "w") as s:
+            s.write_raw(*encoded_msg)
+            mock_get_offload.assert_called_once()
+            assert len(mock_offload_args) == 1, "_offload_message should be called once"
+            assert mock_offload_args[0][0] == encoded_msg[0]
+            assert mock_offload_args[0][1] == encoded_msg[1]
+            assert mock_offload_args[0][2] == topic
+            assert not mock_broker.has_message(topic, encoded_msg, [])
+            assert hasattr(s, "offload_url")
+            assert s.offload_url == offload_url
+
+            # a second write should not cause the offload endpoint to be looked up again
+            s.write_raw(*encoded_msg)
+            mock_get_offload.assert_called_once()
+
+    test_error = confluent_kafka.KafkaError(confluent_kafka.KafkaError._BAD_MSG, "Test Error",
+                                            False, False, False)
+    mo = make_mock_offload(None, None, test_error)
+    with patch("hop.io._get_offload_server", mock_get_offload), \
+            patch("hop.io.adc_producer.Producer", side_effect=producer_factory), \
+            patch("hop.io.AdminClient", return_value=mock_admin_client(mb)), \
+            patch("hop.io.Producer._offload_message", mo):
+        stream = io.Stream(auth=Auth("user", "pencil", method="SCRAM-SHA-1"))
+        with stream.open(broker_url, "w") as s:
+            with pytest.raises(KafkaException) as ex:
+                s.write_raw(*encoded_msg)
+            assert ex.value.error == test_error
+            assert not mock_broker.has_message(topic, encoded_msg, [])
+
+            # with no delivery callback, errors currently vanish into the void
+            s.write_raw(*encoded_msg, delivery_callback=None)
+            assert not mock_broker.has_message(topic, encoded_msg, [])
+
+
+def test_offload_message():
+    fixed_uuid = uuid4()
+
+    test_nonce = "fyko+d2lbbFgONRv9qkxdawL"
+    test_sid = "AAAABBBBCCCCDDDD"
+    test_server_first_data = "cj1meWtvK2QybGJiRmdPTlJ2OXFreGRhd0wzcmZjTkhZSlkxWlZ2V1ZzN" \
+                             "2oscz1RU1hDUitRNnNlazhiZjkyLGk9NDA5Ng=="
+    test_server_first = f"SCRAM-SHA-1 sid={test_sid},data={test_server_first_data}"
+    resp1 = MagicMock(status=401, headers={"WWW-Authenticate": test_server_first},
+                      read=FakeRead(b""))
+    test_server_final = f"sid={test_sid},data=dj1ybUY5cHFWOFM3c3VBb1pXamE0ZEpSa0ZzS1E9"
+    resp2 = MagicMock(status=200, headers={"Authentication-Info": test_server_final},
+                      read=FakeRead(b""))
+
+    # offloading a message with everything in order should work
+    conn = PhonyConnection([resp1, resp2])
+    with patch("requests.adapters.PoolManager", mock_pool_manager(conn)), \
+            patch("secrets.token_urlsafe", MagicMock(return_value=test_nonce)):
+        prod = io.Producer("example.com:9092", [], None)
+        prod.offload_url = "http://example.com/8000"
+        prod.auth = Auth("user", "pencil", method="SCRAM-SHA-1")
+        result = prod._offload_message(b"data", [("_id", fixed_uuid.bytes)], "topic")
+        assert result[2] is None
+        assert len(conn.requests) > 0
+        # the body that was sent should be valid BSON
+        payload = bson.loads(conn.requests[-1]["body"])
+        # we happen to have a tool, covered by other tests for verifying the structure of
+        # offloaded message payloads
+        assert io.Consumer._check_bson_message_structure(payload, "URL")
+        rmessage = result[0]
+        assert isinstance(rmessage, bytes)
+        decoded_rmessage = ExternalMessage.load(rmessage)
+        assert decoded_rmessage.url.startswith(prod.offload_url)
+        assert decoded_rmessage.url.endswith(str(fixed_uuid))
+        rheaders = result[1]
+        assert isinstance(rheaders, list)
+        id_header = None
+        for header in rheaders:
+            assert header[0] != "_test", "If the original message was not marked as a test, " \
+                                         "the offloaded version also should not be"
+            if header[0] == "_id":
+                id_header = header[1]
+        assert id_header is not None
+        assert id_header != fixed_uuid.hex, "Reference message should hace a distinct ID"
+
+    # offloading a message with the test flag set should work and preserve the flag
+    conn = PhonyConnection([resp1, resp2])
+    with patch("requests.adapters.PoolManager", mock_pool_manager(conn)), \
+            patch("secrets.token_urlsafe", MagicMock(return_value=test_nonce)):
+        prod = io.Producer("example.com:9092", [], None)
+        prod.offload_url = "http://example.com/8000"
+        prod.auth = Auth("user", "pencil", method="SCRAM-SHA-1")
+        result = prod._offload_message(b"data", [("_id", fixed_uuid.bytes), ("_test", b"true")],
+                                       "topic")
+        assert result[2] is None
+        rmessage = result[0]
+        assert isinstance(rmessage, bytes)
+        decoded_rmessage = ExternalMessage.load(rmessage)
+        assert decoded_rmessage.url.startswith(prod.offload_url)
+        assert decoded_rmessage.url.endswith(str(fixed_uuid))
+        rheaders = result[1]
+        assert isinstance(rheaders, list)
+        id_header = None
+        test_header = None
+        for header in rheaders:
+            if header[0] == "_id":
+                id_header = header[1]
+            elif header[0] == "_test":
+                test_header = header[1]
+        assert id_header is not None
+        assert id_header != fixed_uuid.hex, "Reference message should hace a distinct ID"
+        assert test_header is not None
+        assert test_header == b"true", "If the original message was marked as a test, " \
+                                       "the offloaded version also should be"
+
+    # malformed _id headers should be ignored
+    conn = PhonyConnection([resp1, resp2])
+    with patch("requests.adapters.PoolManager", mock_pool_manager(conn)), \
+            patch("secrets.token_urlsafe", MagicMock(return_value=test_nonce)):
+        prod = io.Producer("example.com:9092", [], None)
+        prod.offload_url = "http://example.com/8000"
+        prod.auth = Auth("user", "pencil", method="SCRAM-SHA-1")
+        result = prod._offload_message(b"data", [("_id", b"not-valid"), ("_id", fixed_uuid.bytes)],
+                                       "topic")
+        assert result[2] is None
+        rmessage = result[0]
+        assert isinstance(rmessage, bytes)
+        decoded_rmessage = ExternalMessage.load(rmessage)
+        assert decoded_rmessage.url.startswith(prod.offload_url)
+        assert decoded_rmessage.url.endswith(str(fixed_uuid))
+        rheaders = result[1]
+        assert isinstance(rheaders, list)
+        id_header = None
+        test_header = None
+        for header in rheaders:
+            if header[0] == "_id":
+                id_header = header[1]
+        assert id_header is not None
+        assert id_header != fixed_uuid.hex, "Reference message should hace a distinct ID"
+
+    # lack of an _id header is an error
+    prod = io.Producer("example.com:9092", [], None)
+    prod.offload_url = "http://example.com/8000"
+    result = prod._offload_message(b"data", [], "topic")
+    assert result[0] is None
+    assert result[1] is None
+    assert result[2] is not None
+    assert result[2].code() == confluent_kafka.KafkaError._BAD_MSG
+    assert "Message has no ID ('_id' header)" in result[2].str()
+
+    # failing to offload a message, e.g. because of lack of write permissions,
+    # should produce an error
+    resp2_not_permitted = MagicMock(
+        status=403, headers={"Authentication-Info": test_server_final},
+        read=FakeRead(b"Operation not permitted"))
+    conn = PhonyConnection([resp1, resp2_not_permitted])
+    with patch("requests.adapters.PoolManager", mock_pool_manager(conn)), \
+            patch("secrets.token_urlsafe", MagicMock(return_value=test_nonce)):
+        prod = io.Producer("example.com:9092", [], None)
+        prod.offload_url = "http://example.com/8000"
+        prod.auth = Auth("user", "pencil", method="SCRAM-SHA-1")
+        result = prod._offload_message(b"data", [("_id", fixed_uuid.bytes)], "topic")
+        assert result[0] is None
+        assert result[1] is None
+        assert result[2] is not None
+        assert result[2].code() == confluent_kafka.KafkaError.TOPIC_AUTHORIZATION_FAILED
+        assert "Failed to send large message to offload server" in result[2].str()
+
+    # if the offload endpoint does not handshake correctly, an error should be produced
+    print("Begin incorrect SCRAM handshake")
+    server_first_no_sid = MagicMock(
+        status=401, headers={"WWW-Authenticate": f"SCRAM-SHA-1 data={test_server_first_data}"},
+        read=FakeRead(b""))
+    conn = PhonyConnection([server_first_no_sid])
+    with patch("requests.adapters.PoolManager", mock_pool_manager(conn)), \
+            patch("secrets.token_urlsafe", MagicMock(return_value=test_nonce)):
+        prod = io.Producer("example.com:9092", [], None)
+        prod.offload_url = "http://example.com/8000"
+        prod.auth = Auth("user", "pencil", method="SCRAM-SHA-1")
+        result = prod._offload_message(b"data", [("_id", fixed_uuid.bytes)], "topic")
+        assert result[0] is None
+        assert result[1] is None
+        assert result[2] is not None
+        assert result[2].code() == confluent_kafka.KafkaError.SASL_AUTHENTICATION_FAILED
+        assert "Failed to send large message to offload server" in result[2].str()
+
+
 def test_stream_auth(auth_config, tmpdir):
     # turning off authentication should give None for the auth property
     s1 = io.Stream(auth=False)
@@ -765,7 +1005,8 @@ def test_stream_auth(auth_config, tmpdir):
     assert s4.auth == "blarg"
 
 
-def test_stream_open(auth_config, mock_broker, mock_producer, tmpdir):
+def test_stream_open(auth_config, mock_broker, mock_producer, mock_admin_client, tmpdir):
+    mb = mock_broker
     stream = io.Stream(auth=False)
 
     # verify only read/writes are allowed
@@ -788,11 +1029,13 @@ def test_stream_open(auth_config, mock_broker, mock_producer, tmpdir):
         stream.open("kafka://example.com,example.net/topic", "r")
         assert "Multiple broker addresses are not supported" in err.value.args
 
+    def producer_factory(c):
+        return mock_producer(mb, c.topic)
     # verify that complete URLs are accepted
-    mb = mock_broker
     with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir), \
-            patch("hop.io.producer.Producer", side_effect=lambda c: mock_producer(mb, c.topic)), \
-            patch("adc.consumer.Consumer.subscribe", MagicMock()) as subscribe:
+            patch("hop.io.adc_producer.Producer", side_effect=producer_factory), \
+            patch("adc.consumer.Consumer.subscribe", MagicMock()) as subscribe, \
+            patch("hop.io.AdminClient", return_value=mock_admin_client(mock_broker)):
         stream = io.Stream()
         # opening a valid URL for reading should succeed
         consumer = stream.open("kafka://example.com/topic", "r")
@@ -854,6 +1097,218 @@ def test_mark_done(circular_msg):
             for msg, metadata in s.read(metadata=True):
                 s.mark_done(metadata)
                 mock_instance.mark_done.assert_called()
+
+
+def test_producer_check_topic_settings(mock_broker, mock_admin_client):
+    default_size = 1024 * 1024
+    non_default_size = 178
+    mock_broker.set_default_topic_max_message_size(default_size)
+    mock_broker.set_topic_max_message_size("topic2", non_default_size)
+
+    with patch("hop.io.AdminClient", return_value=mock_admin_client(mock_broker)):
+        prod = io.Producer("example.com:9092", [], None)
+        results = prod._check_topic_settings(["topic1", "topic2"])
+        assert len(results) == 2, "Number of results should match number of requested topics"
+        assert "topic1" in results, "Each requested topic should appear in results"
+        assert "topic2" in results, "Each requested topic should appear in results"
+        assert "max.message.bytes" in results["topic1"], "Results should contain max.message.bytes"
+        assert "max.message.bytes" in results["topic2"], "Results should contain max.message.bytes"
+        assert results["topic1"]["max.message.bytes"].value == default_size
+        assert results["topic2"]["max.message.bytes"].value == non_default_size
+
+
+def test_producer_set_producer_for_topic():
+    prod = io.Producer("example.com:9092", [], None)
+
+    assert len(prod.topics) == 0, "No topic records should be initially created with no topics"
+    assert len(prod.producers) == 0, "No producers should be initially created with no topics"
+
+    ConfigEntry = confluent_kafka.admin.ConfigEntry
+
+    # configure a first topic
+    with patch("hop.io.adc_producer.Producer", MagicMock) as prod_impl, \
+            patch("hop.io.time.time", MagicMock(return_value=1.0)):
+        t1_settings = {"max.message.bytes": ConfigEntry("max.message.bytes", 128)}
+        prod._set_producer_for_topic("topic1", t1_settings)
+        # there should be one topic record, and one producer record
+        # the topic record should reflect the 'current' time and correct max size
+        # the producer should be set to the correct max size, and have a refcount of 1
+        assert len(prod.topics) == 1
+        assert "topic1" in prod.topics
+        assert prod.topics["topic1"].last_check_time == 1.0
+        assert prod.topics["topic1"].max_message_size == 128
+        assert len(prod.producers) == 1
+        assert 128 in prod.producers
+        assert prod.producers[128].n_users == 1
+
+    # configure a second topic with the same size
+    with patch("hop.io.adc_producer.Producer", MagicMock) as prod_impl, \
+            patch("hop.io.time.time", MagicMock(return_value=2.0)):
+        t2_settings = {"max.message.bytes": ConfigEntry("max.message.bytes", 128)}
+        prod._set_producer_for_topic("topic2", t2_settings)
+        # there should now be two topic records, and still one producer record
+        # the producer should now have a refcount of 2
+        assert len(prod.topics) == 2
+        assert "topic2" in prod.topics
+        assert prod.topics["topic2"].last_check_time == 2.0
+        assert prod.topics["topic2"].max_message_size == 128
+        assert len(prod.producers) == 1
+        assert 128 in prod.producers
+        assert prod.producers[128].n_users == 2
+
+    # configure a third topic with a distinct size
+    with patch("hop.io.adc_producer.Producer", MagicMock) as prod_impl, \
+            patch("hop.io.time.time", MagicMock(return_value=3.0)):
+        t3_settings = {"max.message.bytes": ConfigEntry("max.message.bytes", 256)}
+        prod._set_producer_for_topic("topic3", t3_settings)
+        # there should now be three topic records, and two producer records
+        # the new producer should now have a refcount of 1
+        assert len(prod.topics) == 3
+        assert "topic3" in prod.topics
+        assert prod.topics["topic3"].last_check_time == 3.0
+        assert prod.topics["topic3"].max_message_size == 256
+        assert len(prod.producers) == 2
+        assert 256 in prod.producers
+        assert prod.producers[128].n_users == 2
+        assert prod.producers[256].n_users == 1
+
+
+def test_producer_record_for_topic(mock_broker, mock_admin_client):
+    default_size = 128
+    non_default_size = 256
+    non_default_size2 = 512
+    mock_broker.set_default_topic_max_message_size(default_size)
+    mock_broker.set_topic_max_message_size("topic3", non_default_size)
+
+    prod = io.Producer("example.com:9092", [], None, topic_check_period=timedelta(seconds=50))
+
+    assert len(prod.topics) == 0, "No topic records should be initially created with no topics"
+    assert len(prod.producers) == 0, "No producers should be initially created with no topics"
+
+    mac = mock_admin_client(mock_broker)
+
+    # the first use of a topic shold trigger a check of its settings and allocate a producer
+    with patch("hop.io.AdminClient", return_value=mac), \
+            patch("hop.io.adc_producer.Producer", MagicMock(return_value=MagicMock())), \
+            patch("hop.io.time.time", MagicMock(return_value=1.0)):
+        rec1 = prod._record_for_topic("topic1")
+        print(mock_broker._max_sizes)
+        assert rec1.last_check_time == 1.0
+        assert rec1.max_message_size == default_size
+        p1 = rec1.producer
+        assert len(prod.topics) == 1
+        assert len(prod.producers) == 1
+        assert mac.describe_configs_queries == 1
+    mac.reset_query_counter()
+
+    # the second use of the topic (within the TTL) should return the same record with the
+    # same producer
+    with patch("hop.io.AdminClient", return_value=mac), \
+            patch("hop.io.adc_producer.Producer", MagicMock(return_value=MagicMock())), \
+            patch("hop.io.time.time", MagicMock(return_value=2.0)):
+        rec2 = prod._record_for_topic("topic1")
+        assert rec2 is rec1
+        assert rec2.producer is p1
+        assert len(prod.topics) == 1
+        assert len(prod.producers) == 1
+        assert prod.producers[default_size].n_users == 1
+        assert mac.describe_configs_queries == 0, \
+            "no new settings query should be issued"
+    mac.reset_query_counter()
+
+    # using a second topic with the same maximum size should yield a new topic record with the same
+    # producer object
+    with patch("hop.io.AdminClient", return_value=mac), \
+            patch("hop.io.adc_producer.Producer", MagicMock(return_value=MagicMock())), \
+            patch("hop.io.time.time", MagicMock(return_value=2.0)):
+        rec3 = prod._record_for_topic("topic2")
+        assert rec3 is not rec1
+        assert rec3.producer is p1
+        assert len(prod.topics) == 2
+        assert len(prod.producers) == 1
+        assert prod.producers[default_size].n_users == 2
+    mac.reset_query_counter()
+
+    # using a topic with a distinct maximum message size should cause the allocation of another
+    # producer object
+    with patch("hop.io.AdminClient", return_value=mac), \
+            patch("hop.io.adc_producer.Producer", MagicMock(return_value=MagicMock())), \
+            patch("hop.io.time.time", MagicMock(return_value=3.0)):
+        rec4 = prod._record_for_topic("topic3")
+        assert rec4 is not rec1
+        assert rec4 is not rec3
+        assert rec4.producer is not p1
+        assert len(prod.topics) == 3
+        assert len(prod.producers) == 2
+        assert prod.producers[default_size].n_users == 2
+        assert prod.producers[non_default_size].n_users == 1
+    mac.reset_query_counter()
+
+    # After enough time has elapsed, sttings should be requeried
+    # If the resulting settings are the same, no changes should be made
+    with patch("hop.io.AdminClient", return_value=mac), \
+            patch("hop.io.adc_producer.Producer", MagicMock(return_value=MagicMock())), \
+            patch("hop.io.time.time", MagicMock(return_value=200.0)):
+        rec5 = prod._record_for_topic("topic1")
+        assert rec5 is rec1
+        assert rec5.producer is p1
+        assert len(prod.topics) == 3
+        assert len(prod.producers) == 2
+        assert prod.producers[default_size].n_users == 2
+        assert mac.describe_configs_queries == 1, \
+            "a new settings query should be issued"
+    mac.reset_query_counter()
+
+    # If a periodic re-check encounters new settings, new producer objects should be created as
+    # needed, and refcounts updated
+    mock_broker.set_topic_max_message_size("topic1", non_default_size2)
+    with patch("hop.io.AdminClient", return_value=mac), \
+            patch("hop.io.adc_producer.Producer", MagicMock(return_value=MagicMock())), \
+            patch("hop.io.time.time", MagicMock(return_value=300.0)):
+        rec6 = prod._record_for_topic("topic1")
+        assert rec6 is not rec1
+        assert rec6.producer is not p1
+        assert len(prod.topics) == 3
+        assert len(prod.producers) == 3
+        assert prod.producers[default_size].n_users == 1
+        assert prod.producers[non_default_size2].n_users == 1
+        assert mac.describe_configs_queries == 1, \
+            "a new settings query should be issued"
+    mac.reset_query_counter()
+
+    # If a producer's refcount goes to zero it should be deallocated
+    mock_broker.set_topic_max_message_size("topic2", non_default_size)
+    with patch("hop.io.AdminClient", return_value=mac), \
+            patch("hop.io.adc_producer.Producer", MagicMock(return_value=MagicMock())), \
+            patch("hop.io.time.time", MagicMock(return_value=400.0)):
+        rec7 = prod._record_for_topic("topic2")
+        assert rec7 is not rec3
+        assert rec7.producer is not p1
+        assert len(prod.topics) == 3
+        assert len(prod.producers) == 2
+        assert default_size not in prod.producers
+        assert prod.producers[non_default_size].n_users == 2
+        assert mac.describe_configs_queries == 1, \
+            "a new settings query should be issued"
+        print(p1)
+        p1.flush.assert_called()
+        p1.close.assert_called()
+    mac.reset_query_counter()
+
+
+def test_producer_estimate_message_size():
+    estimate = io.Producer._estimate_message_size
+
+    for length in range(2, 10, 2):
+        assert estimate(b'p' * length, []) >= length
+
+    assert estimate(b'p' * 64, [], b'k' * 16) == 16 + estimate(b'p' * 64, [])
+
+    assert estimate(b'p' * 64, [(b'k', b'v')]) > estimate(b'p' * 64, [])
+    assert estimate(b'p' * 64, [(b'k', b'v'), ('k', 'v')]) > estimate(b'p' * 64, [(b'k', b'v')])
+
+    assert estimate(b'p' * 64, {b'k': b'v'}) > estimate(b'p' * 64, [])
+    assert estimate(b'p' * 64, {b'k': b'v', 'k1': 'v1'}) > estimate(b'p' * 64, {b'k': b'v'})
 
 
 def test_pack(circular_msg, circular_text):
@@ -925,6 +1380,26 @@ def test_pack_unpack_roundtrip_unstructured():
     with pytest.raises(TypeError):
         # note that we are not trying to pack a string, but the string class itself
         packed_msg, _ = io.Producer.pack(str)
+
+
+def test_producer_context_keyboard_interrupt():
+    with io.Producer("kafka://example.com:9092", [], None) as s:
+        raise KeyboardInterrupt()
+
+
+def test_producer_context_normal_exit_unsent(mock_broker, mock_producer, mock_admin_client):
+    topic = "some_topic"
+    mb = mock_broker
+    mp = mock_producer(mb, topic)
+    with patch("hop.io.adc_producer.Producer", side_effect=lambda c: mp), \
+            patch("hop.io.AdminClient", return_value=mock_admin_client(mb)):
+        mp.delay_sending()
+        with pytest.raises(Exception) as ex:
+            with io.Producer("kafka://example.com:9092", [topic], None) as s:
+                s.write("abc")
+                s.write("def")
+                assert len(mp) == 2, "The two messages should be 'unsent'"
+        assert "2 messages remain unsent, some data may have been lost" in str(ex)
 
 
 @pytest.mark.parametrize("message", [
@@ -1020,13 +1495,14 @@ def test_plugin_loading(caplog):
         assert "FOO" in registered
 
 
-def test_stream_flush():
+def test_stream_flush(mock_broker, mock_admin_client):
     # flush is pretty trivial; it should just call the underlying flush
-    with patch("adc.producer.Producer.flush", MagicMock()) as flush:
+    with patch("adc.producer.Producer.flush", MagicMock()) as flush, \
+            patch("hop.io.AdminClient", return_value=mock_admin_client(mock_broker)):
         broker_url = "kafka://example.com:9092/topic"
         stream = io.Stream(auth=False).open(broker_url, "w")
         stream.flush()
-        flush.assert_called()
+        flush.assert_called_once()
 
 
 def test_is_test(circular_msg):
