@@ -1,5 +1,5 @@
 from collections.abc import Collection, Mapping
-from dataclasses import dataclass
+import dataclasses
 from datetime import timedelta
 from functools import lru_cache
 from enum import Enum
@@ -22,7 +22,7 @@ from adc import consumer, errors, kafka
 from adc import producer as adc_producer
 from confluent_kafka.admin import AdminClient, ConfigResource, ResourceType
 
-from .configure import get_config_path
+from .configure import get_config_path, load_config
 from .auth import Auth, AmbiguousCredentialError
 from .auth import load_auth
 from .auth import select_matching_auth
@@ -80,6 +80,14 @@ class Stream(object):
         else:
             return self._auth
 
+    @property
+    @lru_cache(maxsize=1)
+    def config(self):
+        # Note that we return and cache the Config object, not its dictionary form, to ensure that
+        # when the dictionary form is used, it is a new dictionary each time, so that modifications
+        # do not leak back into the cached data.
+        return load_config()
+
     def open(self, url, mode="r", group_id=None, ignoretest=True, **kwargs):
         """Opens a connection to an event stream.
 
@@ -116,6 +124,12 @@ class Stream(object):
                 raise AmbiguousCredentialError(msg)
         else:
             credential = None
+
+        # fetch default configuration, but write kwargs on top of it, so that anything explicitly
+        # programmatically specified takes precedence
+        config_dict = self.config.asdict()
+        config_dict.update(kwargs)
+        kwargs = config_dict
 
         if mode == "w":
             if topics is None:
@@ -269,7 +283,7 @@ def _generate_group_id(user, n):
     return '-'.join((user, rand_str))
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class Metadata:
     """Broker-specific metadata that accompanies a consumed message.
 
@@ -380,13 +394,31 @@ def _http_error_to_kafka(status: int, msg: str = ""):
     return confluent_kafka.KafkaError(err_code, msg, fatal, retriable, txn_requires_abort)
 
 
+def _filter_valid_args(cls, kwargs: dict):
+    """
+    Extract from a dictionary the subset of its entries which are valid arguments to the
+    constructor of the given dataclass.
+
+    Args:
+        cls: The target class which must be a dataclass
+        kwargs: The argument dictionary to be filtered
+    Return: A dictionary which is safe to pass to cls()
+    """
+    filtered = {}
+    for field in dataclasses.fields(cls):
+        if field.name in kwargs:
+            filtered[field.name] = kwargs[field.name]
+    return filtered
+
+
 class Consumer:
     """
     An event stream opened for reading one or more topics.
     Instances of this class should be obtained from :meth:`Stream.open`.
     """
 
-    def __init__(self, group_id, broker_addresses, topics, ignoretest=True, **kwargs):
+    def __init__(self, group_id, broker_addresses, topics, ignoretest=True,
+                 fetch_external: bool = True, **kwargs):
         """
         Args:
             group_id: The Kafka consumer group to join for reading messages.
@@ -405,6 +437,9 @@ class Consumer:
                 report progress to Kafka.
             ignoretest: When True, ignore test messages. When False, process them
                 normally.
+            fetch_external: When true, automatically download data referred to by
+                            'External' mesages, and return it in place of the
+                            external message itself.
 
         :meta private:
         """
@@ -414,12 +449,13 @@ class Consumer:
         self._conf = consumer.ConsumerConfig(
             broker_urls=broker_addresses,
             group_id=group_id,
-            **kwargs,
+            **_filter_valid_args(consumer.ConsumerConfig, kwargs),
         )
         self._consumer = consumer.Consumer(self._conf)
         logger.info(f"subscribing to topics: {topics}")
         self._consumer.subscribe(topics)
         self.ignoretest = ignoretest
+        self.fetch_external = fetch_external
         self.auth = kwargs["auth"] if "auth" in kwargs else None
         self.broker_addresses = broker_addresses
 
@@ -455,7 +491,7 @@ class Consumer:
             metadata: Whether to receive message metadata alongside messages.
         """
         payload = Deserializer.deserialize(message)
-        if isinstance(payload, models.ExternalMessage):
+        if isinstance(payload, models.ExternalMessage) and self.fetch_external:
             return self._fetch_external(payload.url, metadata, message)
         if metadata:
             return (payload, Metadata.from_message(message))
@@ -664,13 +700,13 @@ class Consumer:
 
 
 class Producer:
-    @dataclass
+    @dataclasses.dataclass
     class TopicRecord:
         last_check_time: float
         max_message_size: int
         producer: adc_producer.Producer
 
-    @dataclass
+    @dataclasses.dataclass
     class ProducerRecord:
         producer: adc_producer.Producer
         n_users: int
@@ -680,7 +716,7 @@ class Producer:
     Instances of this class should be obtained from :meth:`Stream.open`.
     """
 
-    def __init__(self, broker_addresses, topics, auth,
+    def __init__(self, broker_addresses, topics, auth, automatic_offload: bool = True,
                  topic_check_period: timedelta = timedelta(seconds=1800), **kwargs):
         """
         Args:
@@ -694,6 +730,11 @@ class Producer:
             produce_timeout: A datetime.timedelta object specifying the maximum
                 time to wait for a message to be sent to Kafka. If zero, sending
                 will never time out.
+            automatic_offload: If true, when a message is too large for the target
+                               topic, and if the broker declares a suitable endpoint,
+                               offload the message to the offload service, and send
+                               a place-holder 'external' message on the Kafka topic
+                               in its place.
             topic_check_period: Period to wait before checking whether the settings
                 of a target topic have changed.
 
@@ -703,9 +744,10 @@ class Producer:
         self.producers = {}
         self.broker_addresses = broker_addresses
         self.auth = auth
+        self.automatic_offload = automatic_offload
         self.topic_check_period = topic_check_period
 
-        self.producer_args = kwargs
+        self.producer_args = _filter_valid_args(adc_producer.ProducerConfig, kwargs)
         self.producer_args["auth"] = self.auth
         if isinstance(broker_addresses, str):
             broker_addresses = [broker_addresses]
@@ -874,7 +916,10 @@ class Producer:
         t_record = self._record_for_topic(topic)
         if estimated_size > t_record.max_message_size:
             if not hasattr(self, "offload_url"):
-                self.offload_url = _get_offload_server(self.broker_addresses, self.auth)
+                if self.automatic_offload:
+                    self.offload_url = _get_offload_server(self.broker_addresses, self.auth)
+                else:
+                    self.offload_url = None
             if self.offload_url is not None:
                 logger.debug(f"Message is too large (est. {estimated_size} bytes) to fit on the "
                              f"topic; offloading to {self.offload_url}")

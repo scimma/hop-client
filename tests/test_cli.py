@@ -6,17 +6,17 @@ from io import BytesIO, StringIO
 import io
 from uuid import uuid4
 
-from hop import __version__
-from conftest import temp_environ, temp_config
+from hop import __version__, configure
+from conftest import temp_auth, temp_config, temp_environ
 
 
 @pytest.mark.script_launch_mode("subprocess")
 def test_cli_hop(script_runner, auth_config, tmpdir):
-    ret = script_runner.run("hop", "--help")
+    ret = script_runner.run(["hop", "--help"])
     assert ret.success
 
-    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
-        ret = script_runner.run("hop", "--version")
+    with temp_auth(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run(["hop", "--version"])
         assert ret.success
 
         assert f"hop version {__version__}\n" in ret.stdout
@@ -25,11 +25,11 @@ def test_cli_hop(script_runner, auth_config, tmpdir):
 
 @pytest.mark.script_launch_mode("subprocess")
 def test_cli_hop_module(script_runner, auth_config, tmpdir):
-    ret = script_runner.run("python", "-m", "hop", "--help")
+    ret = script_runner.run(["python", "-m", "hop", "--help"])
     assert ret.success
 
-    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
-        ret = script_runner.run("python", "-m", "hop", "--version")
+    with temp_auth(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run(["python", "-m", "hop", "--version"])
         assert ret.success
 
         assert f"hop version {__version__}\n" in ret.stdout
@@ -42,7 +42,7 @@ def test_cli_publish(script_runner, message_format, message_parameters_dict):
         if message_format == "voevent":
             pytest.skip("requires python3.7.4 or higher")
 
-    ret = script_runner.run("hop", "publish", "--help")
+    ret = script_runner.run(["hop", "publish", "--help"])
     assert ret.success
 
     # load parameters from conftest
@@ -58,10 +58,10 @@ def test_cli_publish(script_runner, message_format, message_parameters_dict):
     ) as mock_stream:
 
         broker_url = "kafka://hostname:port/message"
-        ret = script_runner.run(
+        ret = script_runner.run([
             "hop", "publish", broker_url, test_file, "--quiet",
             "-f", message_format.upper(), "--no-auth",
-        )
+        ])
 
         # verify CLI output
         assert ret.success
@@ -77,7 +77,7 @@ def test_cli_publish(script_runner, message_format, message_parameters_dict):
 
     # test publishing from stdin
     with patch("hop.io.Stream.open", mock_open()) as mock_stream:
-        ret = script_runner.run("hop", "publish", "-f", message_format.upper(), broker_url,
+        ret = script_runner.run(["hop", "publish", "-f", message_format.upper(), broker_url],
                                 stdin=io.StringIO('"message1"\n"message2"'))
         if message_format == "blob":
             assert ret.success
@@ -196,13 +196,13 @@ def test_cli_publish_bad_blob(mock_broker, mock_producer, mock_admin_client):
 
 
 def test_cli_subscribe(script_runner):
-    ret = script_runner.run("hop", "subscribe", "--help")
+    ret = script_runner.run(["hop", "subscribe", "--help"])
     assert ret.success
 
     with patch("hop.io.Stream.open", mock_open()) as mock_stream:
 
         broker_url = "kafka://hostname:port/message"
-        ret = script_runner.run("hop", "subscribe", broker_url, "--no-auth")
+        ret = script_runner.run(["hop", "subscribe", broker_url, "--no-auth"])
 
         # verify CLI output
         assert ret.success
@@ -211,7 +211,8 @@ def test_cli_subscribe(script_runner):
         # verify broker url was processed
         mock_stream.assert_called_with(broker_url, "r", group_id=None, ignoretest=True)
 
-        ret = script_runner.run("hop", "subscribe", broker_url, "--no-auth", "--group-id", "group")
+        ret = script_runner.run(["hop", "subscribe", broker_url, "--no-auth", "--group-id",
+                                 "group"])
 
         # verify CLI output
         assert ret.success
@@ -227,7 +228,7 @@ def test_cli_subscribe(script_runner):
     mock_instance = MagicMock()
     mock_instance.stream = MagicMock(return_value=[fake_message])
     with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
-        ret = script_runner.run("hop", "--debug", "subscribe", broker_url, "--no-auth", "--quiet")
+        ret = script_runner.run(["hop", "--debug", "subscribe", broker_url, "--no-auth", "--quiet"])
         assert ret.success
         assert ret.stderr == ""
         assert message_body in ret.stdout
@@ -238,13 +239,13 @@ def test_cli_subscribe(script_runner):
     fake_message.headers = fake_headers
 
     with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
-        ret = script_runner.run("hop", "subscribe", broker_url, "--no-auth", "--quiet")
+        ret = script_runner.run(["hop", "subscribe", broker_url, "--no-auth", "--quiet"])
         assert ret.success
         assert ret.stderr == ""
         assert ret.stdout == ""
 
     with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
-        ret = script_runner.run("hop", "subscribe", broker_url, "--no-auth", "--quiet", "--test")
+        ret = script_runner.run(["hop", "subscribe", broker_url, "--no-auth", "--quiet", "--test"])
         assert ret.success
         assert ret.stderr == ""
         assert message_body in ret.stdout
@@ -260,19 +261,19 @@ def test_cli_subscribe_logging(script_runner):
     mock_instance.stream = MagicMock(return_value=[fake_message])
     with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
         # check logging with --quiet (only warnings/errors)
-        ret = script_runner.run("hop", "--debug", "subscribe", broker_url, "--no-auth", "--quiet")
+        ret = script_runner.run(["hop", "--debug", "subscribe", broker_url, "--no-auth", "--quiet"])
         assert ret.success
         assert "DEBUG" not in ret.stderr
         assert "INFO" not in ret.stderr
 
         # check default logging (INFO)
-        ret = script_runner.run("hop", "--debug", "subscribe", broker_url, "--no-auth")
+        ret = script_runner.run(["hop", "--debug", "subscribe", broker_url, "--no-auth"])
         assert ret.success
         assert "INFO" in ret.stderr
         assert "DEBUG" not in ret.stderr
 
         # check verbose logging (DEBUG)
-        ret = script_runner.run("hop", "--debug", "subscribe", broker_url, "--no-auth", "-v")
+        ret = script_runner.run(["hop", "--debug", "subscribe", broker_url, "--no-auth", "-v"])
         assert ret.success
         assert "INFO" in ret.stderr
         assert "DEBUG" in ret.stderr
@@ -286,7 +287,7 @@ def test_cli_interrupt(script_runner):
     mock_consumer.__exit__ = interrupt
     with patch("hop.io.Stream.open", MagicMock(return_value=mock_consumer)):
         broker_url = "kafka://hostname:port/topic"
-        ret = script_runner.run("hop", "subscribe", broker_url, "--no-auth")
+        ret = script_runner.run(["hop", "subscribe", broker_url, "--no-auth"])
         assert ret.success
         assert "INFO" in ret.stderr
         assert "received keyboard interrupt, closing" in ret.stderr
@@ -311,14 +312,14 @@ def make_consumer_mock(expected_topics):
 
 
 def test_cli_list_topics(script_runner, auth_config, tmpdir):
-    ret = script_runner.run("hop", "list-topics", "--help")
+    ret = script_runner.run(["hop", "list-topics", "--help"])
     assert ret.success
 
     broker_url = "kafka://hostname:port/"
 
     # general listing when no topics are returned
     with patch("confluent_kafka.Consumer", make_consumer_mock({})) as mock_consumer:
-        ret = script_runner.run("hop", "list-topics", broker_url, "--no-auth")
+        ret = script_runner.run(["hop", "list-topics", broker_url, "--no-auth"])
 
         assert ret.success
         assert ret.stderr == ""
@@ -337,7 +338,7 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
 
     # general listing when some topics are returned
     with patch("confluent_kafka.Consumer", make_consumer_mock(topic_results)) as mock_consumer:
-        ret = script_runner.run("hop", "--debug", "list-topics", broker_url, "--no-auth")
+        ret = script_runner.run(["hop", "--debug", "list-topics", broker_url, "--no-auth"])
 
         assert ret.success
         assert ret.stderr == ""
@@ -353,8 +354,8 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
     query_topics = ["foo", "bar", "baz"]
     # listing of specific topics, none of which exist
     with patch("confluent_kafka.Consumer", make_consumer_mock({})) as mock_consumer:
-        ret = script_runner.run("hop", "list-topics", broker_url + ",".join(query_topics),
-                                "--no-auth")
+        ret = script_runner.run(["hop", "list-topics", broker_url + ",".join(query_topics),
+                                 "--no-auth"])
 
         assert ret.success
         assert ret.stderr == ""
@@ -366,8 +367,8 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
 
     # listing of specific topics, some of which exist and some of which do not
     with patch("confluent_kafka.Consumer", make_consumer_mock(topic_results)) as mock_consumer:
-        ret = script_runner.run("hop", "list-topics", broker_url + ",".join(query_topics),
-                                "--no-auth")
+        ret = script_runner.run(["hop", "list-topics", broker_url + ",".join(query_topics),
+                                 "--no-auth"])
 
         assert ret.success
         assert ret.stderr == ""
@@ -382,9 +383,9 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
             mock_consumer.return_value.list_topics.assert_any_call(topic=topic, timeout=-1.)
 
     # general listing with authentication
-    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir), \
+    with temp_auth(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir), \
             patch("confluent_kafka.Consumer", make_consumer_mock(topic_results)) as mock_consumer:
-        ret = script_runner.run("hop", "list-topics", broker_url)
+        ret = script_runner.run(["hop", "list-topics", broker_url])
 
         assert ret.success
         assert ret.stderr == ""
@@ -398,59 +399,86 @@ def test_cli_list_topics(script_runner, auth_config, tmpdir):
         mock_consumer.return_value.list_topics.assert_called_with(timeout=-1.)
 
     # attempting to use multiple brokers should provoke an error
-    ret = script_runner.run("hop", "list-topics", "kafka://example.com,example.net")
+    ret = script_runner.run(["hop", "list-topics", "kafka://example.com,example.net"])
     assert not ret.success
     assert "Multiple broker addresses are not supported" in ret.stderr
 
 
-def test_cli_configure(script_runner, auth_config, tmpdir):
-    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
-        ret1 = script_runner.run("hop", "configure", "--help")
+def test_cli_configure_locate(script_runner, general_config, tmpdir):
+    with temp_config(tmpdir, general_config) as conf_dir, temp_environ(XDG_CONFIG_HOME=conf_dir):
+        ret1 = script_runner.run(["hop", "configure", "--help"])
         assert ret1.success
         assert ret1.stderr == ""
 
-        ret = script_runner.run("hop", "configure", "locate")
+        ret = script_runner.run(["hop", "configure", "locate"])
         assert ret.success
-        assert config_dir in ret.stdout
+        assert conf_dir in ret.stdout
         assert ret.stderr == ""
 
 
+def test_cli_configure_show(script_runner, general_config, tmpdir):
+    with temp_config(tmpdir, general_config) as conf_dir, temp_environ(XDG_CONFIG_HOME=conf_dir):
+        ret = script_runner.run(["hop", "configure", "show"])
+        assert ret.success
+        assert "fetch_external: False" in ret.stdout
+        assert "automatic_offload: False" in ret.stdout
+        assert ret.stderr == ""
+
+
+def test_cli_configure_set(script_runner, general_config, tmpdir):
+    with temp_config(tmpdir, general_config) as conf_dir, temp_environ(XDG_CONFIG_HOME=conf_dir):
+        ret = script_runner.run(["hop", "configure", "set", "fetch_external", "true"])
+        assert ret.success
+        config = configure.load_config()
+        assert config.fetch_external
+
+    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)):
+        ret = script_runner.run(["hop", "configure", "set", "not-a-setting", "18"])
+        assert not ret.success
+        assert "not-a-setting" in ret.stderr
+
+    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)):
+        ret = script_runner.run(["hop", "configure", "set", "fetch_external", "warbler"])
+        assert not ret.success
+        assert "Invalid boolean value 'warbler'" in ret.stderr
+
+
 def test_cli_auth(script_runner, auth_config, tmpdir):
-    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
-        ret1 = script_runner.run("hop", "auth", "--help")
+    with temp_auth(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret1 = script_runner.run(["hop", "auth", "--help"])
         assert ret1.success
         assert ret1.stderr == ""
 
-        ret = script_runner.run("hop", "auth", "locate")
+        ret = script_runner.run(["hop", "auth", "locate"])
         assert ret.success
         assert config_dir in ret.stdout
         assert ret.stderr == ""
 
 
 def test_list_credentials(script_runner, auth_config, tmpdir):
-    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
-        ret = script_runner.run("hop", "auth", "list")
+    with temp_auth(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run(["hop", "auth", "list"])
         assert ret.success
         assert "username" in ret.stdout
         assert ret.stderr == ""
 
 
 def test_add_credential(script_runner, auth_config, tmpdir):
-    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+    with temp_auth(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
         csv_file = str(tmpdir) + "/new_cred.csv"
         with open(csv_file, "w") as f:
             f.write("username,password\nnew_user,new_pass")
-        ret = script_runner.run("hop", "auth", "add", csv_file)
+        ret = script_runner.run(["hop", "auth", "add", csv_file])
         assert ret.success
         assert "Wrote configuration to" in ret.stderr
 
 
 def test_add_credential_overwrite(script_runner, auth_config, tmpdir):
-    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+    with temp_auth(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
         csv_file = str(tmpdir) + "/new_cred.csv"
         with open(csv_file, "w") as f:
             f.write("username,password\nnew_user,new_pass")
-        ret = script_runner.run("hop", "auth", "add", csv_file)
+        ret = script_runner.run(["hop", "auth", "add", csv_file])
         assert ret.success
         assert "Wrote configuration to" in ret.stderr
 
@@ -458,43 +486,43 @@ def test_add_credential_overwrite(script_runner, auth_config, tmpdir):
             f.write("username,password\nnew_user,other_pass")
 
         # try to overwrite the credential, without forcing
-        ret = script_runner.run("hop", "auth", "add", csv_file)
+        ret = script_runner.run(["hop", "auth", "add", csv_file])
         assert ret.success
         assert "Credential already exists; overwrite with --force" in ret.stderr
 
         # try again, with force
-        ret = script_runner.run("hop", "auth", "add", "--force", csv_file)
+        ret = script_runner.run(["hop", "auth", "add", "--force", csv_file])
         assert ret.success
         assert "Wrote configuration to" in ret.stderr
 
 
 def test_delete_credential(script_runner, auth_config, tmpdir):
-    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
-        ret = script_runner.run("hop", "auth", "remove", "username")
+    with temp_auth(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run(["hop", "auth", "remove", "username"])
         assert ret.success
         assert "Wrote configuration to" in ret.stderr
 
 
 def test_cli_version(script_runner, auth_config, tmpdir):
-    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
-        ret = script_runner.run("hop", "version", "--help")
+    with temp_auth(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run(["hop", "version", "--help"])
         assert ret.success
         assert ret.stderr == ""
 
-        ret = script_runner.run("hop", "version")
+        ret = script_runner.run(["hop", "version"])
         assert ret.success
         assert f"hop-client=={__version__}\n" in ret.stdout
         assert ret.stderr == ""
 
 
 def test_error_verbosity(script_runner):
-    simple = script_runner.run("hop", "subscribe", "BAD-URL")
+    simple = script_runner.run(["hop", "subscribe", "BAD-URL"])
     assert not simple.success
     assert simple.stdout == ""
     assert "Traceback (most recent call last)" not in simple.stderr
     assert simple.stderr.startswith("hop: ")
 
-    detailed = script_runner.run("hop", "--debug", "subscribe", "BAD-URL")
+    detailed = script_runner.run(["hop", "--debug", "subscribe", "BAD-URL"])
     assert not detailed.success
     assert detailed.stdout == ""
     assert "Traceback (most recent call last)" in detailed.stderr
@@ -504,21 +532,21 @@ def test_config_advice(script_runner, auth_config, tmpdir):
     advice_tag = "No valid credential data found"
     # nonexistent config file
     with temp_environ(XDG_CONFIG_HOME=str(tmpdir)):
-        ret = script_runner.run("hop")
+        ret = script_runner.run(["hop"])
         assert advice_tag in ret.stdout
 
     # wrong credential file permissions
     import stat
-    with temp_config(tmpdir, "", stat.S_IROTH) as config_dir, \
+    with temp_auth(tmpdir, "", stat.S_IROTH) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir):
-        ret = script_runner.run("hop")
+        ret = script_runner.run(["hop"])
         assert advice_tag in ret.stdout
         assert "unsafe permissions" in ret.stderr
 
     # syntactically invalid TOML in credential file
     garbage = "JVfwteouh '652b"
-    with temp_config(tmpdir, garbage) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
-        ret = script_runner.run("hop")
+    with temp_auth(tmpdir, garbage) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run(["hop"])
         assert advice_tag in ret.stdout
         assert "not configured correctly" in ret.stderr
 
@@ -528,8 +556,8 @@ def test_config_advice(script_runner, auth_config, tmpdir):
     name = "Tom Preston-Werner"
     dob = 1979-05-27T07:32:00-08:00
     """
-    with temp_config(tmpdir, toml_no_auth) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
-        ret = script_runner.run("hop")
+    with temp_auth(tmpdir, toml_no_auth) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run(["hop"])
         assert advice_tag in ret.stdout
         assert "configuration file has no auth section" in ret.stderr
 
@@ -537,7 +565,7 @@ def test_config_advice(script_runner, auth_config, tmpdir):
     toml_bad_auth = """[auth]
     foo = "bar"
     """
-    with temp_config(tmpdir, toml_bad_auth) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
-        ret = script_runner.run("hop")
+    with temp_auth(tmpdir, toml_bad_auth) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+        ret = script_runner.run(["hop"])
         assert advice_tag in ret.stdout
         assert "missing auth property" in ret.stderr
