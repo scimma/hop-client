@@ -288,6 +288,12 @@ AVRO_DATA_EQUIVALENT = {
     "logic": [True, False],
 }
 
+GENERAL_CONFIG = """\
+[config]
+fetch_external = false
+automatic_offload = false
+"""
+
 # This was the original configuration structure, which permitted only a single credential
 AUTH_CONFIG_LEGACY = """\
 [auth]
@@ -527,6 +533,11 @@ def mock_kafka_message():
 
 
 @pytest.fixture(scope="session")
+def general_config():
+    return GENERAL_CONFIG
+
+
+@pytest.fixture(scope="session")
 def legacy_auth_config():
     return AUTH_CONFIG_LEGACY
 
@@ -683,9 +694,33 @@ def temp_environ(**vars):
 
 
 @contextmanager
-def temp_config(tmpdir, data, perms=stat.S_IRUSR | stat.S_IWUSR):
+def temp_config(tmpdir, data):
     """
-    A context manager which creates a temporary config file with specified data and permissions
+    A context manager which creates a temporary config file with specified data
+
+    Args:
+        data: the data to be written to the file
+
+    Returns:
+        The path to the config directory for hop to use this config file, as a string
+    """
+
+    config_path = f"{tmpdir}/hop/config.toml"
+    os.makedirs(os.path.dirname(config_path), exist_ok=True)
+    config_file = open(config_path, mode='w')
+    config_file.write(data)
+    config_file.close()
+    try:
+        yield str(tmpdir)
+    finally:
+        # remove file
+        os.remove(config_path)
+
+
+@contextmanager
+def temp_auth(tmpdir, data, perms=stat.S_IRUSR | stat.S_IWUSR):
+    """
+    A context manager which creates a temporary auth file with specified data and permissions
 
     Args:
         data: the data to be written to the file

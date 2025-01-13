@@ -8,7 +8,7 @@ import os
 import stat
 import toml
 
-from conftest import temp_environ, temp_config
+from conftest import temp_environ, temp_auth
 
 
 def check_credential_file(config_path, cred):
@@ -68,7 +68,7 @@ def test_auth_ca_location():
 
 
 def test_load_auth_legacy(legacy_auth_config, tmpdir):
-    with temp_config(tmpdir, legacy_auth_config) as config_dir, \
+    with temp_auth(tmpdir, legacy_auth_config) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir):
         auth_data = auth.load_auth()
         assert len(auth_data) == 1
@@ -76,14 +76,14 @@ def test_load_auth_legacy(legacy_auth_config, tmpdir):
 
 
 def test_load_auth(auth_config, tmpdir):
-    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+    with temp_auth(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
         auth_data = auth.load_auth()
         assert len(auth_data) == 1
         assert auth_data[0].username == "username"
 
 
 def test_load_auth_oidc(auth_config_oidc, tmpdir):
-    with temp_config(tmpdir, auth_config_oidc) as config_dir, \
+    with temp_auth(tmpdir, auth_config_oidc) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir):
         auth_data = auth.load_auth()
         assert len(auth_data) == 1
@@ -100,14 +100,14 @@ def test_load_auth_non_existent(auth_config, tmpdir):
 def test_load_auth_bad_perms(auth_config, tmpdir):
     for bad_perm in [stat.S_IRGRP, stat.S_IWGRP, stat.S_IXGRP,
                      stat.S_IROTH, stat.S_IWOTH, stat.S_IXOTH]:
-        with temp_config(tmpdir, auth_config, bad_perm) as config_dir, \
+        with temp_auth(tmpdir, auth_config, bad_perm) as config_dir, \
                 temp_environ(XDG_CONFIG_HOME=config_dir), pytest.raises(RuntimeError):
             auth.load_auth()
 
 
 def test_load_auth_invalid_toml(tmpdir):
     garbage = "KHFBGKJSBVJKbdfb ,s ,msb vks bs"
-    with temp_config(tmpdir, garbage) as config_dir, \
+    with temp_auth(tmpdir, garbage) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), pytest.raises(RuntimeError):
         auth.load_auth()
 
@@ -118,7 +118,7 @@ def test_load_auth_malformed_legacy(tmpdir):
                        password = "password"
                        extra = "stuff"
                        """
-    with temp_config(tmpdir, missing_username) as config_dir, \
+    with temp_auth(tmpdir, missing_username) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), pytest.raises(RuntimeError):
         auth.load_auth()
 
@@ -127,7 +127,7 @@ def test_load_auth_malformed_legacy(tmpdir):
                        username = "username"
                        extra = "stuff"
                    """
-    with temp_config(tmpdir, missing_password) as config_dir, \
+    with temp_auth(tmpdir, missing_password) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), pytest.raises(RuntimeError):
         auth.load_auth()
 
@@ -137,7 +137,7 @@ def test_load_auth_malformed(tmpdir):
         auth = [{extra="stuff",
             password="password"}]
         """
-    with temp_config(tmpdir, missing_username) as config_dir, \
+    with temp_auth(tmpdir, missing_username) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), pytest.raises(RuntimeError):
         auth.load_auth()
 
@@ -145,7 +145,7 @@ def test_load_auth_malformed(tmpdir):
     auth = [{username="username",
         extra="stuff"}]
     """
-    with temp_config(tmpdir, missing_password) as config_dir, \
+    with temp_auth(tmpdir, missing_password) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), pytest.raises(RuntimeError):
         auth.load_auth()
 
@@ -153,7 +153,7 @@ def test_load_auth_malformed(tmpdir):
 def test_load_auth_options(auth_config, tmpdir):
     # SSL should be used by default
     # The default mechanism should be SCRAM_SHA_512
-    with temp_config(tmpdir, auth_config) as config_dir, \
+    with temp_auth(tmpdir, auth_config) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), patch("hop.auth.Auth") as auth_mock:
         auth.load_auth()
         from adc.auth import SASLMethod
@@ -167,7 +167,7 @@ def test_load_auth_options(auth_config, tmpdir):
                        password = "password",
                        protocol = "SASL_PLAINTEXT"
                        }]"""
-    with temp_config(tmpdir, use_plaintext) as config_dir, \
+    with temp_auth(tmpdir, use_plaintext) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), patch("hop.auth.Auth") as auth_mock:
         auth.load_auth()
         auth_mock.assert_called_with('username', 'password', host='',
@@ -180,7 +180,7 @@ def test_load_auth_options(auth_config, tmpdir):
                    password = "password",
                    ssl_ca_location = "/foo/bar/baz"
                    }]"""
-    with temp_config(tmpdir, with_ca_data) as config_dir, \
+    with temp_auth(tmpdir, with_ca_data) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), patch("hop.auth.Auth") as auth_mock:
         auth.load_auth()
         auth_mock.assert_called_with('username', 'password', host='',
@@ -194,7 +194,7 @@ def test_load_auth_options(auth_config, tmpdir):
                       password = "password",
                       mechanism = "PLAIN"
                       }]"""
-    with temp_config(tmpdir, plain_mechanism) as config_dir, \
+    with temp_auth(tmpdir, plain_mechanism) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), patch("hop.auth.Auth") as auth_mock:
         auth.load_auth()
         auth_mock.assert_called_with('username', 'password', host='',
@@ -207,7 +207,7 @@ def test_load_auth_options(auth_config, tmpdir):
                 password = "password",
                 hostname = "example.com"
                 }]"""
-    with temp_config(tmpdir, with_host) as config_dir, \
+    with temp_auth(tmpdir, with_host) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir):
         creds = auth.load_auth()
         assert len(creds) == 1
@@ -227,7 +227,7 @@ def test_load_auth_muliple_creds(tmpdir):
                         hostname = "host2"
                     },
                 ]"""
-    with temp_config(tmpdir, two_creds) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+    with temp_auth(tmpdir, two_creds) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
         creds = auth.load_auth()
         assert len(creds) == 2
         assert creds[0].username == "user1"
@@ -334,14 +334,14 @@ def test_select_auth_no_match(auth_config, tmpdir):
         password = "password",
         hostname = "example.com"
         }]"""
-    with temp_config(tmpdir, with_host) as config_dir, \
+    with temp_auth(tmpdir, with_host) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), pytest.raises(RuntimeError) as err:
         creds = auth.load_auth()
         selected = auth.select_matching_auth(creds, "example.net")
     assert f"{no_match} for hostname 'example.net'" in err.value.args[0]
 
     # no match for requested username
-    with temp_config(tmpdir, auth_config) as config_dir, \
+    with temp_auth(tmpdir, auth_config) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), pytest.raises(RuntimeError) as err:
         creds = auth.load_auth()
         selected = auth.select_matching_auth(creds, "example.com", "nosuchuser")
@@ -674,7 +674,7 @@ def test_add_credential_to_nonempty(auth_config, tmpdir):
     old_cred = auth.Auth("username", "password")
     new_cred = auth.Auth("other_user", "other_pass")
 
-    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(HOME=config_dir), \
+    with temp_auth(tmpdir, auth_config) as config_dir, temp_environ(HOME=config_dir), \
             patch("hop.auth.read_new_credential", MagicMock(return_value=new_cred)):
         args = MagicMock()
         args.cred_file = None

@@ -18,7 +18,7 @@ from hop.models import (AvroBlob, Blob, ExternalMessage, GCNCircular, GCNTextNot
 from adc.errors import KafkaException
 import confluent_kafka
 
-from conftest import (temp_environ, temp_config, message_parameters_dict_data, PhonyConnection,
+from conftest import (temp_environ, temp_auth, message_parameters_dict_data, PhonyConnection,
                       mock_pool_manager)
 
 logger = logging.getLogger("hop")
@@ -532,6 +532,26 @@ def test_consumer_fetch_external_with_auth():
         assert "Authorization" not in conn.requests[0]["headers"]
 
 
+def test_consumer_fetch_external_disabled():
+    url = "https://example.com/msg/1234"
+    reference_message = make_message_standard(ExternalMessage(url=url))
+
+    mock_instance = MagicMock()
+    mock_instance.stream = MagicMock(return_value=[reference_message])
+
+    def should_not_be_called(*args):
+        assert False, "Consumer._fetch_external should not be called in this context"
+
+    # it should be possible to epxlicitly disable automatic fetching of external messages
+    with patch("hop.io.Consumer._fetch_external", should_not_be_called), \
+            patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+        c = io.Consumer("cID", ["example.com:9092"], "test-topic", fetch_external=False)
+        for output in c.read(False):
+            print(output)
+            assert isinstance(output, ExternalMessage)
+            assert output.url == url
+
+
 def test_consumer_check_bson_message_structure():
     url = "https://example.com/some_message"
     valid = {"message": b"datadatadata",
@@ -835,6 +855,34 @@ def test_write_with_large_mesage_offload(mock_broker, mock_producer, mock_admin_
             assert not mock_broker.has_message(topic, encoded_msg, [])
 
 
+def test_write_offload_disabled(mock_broker, mock_producer, mock_admin_client):
+    mb = mock_broker
+    topic = "topic"
+    broker_address = "localhost:9092"
+    broker_url = f"kafka://{broker_address}/{topic}"
+    offload_url = "http://localhost:8000"
+    mb.set_topic_max_message_size(topic, 32)
+    encoded_msg = io.Producer.pack(Blob(content=b'm' * 64))
+    mock_get_offload = MagicMock(return_value=offload_url)
+
+    def producer_factory(c):
+        return mock_producer(mb, c.topic)
+
+    # it should be possible to explicitly disable offloading
+    def should_not_be_called(*args):
+        assert False, "_offload_message should not becalled in this context"
+    with patch("hop.io._get_offload_server", mock_get_offload), \
+            patch("hop.io.adc_producer.Producer", side_effect=producer_factory), \
+            patch("hop.io.AdminClient", return_value=mock_admin_client(mb)), \
+            patch("hop.io.Producer._offload_message", should_not_be_called):
+        stream = io.Stream(auth=Auth("user", "pencil", method="SCRAM-SHA-1"))
+        with stream.open(broker_url, "w", automatic_offload=False) as s:
+            with pytest.raises(KafkaException) as ex:
+                s.write_raw(*encoded_msg)
+            mock_get_offload.assert_not_called()
+            assert "Unable to send message" in str(ex)
+
+
 def test_offload_message():
     fixed_uuid = uuid4()
 
@@ -988,7 +1036,7 @@ def test_stream_auth(auth_config, tmpdir):
     assert s1.auth is None
 
     # turning on authentication should give an auth object with the data read from the default file
-    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
+    with temp_auth(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir):
         s2 = io.Stream(auth=True)
         a2 = s2.auth[0]
         assert a2._config["sasl.username"] == "username"
@@ -1032,7 +1080,7 @@ def test_stream_open(auth_config, mock_broker, mock_producer, mock_admin_client,
     def producer_factory(c):
         return mock_producer(mb, c.topic)
     # verify that complete URLs are accepted
-    with temp_config(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir), \
+    with temp_auth(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir), \
             patch("hop.io.adc_producer.Producer", side_effect=producer_factory), \
             patch("adc.consumer.Consumer.subscribe", MagicMock()) as subscribe, \
             patch("hop.io.AdminClient", return_value=mock_admin_client(mock_broker)):
@@ -1588,7 +1636,7 @@ def test_list_topics_too_many_brokers():
 
 def test_list_topics_auth(auth_config, tmpdir):
     # when auth=True, auth related properties should be set
-    with temp_config(tmpdir, auth_config) as config_dir, \
+    with temp_auth(tmpdir, auth_config) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), \
             patch("confluent_kafka.Consumer", make_mock_listing_consumer([])) as Consumer:
         listing = io.list_topics("kafka://example.com", auth=True)
@@ -1603,7 +1651,7 @@ def test_list_topics_auth(auth_config, tmpdir):
         assert cons_args[0]["sasl.password"] == "password"
 
     # when an Auth object is set, it should take precedence over automatic lookup
-    with temp_config(tmpdir, auth_config) as config_dir, \
+    with temp_auth(tmpdir, auth_config) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), \
             patch("confluent_kafka.Consumer", make_mock_listing_consumer([])) as Consumer:
         auth = Auth("someone_else", "other_password")
@@ -1620,7 +1668,7 @@ def test_list_topics_auth(auth_config, tmpdir):
 
     # when an Auth object is set, it should take precedence over automatic lookup,
     # even with userinfo in the URL
-    with temp_config(tmpdir, auth_config) as config_dir, \
+    with temp_auth(tmpdir, auth_config) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), \
             patch("confluent_kafka.Consumer", make_mock_listing_consumer([])) as Consumer:
         auth = Auth("someone_else", "other_password")
@@ -1647,7 +1695,7 @@ def test_list_topics_auth(auth_config, tmpdir):
             password="pass2"
             }]
         """
-    with temp_config(tmpdir, multi_cred) as config_dir, \
+    with temp_auth(tmpdir, multi_cred) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir), \
             patch("confluent_kafka.Consumer", make_mock_listing_consumer([])) as Consumer:
         listing = io.list_topics("kafka://user2@example.com", auth=True)
