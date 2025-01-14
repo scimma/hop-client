@@ -45,12 +45,13 @@ def _main(args):
             message = loader.load_file(message_file)
             s.write(message)
 
-        messages = sys.stdin.read().splitlines()
+        if len(args.message) == 0:
+            messages = sys.stdin.read().splitlines()
 
-        if messages:
-            assert args.format == io.Deserializer.BLOB.name \
-                or args.format == io.Deserializer.JSON.name, \
-                "piping/redirection only allowed for BLOB and JSON formats"
+            if messages:
+                assert args.format == io.Deserializer.BLOB.name \
+                    or args.format == io.Deserializer.JSON.name, \
+                    "piping/redirection only allowed for BLOB and JSON formats"
 
-            for message in messages:
-                s.write(loader.load(message), test=args.test)
+                for message in messages:
+                    s.write(loader.load(message), test=args.test)

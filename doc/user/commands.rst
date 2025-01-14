@@ -12,6 +12,7 @@ Commands
 * :code:`hop list-topics`: SHow accessible Kafka topics
 * :code:`hop publish`: Publish messages such as GCN circulars and notices
 * :code:`hop subscribe`: Listen to messages such as GCN circulars and notices
+* :code:`hop configure`: Subcommands for checking and setting configuration options
 * :code:`hop version`: Show version dependencies of :code:`hop-client`
 
 :code:`hop auth`
@@ -61,6 +62,37 @@ the input into separate messages at newlines.
 This command allows a user to subscribe to messages and print them to stdout.
 
 .. program-output:: hop subscribe --help
+   :nostderr:
+
+:code:`hop configure`
+~~~~~~~~~~~~~~~~~~~~~~
+
+This is a category of subcommands which allow a user to check and set configuration options for
+:code:`hop-client`, both as a command-line tool and a library.
+
+:code:`hop configure locate`
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This command provides information on the location(s) from which configuration data will be read.
+
+.. program-output:: hop configure locate --help
+   :nostderr:
+
+:code:`hop configure show`
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This command outputs the current configuration including both data from configuration files and any
+overriding values specified via environment variables. 
+
+.. program-output:: hop configure show --help
+   :nostderr:
+
+:code:`hop configure set`
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This command records a new value for a configuration parameter to the configuration file.
+
+.. program-output:: hop configure set --help
    :nostderr:
 
 :code:`hop version`
