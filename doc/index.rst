@@ -15,6 +15,7 @@ User's Guide
    user/auth
    user/models
    user/robust_publication
+   user/large_messages
    user/commands
 
 API Reference
