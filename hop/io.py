@@ -20,7 +20,7 @@ import requests
 
 from adc import consumer, errors, kafka
 from adc import producer as adc_producer
-from confluent_kafka.admin import AdminClient, ConfigResource, ResourceType
+from confluent_kafka.admin import AdminClient, ConfigEntry, ConfigResource, ResourceType
 
 from .configure import get_config_path, load_config
 from .auth import Auth, AmbiguousCredentialError
@@ -438,7 +438,7 @@ class Consumer:
             ignoretest: When True, ignore test messages. When False, process them
                 normally.
             fetch_external: When true, automatically download data referred to by
-                            'External' mesages, and return it in place of the
+                            'External' messages, and return it in place of the
                             external message itself.
 
         :meta private:
@@ -501,7 +501,7 @@ class Consumer:
     def read_raw(self, metadata=False, autocommit=True, **kwargs):
         """Read messages from a stream without applying any deserialization.
 
-        This is an advanced interface; for most purposes it is preferrable to use
+        This is an advanced interface; for most purposes it is preferable to use
         :meth:`Consumer.read <hop.io.Consumer.read>` instead.
 
         Args:
@@ -774,7 +774,25 @@ class Producer:
         logger.debug(f"Fetching settings for topics: {topics}")
         query = [ConfigResource(restype=ResourceType.TOPIC, name=topic) for topic in topics]
         futures = aclient.describe_configs(query)
-        return {resource.name: future.result() for resource, future in futures.items()}
+        results = {}
+        for resource, future in futures.items():
+            try:
+                results[resource.name] = future.result()
+            except confluent_kafka.KafkaException as ke:
+                kerr = ke.args[0]
+                # it is a potentially common issue that a user has WRITE permission but not
+                # DESCRIBE_CONFIGS permission, in which case we need to keep working in a degraded
+                # state, without trying to treat the maximum message size
+                if kerr.code() == confluent_kafka.KafkaError.TOPIC_AUTHORIZATION_FAILED:
+                    warnings.warn(f"Authorization to describe configs of topic {resource.name} "
+                                  "failed; unable to determine maximum allowed message size.")
+                    # set a large value so that we don't try to act on this information
+                    # 1000000000 is the maximum allowed by librdkafka as of version 2.8.0
+                    dummy_max = ConfigEntry("max.message.bytes", 1000000000)
+                    results[resource.name] = {"max.message.bytes": dummy_max}
+                else:  # For other problems, let the exception propagate
+                    raise
+        return results
 
     def _release_producer_for_topic(self, topic):
         t_record = self.topics[topic]
@@ -879,7 +897,7 @@ class Producer:
                      all header keys must be strings and and values should be either string-like or
                      bytes-like objects.
             delivery_callback: A callback which will be called when each message
-                is either delivered or permenantly fails to be delivered.
+                is either delivered or permanently fails to be delivered.
             test: Message should be marked as a test message by adding a header
                   with key '_test'.
             topic: The topic to which the message should be sent. This need not be specified if
@@ -892,7 +910,7 @@ class Producer:
                   delivery_callback=errors.raise_delivery_errors, topic=None):
         """Write a pre-encoded message to the stream.
 
-        This is an advanced interface; for most purposes it is preferrable to use
+        This is an advanced interface; for most purposes it is preferable to use
         :meth:`Producer.write <hop.io.Producer.write>` instead.
 
         Args:
@@ -901,7 +919,7 @@ class Producer:
             headers: Any headers to attach to the message, either as a dictionary
                 mapping strings to strings, or as a list of 2-tuples of strings.
             delivery_callback: A callback which will be called when each message
-                is either delivered or permenantly fails to be delivered.
+                is either delivered or permanently fails to be delivered.
             topic: The topic to which the message should be sent. This need not be specified if
                    the stream was opened with a URL containing exactly one topic name.
         """
@@ -944,15 +962,15 @@ class Producer:
                                 delivery_callback=delivery_callback, topic=topic)
 
     def _offload_message(self, message, headers, topic):
-        """Send a large mesage to an offload API server via HTTP, and generate a replacement
-        reference message to be sent to kafka in its place.
+        """Send a large message to an offload API server via HTTP, and generate a replacement
+        reference message to be sent to Kafka in its place.
 
         Args:
             message: The message to be sent which must already be correctly encoded by
                      :meth:`Producer.pack <hop.io.Producer.pack>`
             headers: Any headers to attach to the message as a list of (str, bytes) 2-tuples.
-        Return: A tuple consiting of the replacement message payload, replacement message headers,
-                and an error object. In the case of success the first two tuple enries are valid
+        Return: A tuple consisting of the replacement message payload, replacement message headers,
+                and an error object. In the case of success the first two tuple entries are valid
                 and suitable for passing to the Kafka producer's write, and the third tuple entry
                 is None. In the case of failure, the first two entries are None, and the error is a
                 confluent_kafka.KafkaError object.
