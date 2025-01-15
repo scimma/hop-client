@@ -1165,6 +1165,50 @@ def test_producer_check_topic_settings(mock_broker, mock_admin_client):
         assert results["topic2"]["max.message.bytes"].value == non_default_size
 
 
+def test_producer_check_topic_settings_inaccessible():
+    inaccessible_error = confluent_kafka.KafkaError(
+        confluent_kafka.KafkaError.TOPIC_AUTHORIZATION_FAILED,
+        "Topic authorization failed.", False, False, False)
+    ex = confluent_kafka.KafkaException(inaccessible_error)
+    inaccessible_future = MagicMock()
+    inaccessible_future.result = MagicMock(side_effect=ex)
+    ConfigResource = confluent_kafka.admin.ConfigResource
+
+    def describe_configs_disallowed(queries):
+        return {ConfigResource(q.restype, q.name): inaccessible_future for q in queries}
+
+    MockAdminClient = MagicMock()
+    MockAdminClient.describe_configs = describe_configs_disallowed
+
+    with patch("hop.io.AdminClient", return_value=MockAdminClient):
+        prod = io.Producer("example.com:9092", [], None)
+        with pytest.warns(UserWarning):
+            results = prod._check_topic_settings(["topic"])
+        assert len(results) == 1
+        assert "topic" in results
+
+
+def test_producer_check_topic_settings_general_kafka_error():
+    network_error = confluent_kafka.KafkaError(
+        confluent_kafka.KafkaError.NETWORK_EXCEPTION,
+        "Network error", False, False, False)
+    ex = confluent_kafka.KafkaException(network_error)
+    error_future = MagicMock()
+    error_future.result = MagicMock(side_effect=ex)
+    ConfigResource = confluent_kafka.admin.ConfigResource
+
+    def describe_configs_disallowed(queries):
+        return {ConfigResource(q.restype, q.name): error_future for q in queries}
+
+    MockAdminClient = MagicMock()
+    MockAdminClient.describe_configs = describe_configs_disallowed
+
+    with patch("hop.io.AdminClient", return_value=MockAdminClient):
+        prod = io.Producer("example.com:9092", [], None)
+        with pytest.raises(confluent_kafka.KafkaException):
+            prod._check_topic_settings(["topic"])
+
+
 def test_producer_set_producer_for_topic():
     prod = io.Producer("example.com:9092", [], None)
 
