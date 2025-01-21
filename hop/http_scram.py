@@ -12,6 +12,18 @@ logger = logging.getLogger("hop")
 
 class SCRAMAuth(requests.auth.AuthBase):
     def __init__(self, credential, shortcut: bool = False, check_final=True):
+        """
+        Args:
+            credential: The set of SCRAM credentials to supply when connecting
+            shortcut: Do not wait for a challenge from the server, and skip directly to sending the
+                      authentication 'response', which in this case is the SCRAM
+                      'client-first-message'. This saves a pointless network round-trip when
+                      authentication is needed and the client can be certain that this is the
+                      necessary scheme.
+            check_final: Perform the final check of the server signature required by RFC 5802. The
+                         value of this is unclear when communication is over HTTPS and the server
+                         has already been authenticated by the TLS.
+        """
         self._thread_local = threading.local()
         # these are immutable, so we do not bother making them thread-local
         self.username = credential.username
