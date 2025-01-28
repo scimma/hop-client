@@ -930,7 +930,7 @@ class Producer:
                             "Either configure a topic when opening the Stream, "
                             "or specify the topic argument to write()")
         if delivery_callback is None:
-            delivery_callback = lambda *args: None
+            delivery_callback = lambda *args: None  # noqa: E731
 
         estimated_size = self._estimate_message_size(packed_message, headers)
         t_record = self._record_for_topic(topic)
