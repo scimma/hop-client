@@ -929,6 +929,8 @@ class Producer:
             raise Exception("No topic specified for write: "
                             "Either configure a topic when opening the Stream, "
                             "or specify the topic argument to write()")
+        if delivery_callback is None:
+            delivery_callback = lambda *args: None
 
         estimated_size = self._estimate_message_size(packed_message, headers)
         t_record = self._record_for_topic(topic)
@@ -943,8 +945,7 @@ class Producer:
                              f"topic; offloading to {self.offload_url}")
                 packed_message, headers, err = self._offload_message(packed_message, headers, topic)
                 if err is not None:
-                    if delivery_callback is not None:
-                        delivery_callback(err, Consumer.ExternalMessage.make_error(err))
+                    delivery_callback(err, Consumer.ExternalMessage.make_error(err))
                     return
                 # p_size = self._estimate_message_size(packed_message, headers)
                 # Possible edge case: if p_size is _still_ greater than the message size limit,
@@ -955,8 +956,7 @@ class Producer:
                                                  " bytes with headers to topic with message size"
                                                  f" limit of {t_record.max_message_size}",
                                                  False, False, False)
-                if delivery_callback is not None:
-                    delivery_callback(err, Consumer.ExternalMessage.make_error(err))
+                delivery_callback(err, Consumer.ExternalMessage.make_error(err))
                 return
         t_record.producer.write(packed_message, headers=headers,
                                 delivery_callback=delivery_callback, topic=topic)
