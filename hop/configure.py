@@ -3,6 +3,7 @@ import logging
 import os
 import toml
 from typing import Optional
+import warnings
 
 from . import cli
 
@@ -102,10 +103,16 @@ def load_config(config_path: Optional[str] = None):
         config_path = get_config_path("general")
     if os.path.exists(config_path):
         try:
-            with open(config_path, 'r') as file:
-                config = Config.load(file)
-        except Exception as ex:
-            raise RuntimeError(f"Error loading {config_path}") from ex
+            file = open(config_path, 'r')
+        except Exception:
+            warnings.warn(f"Unable to open {config_path} for reading; using default configuration")
+            config = Config()
+        else:
+            try:
+                with file:
+                    config = Config.load(file)
+            except Exception as ex:
+                raise RuntimeError(f"Error loading {config_path}") from ex
     else:
         config = Config()
 

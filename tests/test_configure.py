@@ -3,7 +3,7 @@ from io import StringIO
 import pytest
 import toml
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from conftest import temp_config, temp_environ
 
 from hop import configure
@@ -130,6 +130,15 @@ def test_load_config(general_config, tmpdir):
         os.remove(alt_path)
         assert not config.fetch_external
         assert config.automatic_offload
+
+    # if the specified file exists but cannot be read,
+    # we should construct a default object and emit a warning
+    with temp_environ(XDG_CONFIG_HOME=str(tmpdir)), \
+            patch("hop.configure.os.path.exists", MagicMock(return_value=True)), \
+            patch("builtins.open", MagicMock(side_effect=PermissionError())):
+        with pytest.warns(Warning):
+            config = configure.load_config()
+        assert config == configure.Config()
 
     # malformed data should cause a meaningful error
     with temp_config(tmpdir, "BAD\tTOML") as conf_dir, temp_environ(XDG_CONFIG_HOME=conf_dir):
