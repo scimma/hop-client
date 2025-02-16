@@ -349,10 +349,10 @@ class MockBroker:
     def get_topic_max_message_size(self, topic):
         return self._max_sizes[topic]
 
-    def insert_message(self, topic, msg, headers=[]):
-        self._messages[topic].append((msg, headers))
+    def insert_message(self, topic, msg, headers=[], key=None):
+        self._messages[topic].append((msg, headers, key))
 
-    def write(self, topic, msg, headers=[], delivery_callback=None):
+    def write(self, topic, msg, headers=[], delivery_callback=None, key=None):
         assert delivery_callback is not None
         if len(msg) > self._max_sizes[topic]:
             if delivery_callback is None:
@@ -361,12 +361,10 @@ class MockBroker:
                                              "Message too large", False, False, True)
             delivery_callback(err, None)  # TODO: synthetic message object?
             return
-        self._messages[topic].append((msg, headers))
+        self._messages[topic].append((msg, headers, key))
 
-    def has_message(self, topic, message, headers=[]):
-        for m in self._messages[topic]:
-            print(m[0] == message, m[1] == headers)
-        return (message, headers) in self._messages[topic]
+    def has_message(self, topic, message, headers=[], key=None):
+        return (message, headers, key) in self._messages[topic]
 
     def read(self, topics, groupid, start_at=StartPosition.EARLIEST, **kwargs):
         if isinstance(topics, str):
@@ -405,20 +403,21 @@ def mock_producer():
             def delay_sending(self, delay=True):
                 self._delay_sending = delay
 
-            def write(self, msg, headers=[], delivery_callback=None, topic=None):
+            def write(self, msg, headers=[], delivery_callback=None, topic=None, key=None):
                 if topic is None:
                     if self.topic is not None:
                         topic = self.topic
                     else:
                         raise Exception("No topic specified for write")
                 if self._delay_sending:
-                    self._delayed.append((msg, headers, delivery_callback, topic))
+                    self._delayed.append((msg, headers, delivery_callback, topic, key))
                     return
-                self.broker.write(topic, msg, headers, delivery_callback=delivery_callback)
+                self.broker.write(topic, msg, headers, delivery_callback=delivery_callback, key=key)
 
             def send_delayed(self):
-                for msg, headers, delivery_callback, topic in self._delayed:
-                    self.broker.write(topic, msg, headers, delivery_callback=delivery_callback)
+                for msg, headers, delivery_callback, topic, key in self._delayed:
+                    self.broker.write(topic, msg, headers, delivery_callback=delivery_callback,
+                                      key=key)
                 self._delayed.clear()
 
             def __len__(self):

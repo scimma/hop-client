@@ -1,4 +1,5 @@
 from collections import Counter
+from collections.abc import Collection, Mapping
 from dataclasses import asdict, fields
 from datetime import timedelta
 import json
@@ -668,6 +669,7 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer, m
     test_headers.insert(4, ('_test', b'true'))
     none_test_headers = [("_id", fixed_uuid.bytes), ("_sender", auth.username.encode("utf-8")),
                          ('_test', b"true"), ("_format", b"circular")]
+    test_key = "testkey"
 
     mb = mock_broker
     with patch("hop.io.adc_producer.Producer", side_effect=lambda c: mock_producer(mb, c.topic)), \
@@ -698,6 +700,11 @@ def test_stream_write(circular_msg, circular_text, mock_broker, mock_producer, m
         with stream.open(broker_url, "w") as s:
             s.write(circular_msg, headers=None, test=True)
             assert mock_broker.has_message(topic, expected_msg.value(), none_test_headers)
+
+        mock_broker.reset()
+        with stream.open(broker_url, "w") as s:
+            s.write(circular_msg, headers, key=test_key)
+            assert mock_broker.has_message(topic, expected_msg.value(), canonical_headers, test_key)
 
         # repeat, but with a manual close instead of context management
         mock_broker.reset()
@@ -807,8 +814,8 @@ def test_write_with_large_mesage_offload(mock_broker, mock_producer, mock_admin_
     mock_offload_args = []
 
     def make_mock_offload(placeholder_message, placeholder_headers=[], err=None):
-        def mock_offload(obj, message, headers, topic):
-            mock_offload_args.append((message, headers, topic))
+        def mock_offload(obj, message, headers, topic, key=None):
+            mock_offload_args.append((message, headers, topic, key))
             return (placeholder_message, placeholder_headers, err)
         return mock_offload
 
@@ -883,6 +890,25 @@ def test_write_offload_disabled(mock_broker, mock_producer, mock_admin_client):
             assert "Unable to send message" in str(ex)
 
 
+def check_outgoing_bson_message(data):
+    if not isinstance(data, Mapping):
+        return "Data is not a mapping"
+    if "message" not in data or not isinstance(data["message"], bytes):
+        return "Message data not present"
+    if "headers" not in data or \
+            not isinstance(data["headers"], Collection):
+        return "Message headers not present or malformed"
+    for header in data["headers"]:
+        if not isinstance(header, Collection) or len(header) != 2 \
+                or not isinstance(header[0], str) or not isinstance(header[1], bytes):
+            return "Malformed message header"
+    if "key" in data:
+        if not isinstance(data["key"], bytes) and not isinstance(data["key"], str):
+            return "Malformed message key"
+
+    return None
+
+
 def test_offload_message():
     fixed_uuid = uuid4()
 
@@ -911,7 +937,8 @@ def test_offload_message():
         payload = bson.loads(conn.requests[-1]["body"])
         # we happen to have a tool, covered by other tests for verifying the structure of
         # offloaded message payloads
-        assert io.Consumer._check_bson_message_structure(payload, "URL")
+        print(payload)
+        assert check_outgoing_bson_message(payload) is None
         rmessage = result[0]
         assert isinstance(rmessage, bytes)
         decoded_rmessage = ExternalMessage.load(rmessage)
@@ -957,6 +984,20 @@ def test_offload_message():
         assert test_header is not None
         assert test_header == b"true", "If the original message was marked as a test, " \
                                        "the offloaded version also should be"
+
+    # offloading a message with a key should also pass that through
+    conn = PhonyConnection([resp1, resp2])
+    with patch("requests.adapters.PoolManager", mock_pool_manager(conn)), \
+            patch("secrets.token_urlsafe", MagicMock(return_value=test_nonce)):
+        prod = io.Producer("example.com:9092", [], None)
+        prod.offload_url = "http://example.com/8000"
+        prod.auth = Auth("user", "pencil", method="SCRAM-SHA-1")
+        result = prod._offload_message(b"data", [("_id", fixed_uuid.bytes)], "topic", key="a_key")
+        assert result[2] is None
+        assert len(conn.requests) > 0
+        payload = bson.loads(conn.requests[-1]["body"])
+        assert check_outgoing_bson_message(payload) is None
+        assert payload["key"] == "a_key"
 
     # malformed _id headers should be ignored
     conn = PhonyConnection([resp1, resp2])

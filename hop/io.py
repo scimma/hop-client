@@ -621,8 +621,7 @@ class Consumer:
                                        partition=parent_msg.partition(),
                                        offset=parent_msg.offset(),
                                        timestamp=decoded["metadata"]["timestamp"],
-                                       # TODO: we do not currently keep the key in the archive
-                                       key=None,
+                                       key=decoded["metadata"].get("key", None),
                                        )
         payload = Deserializer.deserialize(message)
         if metadata:
@@ -886,7 +885,7 @@ class Producer:
         return size
 
     def write(self, message, headers=None,
-              delivery_callback=errors.raise_delivery_errors, test=False, topic=None):
+              delivery_callback=errors.raise_delivery_errors, test=False, topic=None, key=None):
         """Write messages to a stream.
 
 
@@ -902,12 +901,13 @@ class Producer:
                   with key '_test'.
             topic: The topic to which the message should be sent. This need not be specified if
                    the stream was opened with a URL containing exactly one topic name.
+            key: If specified, the Kafka message key
         """
         packed_message, full_headers = self._pack(message, headers, test=test)
-        self.write_raw(packed_message, full_headers, delivery_callback, topic)
+        self.write_raw(packed_message, full_headers, delivery_callback, topic, key)
 
     def write_raw(self, packed_message, headers=None,
-                  delivery_callback=errors.raise_delivery_errors, topic=None):
+                  delivery_callback=errors.raise_delivery_errors, topic=None, key=None):
         """Write a pre-encoded message to the stream.
 
         This is an advanced interface; for most purposes it is preferable to use
@@ -932,7 +932,7 @@ class Producer:
         if delivery_callback is None:
             delivery_callback = lambda *args: None  # noqa: E731
 
-        estimated_size = self._estimate_message_size(packed_message, headers)
+        estimated_size = self._estimate_message_size(packed_message, headers, key=key)
         t_record = self._record_for_topic(topic)
         if estimated_size > t_record.max_message_size:
             if not hasattr(self, "offload_url"):
@@ -943,7 +943,8 @@ class Producer:
             if self.offload_url is not None:
                 logger.debug(f"Message is too large (est. {estimated_size} bytes) to fit on the "
                              f"topic; offloading to {self.offload_url}")
-                packed_message, headers, err = self._offload_message(packed_message, headers, topic)
+                packed_message, headers, err = self._offload_message(packed_message, headers, topic,
+                                                                     key)
                 if err is not None:
                     delivery_callback(err, Consumer.ExternalMessage.make_error(err))
                     return
@@ -959,9 +960,9 @@ class Producer:
                 delivery_callback(err, Consumer.ExternalMessage.make_error(err))
                 return
         t_record.producer.write(packed_message, headers=headers,
-                                delivery_callback=delivery_callback, topic=topic)
+                                delivery_callback=delivery_callback, topic=topic, key=key)
 
-    def _offload_message(self, message, headers, topic):
+    def _offload_message(self, message, headers, topic, key=None):
         """Send a large message to an offload API server via HTTP, and generate a replacement
         reference message to be sent to Kafka in its place.
 
@@ -969,6 +970,8 @@ class Producer:
             message: The message to be sent which must already be correctly encoded by
                      :meth:`Producer.pack <hop.io.Producer.pack>`
             headers: Any headers to attach to the message as a list of (str, bytes) 2-tuples.
+            topic: The name of the topic to which the message is intended to be sent
+            key: If specified, the Kafka message key
         Return: A tuple consisting of the replacement message payload, replacement message headers,
                 and an error object. In the case of success the first two tuple entries are valid
                 and suitable for passing to the Kafka producer's write, and the third tuple entry
@@ -993,7 +996,10 @@ class Producer:
                                              "Was it properly processed by Producer.pack?",
                                              False, False, False)
             return (None, None, err)
-        data = bson.dumps({"message": message, "headers": headers})
+        data_raw = {"message": message, "headers": headers}
+        if key is not None:
+            data_raw["key"] = key
+        data = bson.dumps(data_raw)
         try:
             # We assume that no server will allow un-authenticated writes, so we use shortcut=True
             # to start attempting a SCRAM handshake as quickly as possible.
