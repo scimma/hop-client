@@ -922,6 +922,7 @@ class Producer:
                 is either delivered or permanently fails to be delivered.
             topic: The topic to which the message should be sent. This need not be specified if
                    the stream was opened with a URL containing exactly one topic name.
+            key: If specified, the Kafka message key
         """
         if topic is None and self.default_topic is not None:
             topic = self.default_topic

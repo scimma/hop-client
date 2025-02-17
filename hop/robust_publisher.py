@@ -861,10 +861,17 @@ class RobustProducer(threading.Thread):
         Args:
             message: A message to send.
             headers: Headers to be sent with the message, as a list of 2-tuples of strings.
+            test: The message should be marked as a test message by adding a header with
+                  key '_test'.
+            topic: The topic to which the message should be sent. This need not be specified if the
+                   producer was constructed with a URL containing exactly one topic name.
+            key: If specified, the Kafka message key
 
         Raises:
             RuntimeError: If appending the new message to the on-disk journal fails.
             TypeError: If the message is not a suitable type.
+            Exception: If a single topic was not specified in the original URL and the topic
+                       argument was not set.
 
         """
         if topic is None and self._stream.default_topic is not None:
