@@ -5,6 +5,7 @@ import os
 import struct
 import time
 import threading
+from typing import Union
 import zlib
 
 from . import io
@@ -181,7 +182,8 @@ class PublicationJournal:
             raise RuntimeError(f"Failed to append record to journal: {e}")
 
     # returns the sequence number assigned to the message
-    def queue_message(self, message: bytes, topic: str, headers=None, key: bytes | str = None):
+    def queue_message(self, message: bytes, topic: str, headers=None,
+                      key: Union[bytes, str] = None):
         """Record to the journal a message which is to be sent.
 
         Args:

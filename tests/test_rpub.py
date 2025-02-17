@@ -1185,7 +1185,7 @@ def test_rpublisher_with_auth(tmpdir):
                     pub._stream.flush()
                     break
         assert ("topic", *hop.io.Producer.pack("a message", None, auth=auth)) \
-               in pub._stream.messages_written
+            in pub._stream.messages_written
 
 
 def test_rpublisher_automatic_topic(tmpdir):
@@ -1220,7 +1220,7 @@ def test_rpublisher_automatic_topic(tmpdir):
                             journal_path=journal_path, auth=False) as pub:
             with pytest.raises(Exception):
                 pub.write("a message")
-            
+
             # messages can be written to explicitly specified topics, which need not have been
             # originally listed in the URL
             messages = {"message 1": "topicA", "message 2": "topicB", "message 3": "topicC"}
