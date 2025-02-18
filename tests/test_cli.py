@@ -3,10 +3,9 @@ import sys
 import pytest
 import json
 from io import BytesIO, StringIO
-import io
 from uuid import uuid4
 
-from hop import __version__, configure
+from hop import __version__, configure, io, models
 from conftest import temp_auth, temp_config, temp_environ
 
 
@@ -78,7 +77,7 @@ def test_cli_publish(script_runner, message_format, message_parameters_dict):
     # test publishing from stdin
     with patch("hop.io.Stream.open", mock_open()) as mock_stream:
         ret = script_runner.run(["hop", "publish", "-f", message_format.upper(), broker_url],
-                                stdin=io.StringIO('"message1"\n"message2"'))
+                                stdin=StringIO('"message1"\n"message2"'))
         if message_format == "blob":
             assert ret.success
         else:  # only the blob format is supported, others should trigger an error
@@ -131,7 +130,6 @@ def test_cli_publish_blob_msgs(mock_broker, mock_producer, mock_consumer, mock_a
 
 def test_cli_publish_json_blob_msgs(mock_broker, mock_producer, mock_consumer, mock_admin_client):
     from hop import publish, io, models
-    import json
     args = MagicMock()
     args.url = "kafka://hostname:port/topic"
     args.format = io.Deserializer.JSON.name
@@ -195,88 +193,114 @@ def test_cli_publish_bad_blob(mock_broker, mock_producer, mock_admin_client):
             publish._main(args)
 
 
+# create a mock output stream which supports writing binary data
+def make_mock_stream():
+    # this will be the underlying object which holds the data
+    buffer = BytesIO()
+    # Prepare wrapper routines which take strings like a TextIOBase.
+    # Currently only acting as an output stream is supported.
+    encoding = "utf-8"
+
+    def write(s, /):
+        encoded = s.encode(encoding)
+        buffer.write(encoded)
+        return len(encoded)
+    # this will return bytes, not str, because the data is not constrained by any string encoding
+
+    def getvalue():
+        return buffer.getvalue()
+    stream = MagicMock()
+    stream.buffer = buffer
+    stream.write = write
+    stream.getvalue = getvalue
+    return stream
+
+
 def test_cli_subscribe(script_runner):
-    ret = script_runner.run(["hop", "subscribe", "--help"])
-    assert ret.success
-
-    with patch("hop.io.Stream.open", mock_open()) as mock_stream:
-
-        broker_url = "kafka://hostname:port/message"
-        ret = script_runner.run(["hop", "subscribe", broker_url, "--no-auth"])
-
-        # verify CLI output
+    with patch("pytest_console_scripts.StreamMock", make_mock_stream):
+        ret = script_runner.run(["hop", "subscribe", "--help"])
         assert ret.success
-        assert ret.stderr == ""
 
-        # verify broker url was processed
-        mock_stream.assert_called_with(broker_url, "r", group_id=None, ignoretest=True)
+        with patch("hop.io.Stream.open", mock_open()) as mock_stream:
 
-        ret = script_runner.run(["hop", "subscribe", broker_url, "--no-auth", "--group-id",
-                                 "group"])
+            broker_url = "kafka://hostname:port/message"
+            ret = script_runner.run(["hop", "subscribe", broker_url, "--no-auth"])
 
-        # verify CLI output
-        assert ret.success
-        assert ret.stderr == ""
+            # verify CLI output
+            assert ret.success
+            assert len(ret.stderr) == 0
 
-        # verify consumer group ID was used
-        mock_stream.assert_called_with(broker_url, "r", group_id="group", ignoretest=True)
+            # verify broker url was processed
+            mock_stream.assert_called_with(broker_url, "r", group_id=None, ignoretest=True)
 
-    message_body = "some-message"
-    message_data = {"format": "blob", "content": message_body}
-    fake_message = MagicMock()
-    fake_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
-    mock_instance = MagicMock()
-    mock_instance.stream = MagicMock(return_value=[fake_message])
-    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
-        ret = script_runner.run(["hop", "--debug", "subscribe", broker_url, "--no-auth", "--quiet"])
-        assert ret.success
-        assert ret.stderr == ""
-        assert message_body in ret.stdout
+            ret = script_runner.run(["hop", "subscribe", broker_url, "--no-auth", "--group-id",
+                                     "group"])
 
-    def fake_headers():
-        return [('_test', b'true')]
+            # verify CLI output
+            assert ret.success
+            assert len(ret.stderr) == 0
 
-    fake_message.headers = fake_headers
+            # verify consumer group ID was used
+            mock_stream.assert_called_with(broker_url, "r", group_id="group", ignoretest=True)
 
-    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
-        ret = script_runner.run(["hop", "subscribe", broker_url, "--no-auth", "--quiet"])
-        assert ret.success
-        assert ret.stderr == ""
-        assert ret.stdout == ""
+        message_body = "some-message"
+        message_model = models.Blob(message_body.encode("utf-8"))
+        message = io.Consumer.ExternalMessage(*io.Producer.pack(message_model), "a_topic",
+                                              0, 0, 0, None)
+        mock_instance = MagicMock()
+        mock_instance.stream = MagicMock(return_value=[message])
+        with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+            ret = script_runner.run(["hop", "--debug", "subscribe", broker_url, "--no-auth",
+                                     "--quiet"])
+            assert ret.success
+            assert len(ret.stderr) == 0
+            assert message.value() in ret.stdout
 
-    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
-        ret = script_runner.run(["hop", "subscribe", broker_url, "--no-auth", "--quiet", "--test"])
-        assert ret.success
-        assert ret.stderr == ""
-        assert message_body in ret.stdout
+        message = io.Consumer.ExternalMessage(*io.Producer.pack(message_model, test=True),
+                                              "a_topic", 0, 0, 0, None)
+        mock_instance.stream = MagicMock(return_value=[message])
+
+        with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+            ret = script_runner.run(["hop", "subscribe", broker_url, "--no-auth", "--quiet"])
+            assert ret.success
+            assert len(ret.stderr) == 0
+            assert len(ret.stdout) == 0
+
+        with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+            ret = script_runner.run(["hop", "subscribe", broker_url, "--no-auth", "--quiet",
+                                     "--test"])
+            assert ret.success
+            assert len(ret.stderr) == 0
+            assert message.value() in ret.stdout
 
 
 def test_cli_subscribe_logging(script_runner):
     broker_url = "kafka://hostname:port/message"
     message_body = "some-message"
-    message_data = {"format": "blob", "content": message_body}
-    fake_message = MagicMock()
-    fake_message.value = MagicMock(return_value=json.dumps(message_data).encode("utf-8"))
+    message_model = models.Blob(message_body.encode("utf-8"))
+    message = io.Consumer.ExternalMessage(*io.Producer.pack(message_model), "a_topic",
+                                          0, 0, 0, None)
     mock_instance = MagicMock()
-    mock_instance.stream = MagicMock(return_value=[fake_message])
-    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)):
+    mock_instance.stream = MagicMock(return_value=[message])
+    with patch("hop.io.consumer.Consumer", MagicMock(return_value=mock_instance)), \
+            patch("pytest_console_scripts.StreamMock", make_mock_stream):
         # check logging with --quiet (only warnings/errors)
         ret = script_runner.run(["hop", "--debug", "subscribe", broker_url, "--no-auth", "--quiet"])
         assert ret.success
-        assert "DEBUG" not in ret.stderr
-        assert "INFO" not in ret.stderr
+        assert b"DEBUG" not in ret.stderr
+        assert b"INFO" not in ret.stderr
 
         # check default logging (INFO)
         ret = script_runner.run(["hop", "--debug", "subscribe", broker_url, "--no-auth"])
         assert ret.success
-        assert "INFO" in ret.stderr
-        assert "DEBUG" not in ret.stderr
+        assert b"INFO" in ret.stderr
+        assert b"DEBUG" not in ret.stderr
 
         # check verbose logging (DEBUG)
         ret = script_runner.run(["hop", "--debug", "subscribe", broker_url, "--no-auth", "-v"])
         assert ret.success
-        assert "INFO" in ret.stderr
-        assert "DEBUG" in ret.stderr
+        assert b"INFO" in ret.stderr
+        assert b"DEBUG" in ret.stderr
 
 
 def test_cli_interrupt(script_runner):

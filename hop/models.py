@@ -28,8 +28,13 @@ class MessageModel(ABC):
 
     """
 
+    def __bytes__(self):
+        """Produce the canonical representation of this message.
+        """
+        return json.dumps(asdict(self)).encode("utf-8")
+
     def serialize(self):
-        """Wrap the message with its format and content.
+        """Wrap the message with its format and content, for transmission of Kafka.
 
         Returns:
             A dictionary with "format" and "content" keys.
@@ -39,7 +44,7 @@ class MessageModel(ABC):
         """
         # by default, encode using JSON
         return {"format": format_name(type(self)),
-                "content": json.dumps(asdict(self)).encode("utf-8")
+                "content": bytes(self),
                 }
 
     @classmethod
@@ -108,6 +113,25 @@ class VOEvent(MessageModel):
     def __str__(self):
         return json.dumps(asdict(self), indent=2)
 
+    def __bytes__(self):
+        # TODO: this isn't really suitable, as the output should be the original XML format
+        # That requires some massaging of the data to restore information discarded by xmltodict.
+        return str(self).encode("utf-8")
+
+    def serialize(self):
+        """Wrap the message with its format and content.
+
+        Returns:
+            A dictionary with "format" and "content" keys.
+            The value stored under "format" is the format label.
+            The value stored under "content" is the actual encoded data.
+
+        """
+        # by default, encode using JSON
+        return {"format": format_name(type(self)),
+                "content": json.dumps(asdict(self)).encode("utf-8"),
+                }
+
     @classmethod
     def load(cls, xml_input):
         """Create a new VOEvent from an XML-formatted VOEvent.
@@ -151,8 +175,8 @@ class GCNTextNotice(MessageModel):
     raw: bytes
     fields: dict
 
-    def serialize(self):
-        return {"format": format_name(type(self)), "content": self.raw}
+    def __bytes__(self):
+        return self.raw
 
     @classmethod
     def deserialize(cls, data):
@@ -186,6 +210,11 @@ class GCNTextNotice(MessageModel):
             raw = input
         return cls.deserialize(raw)
 
+    @classmethod
+    def load_file(cls, filename):
+        with open(filename, "rb") as f:
+            return cls.load(f)
+
 
 @dataclass
 class GCNCircular(MessageModel):
@@ -205,6 +234,23 @@ class GCNCircular(MessageModel):
     def __str__(self):
         headers = [(name.upper() + ":").ljust(9) + val for name, val in self.header.items()]
         return "\n".join(headers + ["", self.body])
+
+    def __bytes__(self):
+        return str(self).encode("utf-8")
+
+    def serialize(self):
+        """Wrap the message with its format and content.
+
+        Returns:
+            A dictionary with "format" and "content" keys.
+            The value stored under "format" is the format label.
+            The value stored under "content" is the actual encoded data.
+
+        """
+        # by default, encode using JSON
+        return {"format": format_name(type(self)),
+                "content": json.dumps(asdict(self)).encode("utf-8"),
+                }
 
     @classmethod
     def load(cls, email_input):
@@ -240,8 +286,8 @@ class Blob(MessageModel):
     def __str__(self):
         return str(self.content)
 
-    def serialize(self):
-        return {"format": format_name(type(self)), "content": self.content}
+    def __bytes__(self):
+        return self.content
 
     @classmethod
     def deserialize(cls, data):
@@ -292,10 +338,8 @@ class JSONBlob(MessageModel):
     def __str__(self):
         return str(self.content)
 
-    def serialize(self):
-        return {"format": format_name(type(self)),
-                "content": json.dumps(self.content).encode("utf-8")
-                }
+    def __bytes__(self):
+        return json.dumps(self.content).encode("utf-8")
 
     @classmethod
     def deserialize(cls, data):
@@ -345,13 +389,7 @@ class AvroBlob(MessageModel):
     def __str__(self):
         return str(self.content)
 
-    def serialize(self):
-        """Wrap the message with its format and content.
-
-        Returns:
-            A dictionary with "format" and "content" keys.
-
-        """
+    def __bytes__(self):
         if self.single_record:
             records = [self.content]
         else:
@@ -360,12 +398,12 @@ class AvroBlob(MessageModel):
         if self.schema is None:  # make up an ad-hoc schema
             self.schema = avro_utils.SchemaGenerator().find_common_type(records)
 
-        stringio = BytesIO()
-        fastavro.writer(stringio,
+        buffer = BytesIO()
+        fastavro.writer(buffer,
                         self.schema,
                         records
                         )
-        return {"format": format_name(type(self)), "content": stringio.getvalue()}
+        return buffer.getvalue()
 
     @classmethod
     def _read_avro(cls, stream, single_record=True):

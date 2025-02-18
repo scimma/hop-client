@@ -68,8 +68,8 @@ def get_model_data(model_name):
     # properly formatted, new-style messages
     {"format": "voevent",
         "content": make_message_standard(VOEvent.load(get_model_data("voevent")))},
-    {"format": "gcn_text_notice",
-        "content": make_message_standard(GCNTextNotice.load(get_model_data("gcn_text_notice")))},
+    {"format": "gcntextnotice",
+        "content": make_message_standard(GCNTextNotice.load(get_model_data("gcntextnotice")))},
     {"format": "circular",
         "content": make_message_standard(GCNCircular.load(get_model_data("circular")))},
     {"format": "json", "content": make_message_standard(JSONBlob.load(get_model_data("json")))},

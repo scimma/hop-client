@@ -51,4 +51,6 @@ def _main(args):
 
     with stream.open(args.url, "r", group_id=args.group_id, ignoretest=(not args.test)) as s:
         for message in s:
-            print(message, file=sys.stdout, flush=True)
+            sys.stdout.buffer.write(bytes(message))
+            if sys.stdout.buffer.isatty:
+                sys.stdout.buffer.flush()
