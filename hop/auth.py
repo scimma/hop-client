@@ -1,3 +1,4 @@
+import certifi
 from collections.abc import Mapping
 import csv
 import errno
@@ -476,7 +477,17 @@ def write_auth_data(config_file, credentials):
                      "token_endpoint": cred.token_endpoint}
         if len(cred.hostname) > 0:
             cred_dict["hostname"] = cred.hostname
-        if cred.ssl_ca_location is not None:
+        # This is slightly subtle: certifi.where() is the default location to use for CA data if no
+        # other is specified. It should always be available, because we specify certifi
+        # (transitively) as a dependency. However, chances are significant that it may at any given
+        # time be provided from within a virtual environment, which the user may later delete. The
+        # auth data is stored properly in the user's XDG_CONFIG_HOME, so it can survive and be
+        # shared across potentially many virtual environments. If any virtual environment is deleted
+        # after a path specific to it has been captured in the auth file, that credential would
+        # become unusable (without manually correcting the path). Since we can always use the
+        # current certifi path at runtime, it is therefore better to just never record it in the
+        # auth file.
+        if cred.ssl_ca_location is not None and cred.ssl_ca_location != certifi.where():
             cred_dict["ssl_ca_location"] = cred.ssl_ca_location
 
         cred_list.append(cred_dict)
