@@ -15,8 +15,8 @@ Structured Messages
 --------------------
 
 Currently, the structured messages available through the hop client
-are :code:`VOEvent` and :code:`GCNCircular`.
-To give an example of its usage:
+are :code:`VOEvent`, :code:`GCNCircular`, and :code:`GCNTextNotice`.
+An example of using the :code:`VOEvent` model:
 
 
 .. code:: python
