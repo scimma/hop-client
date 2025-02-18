@@ -198,7 +198,7 @@ MESSAGE_GCN_TEXT = \
     b'COMMENTS:         The position error is statistical only, there is no systematic added.  '
 
 
-MESSAGE_BLOB = "This is a sample blob message. It is unstructured and does not require special parsing."
+MESSAGE_BLOB = b"This is a sample blob message. It is unstructured and does not require special parsing."
 
 MESSAGE_JSON = b'{"foo":"bar", "baz":5}'
 
@@ -638,7 +638,7 @@ message_parameters_dict_data = {
         "test_file": "example_voevent.xml",
         "model_text": VOEVENT_XML.encode(),
     },
-    "gcn_text_notice": {
+    "gcntextnotice": {
         "model_name": "GCNTextNotice",
         "expected_model": models.GCNTextNotice,
         "test_file": "example_gcn.txt",

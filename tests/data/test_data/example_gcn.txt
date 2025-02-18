@@ -1,0 +1,28 @@
+TITLE:            GCN/AMON NOTICE
+NOTICE_DATE:      Fri 12 Apr 24 05:34:35 UT
+NOTICE_TYPE:      ICECUBE Astrotrack Bronze 
+STREAM:           25
+RUN_NUM:          139279
+EVENT_NUM:        10803235
+SRC_RA:           103.7861d {+06h 55m 09s} (J2000),
+                  104.1106d {+06h 56m 27s} (current),
+                  103.1176d {+06h 52m 28s} (1950)
+SRC_DEC:           +5.8716d {+05d 52\' 18"} (J2000),
+                   +5.8390d {+05d 50\' 20"} (current),
+                   +5.9364d {+05d 56\' 11"} (1950)
+SRC_ERROR:        69.22 [arcmin radius, stat-only, 90% containment]
+SRC_ERROR50:      26.96 [arcmin radius, stat-only, 50% containment]
+DISCOVERY_DATE:   20412 TJD;   103 DOY;   24/04/12 (yy/mm/dd)
+DISCOVERY_TIME:   20026 SOD {05:33:46.89} UT
+REVISION:         0
+ENERGY:           1.2126e+02 [TeV]
+SIGNALNESS:       3.0910e-01 [dn]
+FAR:              3.4096 [yr^-1]
+SUN_POSTN:         21.10d {+01h 24m 24s}   +8.87d {+08d 52\' 11"}
+SUN_DIST:          82.22 [deg]   Sun_angle= -5.5 [hr] (East of Sun)
+MOON_POSTN:        67.46d {+04h 29m 50s}  +26.13d {+26d 07\' 33"}
+MOON_DIST:         40.41 [deg]
+GAL_COORDS:       208.12,  3.50 [deg] galactic lon,lat of the event
+ECL_COORDS:       104.34,-16.88 [deg] ecliptic lon,lat of the event
+COMMENTS:         IceCube Bronze event.  
+COMMENTS:         The position error is statistical only, there is no systematic added.  

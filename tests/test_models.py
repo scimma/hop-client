@@ -1,11 +1,13 @@
 from unittest.mock import patch, mock_open
 from io import BytesIO
 import json
+from pathlib import Path
 import pytest
 
 import fastavro
 
 from hop import models
+from conftest import message_parameters_dict_data
 
 
 def test_MessageModel():
@@ -104,8 +106,7 @@ def test_gcn_circular(circular_text, circular_msg, circular_data_raw):
 def test_blob(blob_text, blob_msg):
     with patch("builtins.open", mock_open(read_data=blob_text)):
         blob_file = "example_blob.txt"
-        with open(blob_file, "r") as f:
-            blob = models.Blob.load(f)
+        blob = models.Blob.load_file(blob_file)
 
         # verify blob text is correct
         assert blob.content == blob_msg["content"]
@@ -113,11 +114,8 @@ def test_blob(blob_text, blob_msg):
         # verify wrapper format is correct
         assert blob.serialize()["format"] == "blob"
 
-        # if the blob was holding a string, conversion to a string should just return that
-        as_string = str(blob)
-        assert as_string == blob.content
-        # round-tripping should work iff the blob was holding a string all along
-        assert models.Blob.load(as_string) == blob
+        assert bytes(blob) == blob_msg["content"]
+        assert models.Blob.load(bytes(blob)) == blob
 
 
 def test_avro(avro_data_raw, avro_data, avro_msg):
@@ -227,3 +225,23 @@ def test_externalmessage():
 
     with pytest.raises(json.JSONDecodeError):
         models.ExternalMessage.load("\tnot valid JSON\t")
+
+
+@pytest.mark.parametrize("model", [
+    models.Blob,
+    models.JSONBlob,
+    models.AvroBlob,
+    models.GCNTextNotice,
+    models.GCNCircular,
+    pytest.param(models.VOEvent, marks=pytest.mark.xfail),
+])
+def test_model_roundtrip(model, tmpdir):
+    model_name = models.format_name(model)
+    shared_datadir = Path("tests/data")
+    orig_path = shared_datadir / "test_data" / message_parameters_dict_data[model_name]["test_file"]
+    instance1 = model.load_file(orig_path)
+    test_path = tmpdir.join("rewritten.dat")
+    with open(test_path, "wb") as out_file:
+        out_file.write(bytes(instance1))
+    instance2 = model.load_file(test_path)
+    assert instance1 == instance2
