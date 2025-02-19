@@ -1,4 +1,16 @@
+version: 2
+
+build:
+    os: ubuntu-24.04
+    tools:
+        python: latest
+
 python:
-    pip_install: true
-    extra_requirements:
-        - docs
+    install:
+      - method: pip
+        path: .
+        extra_requirements:
+          - docs
+
+sphinx:
+    configuration: doc/conf.py
