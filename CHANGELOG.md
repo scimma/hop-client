@@ -6,6 +6,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2025-02-19
+### Changed
+- Fixed an issue with CA data paths being written to the credential store which could affect users
+  working with copies of the client from multiple virtual environments.
+- Removed unwanted formatting when various message types are written out by `hop subscribe`.
+
+### Added
+- Offloading of messages too large to be accepted by the Kafka broker to a companion REST service.
+  This feature requires configuration of such a service by broker administrators, but can then
+  operate transparently.
+- Support for sending messages with keys, which allows a degree of control over how messages are
+  routed to topic partitions. See the
+  [Kafka documentation](https://kafka.apache.org/documentation/#intro_concepts_and_terms)
+  for details.
+
 ## [0.10.1] - 2024-09-23
 ### Added
 - `setuptools` is explicitly listed as a dependency to work better in environments where it is not
