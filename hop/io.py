@@ -769,6 +769,14 @@ class Producer:
                                               auth=self.auth,
                                               topic=None,
                                               )
+        # A large value for when we don't want to try to act on this information
+        # 1000000000 is the maximum allowed by librdkafka as of version 2.8.0
+        dummy_max = ConfigEntry("max.message.bytes", 1000000000)
+        if not self.automatic_offload:
+            # This information won't be used anyway, so avoid attempting to check the broker,
+            # which may fail, and just return dummy data.
+            return {topic: {"max.message.bytes": dummy_max} for topic in topics}
+
         aclient = AdminClient(aconfig._to_confluent_kafka())
         logger.debug(f"Fetching settings for topics: {topics}")
         query = [ConfigResource(restype=ResourceType.TOPIC, name=topic) for topic in topics]
@@ -785,9 +793,6 @@ class Producer:
                 if kerr.code() == confluent_kafka.KafkaError.TOPIC_AUTHORIZATION_FAILED:
                     warnings.warn(f"Authorization to describe configs of topic {resource.name} "
                                   "failed; unable to determine maximum allowed message size.")
-                    # set a large value so that we don't try to act on this information
-                    # 1000000000 is the maximum allowed by librdkafka as of version 2.8.0
-                    dummy_max = ConfigEntry("max.message.bytes", 1000000000)
                     results[resource.name] = {"max.message.bytes": dummy_max}
                 else:  # For other problems, let the exception propagate
                     raise
