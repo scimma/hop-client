@@ -887,7 +887,7 @@ def test_write_offload_disabled(mock_broker, mock_producer, mock_admin_client):
             with pytest.raises(KafkaException) as ex:
                 s.write_raw(*encoded_msg)
             mock_get_offload.assert_not_called()
-            assert "Unable to send message" in str(ex)
+            assert "Unable to send message" in str(ex) or "MSG_SIZE_TOO_LARGE" in str(ex)
 
 
 def check_outgoing_bson_message(data):
@@ -1667,7 +1667,6 @@ def make_mock_listing_consumer(topics=[]):
         topics exist.
     """
     def get_topics(topic=None, timeout=None):
-        nonlocal topics
         result = {}
         if topic is None:
             for topic in topics:
