@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1] - 2025-05-14
+### Changed
+- Disabling use of automatic large message offloading in the `hop.io.Producer` now completely avoids
+  making metadata queries to the broker.
+
 ## [0.11.0] - 2025-02-19
 ### Changed
 - Fixed an issue with CA data paths being written to the credential store which could affect users
