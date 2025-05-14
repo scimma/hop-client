@@ -15,6 +15,8 @@ It can nonetheless be extremely useful to be able to use a single system to tran
 To provide this flexibility, :code:`hop-client` implements an extension which, when used in conjunction with a suitably configured broker, can transparently handle large messages via a secondary communication channel which is configured for a larger maximum size. 
 By default, this mechanism will be used automatically if the broker supports it, with publishing clients uploading data to the 'offload' API endpoint, and subscribing clients downloading it again when appropriate. 
 
+.. _enable_disable:
+
 Enabling or Disabling
 ---------------------
 
@@ -129,3 +131,21 @@ Additionally, if the URL specifies unencrypted HTTP as its scheme, the client ma
 
 If any necessary authentication (and associated access checks) succeeds, the offload API should send a response with an HTTP 200 'OK' status code and a body which contains the message data. 
 The body should be a `BSON <https://bsonspec.org>`_ document with the same structure as described in :ref:`Uploading`, although additional top-level metadata elements may be included. 
+
+Troubleshooting
+---------------
+
+Since large message support is an extension to the standard Kafka protocol, not all brokers will support it. 
+This is mostly relevant when publishing, as a client subscribing to a topic on a broker without support should not encounter placeholder messages in the first place. 
+When publishing, the client should generally detect when the extension is not supported and disable it automatically, either because it cannot read from the :code:`sys.metadata` topic, or because it receives a 'not authorized' response when attempting to query target topic configurations (to learn the per-topic message size limits). 
+
+It has been observed, however, that some brokers, possibly due to misconfiguration, do not respond to topic configuration queries with either a success response or a definite denial, and instead cause the client to hang until the request timeout expires. 
+Such a failure will produce an error similar to
+
+.. code::
+
+  hop: KafkaError{code=_TIMED_OUT,val=-185,str="Failed while waiting for response from broker: Local: Timed out"}
+
+during Producer startup, before any messages are sent.
+This both takes significant time, and cannot safely be interpreted as a definite lack of large message support because the same error can also occur transiently for other reasons, such as network connectivity problems, so it is not generally possible for the client to address this automatically by itself. 
+In such cases, the user is advised to explicitly disable the offloading of large messages, as described :ref:`above <enable_disable>`. 
