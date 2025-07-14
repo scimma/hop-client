@@ -31,7 +31,7 @@ To install from source:
 ```
 tar -xzf hop-client-x.y.z.tar.gz
 cd hop-client-x.y.z
-python setup.py install
+pip install .
 ```
 
 ## Quickstart
