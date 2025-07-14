@@ -1,0 +1,102 @@
+[build-system]
+requires = ["setuptools>=61.0", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hop-client"
+description = "A pub-sub client library for Multi-messenger Astrophysics"
+readme = "README.md"
+license = {text = "BSD 3-Clause"}
+authors = [
+    {name = "Patrick Godwin", email = "p@trick.dev"}
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Operating System :: POSIX",
+    "Operating System :: Unix",
+    "Operating System :: MacOS",
+    "License :: OSI Approved :: BSD License",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "adc-streaming >= 2.5.0",
+    "bson",
+    "fastavro >= 1.4.0",
+    "pluggy >= 0.11",
+    "scramp",
+    "toml >= 0.9.4",
+    "xmltodict >= 0.9.0",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/scimma/hop-client"
+Documentation = "https://hop-client.readthedocs.io"
+Issues = "https://github.com/scimma/hop-client/issues"
+
+[project.optional-dependencies]
+dev = [
+    "autopep8",
+    "flake8 >= 3.3.0",
+    "pytest >= 6.2.5",
+    "pytest-console-scripts",
+    "pytest-cov",
+    "pytest-runner",
+    "twine",
+]
+docs = [
+    "sphinx",
+    "sphinx_rtd_theme",
+    "sphinxcontrib-programoutput",
+]
+
+[project.scripts]
+hop = "hop.__main__:main"
+
+[tool.setuptools_scm]
+write_to = "hop/_version.py"
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["tests*"]
+
+[tool.flake8]
+max-line-length = 110
+max-doc-length = 110
+ignore = ["E203", "W503"]
+exclude = [
+    "hop/_version.py",
+    "__pycache__",
+    ".eggs/",
+    ".git/",
+    "build/",
+    "doc/",
+]
+per-file-ignores = [
+    "__init__.py:F401",
+    "tests/conftest.py:E501",
+    "tests/*:F841",
+]
+
+[tool.pytest.ini_options]
+log_cli = true
+log_cli_level = "INFO"
+
+[tool.coverage.run]
+source = ["hop"]
+omit = [
+    "_version.py",
+]
+
+[tool.coverage.report]
+omit = [
+    "_version.py",
+]

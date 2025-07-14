@@ -12,7 +12,7 @@ help :
 	@echo '  make pypi-dist-check       verify binary and source packages for PyPI'
 	@echo
 
-VERSION ?= $(shell python setup.py --version)
+VERSION ?= $(shell python -m setuptools_scm)
 REPO_URL = https://github.com/scimma/hop-client
 
 .PHONY: test
@@ -22,13 +22,13 @@ test :
 .PHONY: lint
 lint :
 	# stop the build if there are Python syntax errors or undefined names
-	flake8 hop tests setup.py --count --select=E9,F63,F7,F82 --show-source --statistics
+	flake8 hop tests --count --select=E9,F63,F7,F82 --show-source --statistics
 	# exit-zero treats all errors as warnings
-	flake8 hop tests setup.py --count --exit-zero --max-complexity=15 --max-line-length=100 --statistics
+	flake8 hop tests --count --exit-zero --max-complexity=15 --max-line-length=100 --statistics
 
 .PHONY: format
 format :
-	autopep8 --recursive --in-place hop tests setup.py
+	autopep8 --recursive --in-place hop tests
 
 .PHONY: doc
 doc :
@@ -41,7 +41,7 @@ changelog :
 
 .PHONY: pypi-dist
 pypi-dist :
-	python setup.py sdist bdist_wheel
+	python -m build
 
 .PHONY: pypi-dist-check
 pypi-dist-check:
