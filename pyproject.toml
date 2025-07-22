@@ -45,11 +45,14 @@ Issues = "https://github.com/scimma/hop-client/issues"
 [project.optional-dependencies]
 dev = [
     "autopep8",
+    "build",
     "flake8 >= 3.3.0",
+    "flake8-pyproject",
     "pytest >= 6.2.5",
     "pytest-console-scripts",
     "pytest-cov",
     "pytest-runner",
+    "setuptools_scm",
     "twine",
 ]
 docs = [
