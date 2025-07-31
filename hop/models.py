@@ -111,7 +111,7 @@ class VOEvent(MessageModel):
     Description: dict = field(default_factory=dict)
     Reference: dict = field(default_factory=dict)
 
-    _raw: str = ""
+    _raw: bytes = ""
 
     @staticmethod
     def dict_factory(input: list):
