@@ -144,7 +144,7 @@ def test_voevent_ensure_bytes():
     f = BytesIO(b)
     assert models.VOEvent.ensure_bytes(f) == b
 
-    assert models.VOEvent.ensure_bytes(c.to_bytes() for c in b) == b
+    assert models.VOEvent.ensure_bytes(c.to_bytes(1, byteorder="big") for c in b) == b
 
 
 def test_gcn_text_notice(gcn_text_notice_fileobj, gcn_text_notice_data):
