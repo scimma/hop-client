@@ -167,6 +167,10 @@ VOEVENT_XML = """\
 </voe:VOEvent>\
 """
 
+VOEVENT_JSON = """\
+{"ivorn": "ivo://nasa.gsfc.gcn/SWIFT#Actual_Point_Dir_2025-07-30T17:17:19.67_1442872420-151", "role": "utility", "version": "2.0", "Who": {"AuthorIVORN": "ivo://nasa.gsfc.tan/gcn", "Author": {"shortName": "VO-GCN", "contactName": "Scott Barthelmy", "contactPhone": "+1-301-286-3106", "contactEmail": "scott.barthelmy@nasa.gov"}, "Date": "2025-07-30T17:17:14", "Description": "This VOEvent message was created with GCN VOE version: 15.08 17jun22"}, "What": {"Param": [{"name": "Packet_Type", "value": "103"}, {"name": "Pkt_Ser_Num", "value": "303"}, {"name": "TrigID", "value": "31844", "ucd": "meta.id"}, {"name": "Segment_Num", "value": "86", "ucd": "meta.id.part"}, {"name": "Slew_TJD", "value": "20886", "unit": "days", "ucd": "time"}, {"name": "Slew_SOD", "value": "62239.67", "unit": "sec", "ucd": "time"}, {"name": "Slew_RA", "value": "332.1521", "unit": "deg", "ucd": "pos.eq.ra"}, {"name": "Slew_Dec", "value": "-47.1956", "unit": "deg", "ucd": "pos.eq.dec"}, {"name": "Slew_Roll", "value": "126.2206", "unit": "deg"}, {"name": "SC_Long", "value": "74.15", "unit": "deg", "ucd": "pos.earth.lon"}, {"name": "SC_Lat", "value": "-4.83", "unit": "deg", "ucd": "pos.earth.lat"}, {"name": "Misc_flags", "value": "0x0"}, {"name": "Coords_Type", "value": "2", "unit": "dn"}, {"name": "Coords_String", "value": "pointing_direction"}], "Group": [{"name": "Misc_Flags", "Param": [{"name": "Near_Bright_Star", "value": "false"}, {"name": "Flt_Generated", "value": "true"}, {"name": "Gnd_Generated", "value": "false"}]}, {"name": "Obs_Support_Info", "Description": "The Sun and Moon values are valid at the time the VOEvent XML message was created.", "Param": [{"name": "Sun_RA", "value": "130.21", "unit": "deg", "ucd": "pos.eq.ra"}, {"name": "Sun_Dec", "value": "18.32", "unit": "deg", "ucd": "pos.eq.dec"}, {"name": "Sun_Distance", "value": "145.91", "unit": "deg", "ucd": "pos.angDistance"}, {"name": "Sun_Hr_Angle", "value": "10.51", "unit": "hr"}, {"name": "Moon_RA", "value": "195.69", "unit": "deg", "ucd": "pos.eq.ra"}, {"name": "Moon_Dec", "value": "-9.46", "unit": "deg", "ucd": "pos.eq.dec"}, {"name": "MOON_Distance", "value": "111.71", "unit": "deg", "ucd": "pos.angDistance"}, {"name": "Moon_Illum", "value": "33.28", "unit": "%", "ucd": "arith.ratio"}, {"name": "Galactic_Long", "value": "349.60", "unit": "deg", "ucd": "pos.galactic.lon"}, {"name": "Galactic_Lat", "value": "-52.46", "unit": "deg", "ucd": "pos.galactic.lat"}, {"name": "Ecliptic_Long", "value": "315.86", "unit": "deg", "ucd": "pos.ecliptic.lon"}, {"name": "Ecliptic_Lat", "value": "-33.15", "unit": "deg", "ucd": "pos.ecliptic.lat"}]}], "Description": "This is the current pointing direction for the Swift spacecraft after settling from an actual slew."}, "WhereWhen": {"ObsDataLocation": {"ObservatoryLocation": {"id": "GEOLUN"}, "ObservationLocation": {"AstroCoordSystem": {"id": "UTC-FK5-GEO"}, "AstroCoords": {"coord_system_id": "UTC-FK5-GEO", "Time": {"unit": "s", "TimeInstant": {"ISOTime": "2025-07-30T17:17:19.67"}}, "Position2D": {"unit": "deg", "Name1": "RA", "Name2": "Dec", "Value2": {"C1": "332.1521", "C2": "-47.1956"}, "Error2Radius": "0.0000"}}}}, "Description": "The RA,Dec coordinates are of the type: pointing_direction."}, "How": {"Description": "Swift Satellite", "Reference": {"uri": "http://gcn.gsfc.nasa.gov/swift.html", "type": "url"}}, "Why": {"Inference": {"probability": "1.00", "Concept": "Swift spacecraft just slewed to an observing target."}}, "Citations": {}, "Description": null, "Reference": {}}\
+"""
+
 MESSAGE_GCN_TEXT = \
     b'TITLE:            GCN/AMON NOTICE\n' \
     b'NOTICE_DATE:      Fri 12 Apr 24 05:34:35 UT\n' \
@@ -661,6 +665,13 @@ message_parameters_dict_data = {
         "expected_model": models.AvroBlob,
         "test_file": "example_avro.avro",
         "model_text": MESSAGE_AVRO,
+    },
+    # -- Outdated versions --
+    "voevent-encoded-as-json": {
+        "model_name": "VOEvent",
+        "expected_model": models.VOEvent,
+        # no test file
+        "model_text": VOEVENT_JSON,
     },
 }
 

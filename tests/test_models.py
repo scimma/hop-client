@@ -45,6 +45,108 @@ def test_voevent(voevent_fileobj):
         == voevent.WhereWhen["ObsDataLocation"]["ObservatoryLocation"]["id"]
 
 
+def test_voevent_deserialization():
+    mpdd = message_parameters_dict_data
+
+    v2 = models.VOEvent.deserialize(mpdd["voevent"]["model_text"])
+    assert isinstance(v2, models.VOEvent)
+
+    v1 = models.VOEvent.deserialize(mpdd["voevent-encoded-as-json"]["model_text"])
+    assert isinstance(v1, models.VOEvent)
+
+    with pytest.raises(Exception) as ex:
+        vx = models.VOEvent.deserialize(b"\tNot XML or JSON\t")
+
+
+def test_voevent_dict_factory():
+    d1 = {"foo": 1, "bar": 2, "baz": 3}
+    o1 = models.VOEvent.dict_factory(d1.items())
+    assert o1 == d1
+
+    d2 = {"foo": 1, "_bar": 2, "baz": 3, "_quux": 4}
+    o2 = models.VOEvent.dict_factory(d2.items())
+    assert len(o2) == 2
+    assert "foo" in o2
+    assert "_bar" not in o2
+    assert "baz" in o2
+    assert "_quux" not in o2
+
+
+VOEvent_attribute_names = {"cite", "coord_system_id", "dataType", "expires", "id", "importance",
+                           "ivorn", "meaning", "mimetype", "name", "probability", "relation",
+                           "role", "type", "ucd", "unit", "uri", "utype", "value", "version"}
+
+
+VOEvent_element_names = {"AstroCoordSystem", "AstroCoords", "Author", "AuthorIVORN", "C1", "C2",
+                         "C3", "Citations", "Concept", "Data", "Date", "Description", "Error",
+                         "Error2Radius", "EventIVORN", "Field", "Group", "How", "ISOTime",
+                         "Inference", "Name", "Name1", "Name2", "Name3", "ObsDataLocation",
+                         "ObservationLocation", "ObservatoryLocation", "Param", "Position2D",
+                         "Position3D", "Reference", "TD", "TR", "Table", "Time", "TimeInstant",
+                         "TimeOffset", "TimeScale", "VOEvent", "Value", "Value2", "Value3",
+                         "What", "WhereWhen", "Who", "Why", "contactEmail", "contactName",
+                         "contactPhone", "contributor", "logoURL", "shortName", "title"}
+
+
+def test_voevent_label_attributes_list():
+    ta = [{n: 0} for n in VOEvent_attribute_names]
+    models.VOEvent.label_attributes_list(ta)
+    for entry in ta:
+        for key in entry.keys():
+            assert key.startswith('@')
+            assert key[1:] in VOEvent_attribute_names
+
+    nta = [[{n: 0} for n in VOEvent_attribute_names]]
+    models.VOEvent.label_attributes_list(nta)
+    assert len(nta) == 1
+    for entry in nta[0]:
+        for key in entry.keys():
+            assert key.startswith('@')
+            assert key[1:] in VOEvent_attribute_names
+
+    te = [{n: 0} for n in VOEvent_element_names]
+    models.VOEvent.label_attributes_list(te)
+    for entry in te:
+        for key in entry.keys():
+            assert not key.startswith('@')
+            assert key in VOEvent_element_names
+
+    nte = [[{n: 0} for n in VOEvent_element_names]]
+    models.VOEvent.label_attributes_list(nte)
+    assert len(nte) == 1
+    for entry in nte[0]:
+        for key in entry.keys():
+            assert not key.startswith('@')
+            assert key in VOEvent_element_names
+
+
+def test_voevent_label_attributes_dict():
+    ta = {n: 0 for n in VOEvent_attribute_names}
+    models.VOEvent.label_attributes_dict(ta)
+    for key in ta.keys():
+        assert key.startswith('@')
+        assert key[1:] in VOEvent_attribute_names
+
+    te = {n: 0 for n in VOEvent_element_names}
+    models.VOEvent.label_attributes_dict(te)
+    for key in te.keys():
+        assert not key.startswith('@')
+        assert key in VOEvent_element_names
+
+
+def test_voevent_ensure_bytes():
+    b = b"abcdef\x00\x01ghij"
+    assert models.VOEvent.ensure_bytes(b) == b
+
+    s = "foo bar baz"
+    assert models.VOEvent.ensure_bytes(s) == s.encode("utf-8")
+
+    f = BytesIO(b)
+    assert models.VOEvent.ensure_bytes(f) == b
+
+    assert models.VOEvent.ensure_bytes(c.to_bytes() for c in b) == b
+
+
 def test_gcn_text_notice(gcn_text_notice_fileobj, gcn_text_notice_data):
     text_notice = models.GCNTextNotice.load(gcn_text_notice_fileobj)
 
@@ -233,7 +335,7 @@ def test_externalmessage():
     models.AvroBlob,
     models.GCNTextNotice,
     models.GCNCircular,
-    pytest.param(models.VOEvent, marks=pytest.mark.xfail),
+    models.VOEvent,
 ])
 def test_model_roundtrip(model, tmpdir):
     model_name = models.format_name(model)
