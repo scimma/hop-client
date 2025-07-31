@@ -15,7 +15,7 @@ import pytest
 from hop.auth import Auth, AmbiguousCredentialError
 from hop import io
 from hop.models import (AvroBlob, Blob, ExternalMessage, GCNCircular, GCNTextNotice, JSONBlob,
-                        VOEvent, format_name)
+                        VOEvent)
 from adc.errors import KafkaException
 import confluent_kafka
 
@@ -54,13 +54,13 @@ def make_message_standard(message, **kwags):
 
 
 # only applicable to old message models which are JSON-compatible
-def old_style_message(message):
-    raw = {"format": format_name(type(message)), "content": asdict(message)}
-    return json.dumps(raw).encode("utf-8")
+def old_style_message(format_name, message):
+    raw = {"format": format_name, "content": message}
+    return make_message(json.dumps(raw).encode("utf-8"))
 
 
-def get_model_data(model_name):
-    return message_parameters_dict_data[model_name]["model_text"]
+def get_model_data(model_name, key_name="model_text"):
+    return message_parameters_dict_data[model_name][key_name]
 
 
 # test the deserializer for each message format
@@ -78,10 +78,15 @@ def get_model_data(model_name):
     # a new-style message in some user-defined format we don't have loaded
     {"format": "other", "content": make_message(b"other", headers=[("_format", b"other")])},
     # valid, old-style messages
-    {"format": "voevent",
-        "content": make_message(old_style_message(VOEvent.load(get_model_data("voevent"))))},
+    {"format": "voevent-encoded-as-json",
+        "content": make_message(get_model_data("voevent-encoded-as-json").encode("utf-8"),
+                                headers=[("_format", b"voevent")])},
+    {"format": "voevent-encoded-as-json",
+        "content": old_style_message("voevent",
+                                     json.loads(get_model_data("voevent-encoded-as-json")))},
     {"format": "circular",
-        "content": make_message(old_style_message(GCNCircular.load(get_model_data("circular"))))},
+        "content": old_style_message("circular",
+                                     asdict(GCNCircular.load(get_model_data("circular"))))},
     # an old-style message with the old JSON label
     {"format": "json",
         "content": make_message(b'{"format":"blob", "content":{"foo":"bar", "baz":5}}')},

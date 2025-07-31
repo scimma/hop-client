@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 import email
 import fastavro
+from inspect import isgenerator
 from io import BytesIO
 import json
 import re
@@ -31,10 +32,11 @@ class MessageModel(ABC):
     def __bytes__(self):
         """Produce the canonical representation of this message.
         """
+        # by default, encode using JSON
         return json.dumps(asdict(self)).encode("utf-8")
 
     def serialize(self):
-        """Wrap the message with its format and content, for transmission of Kafka.
+        """Wrap the message with its format and content, for transmission to Kafka.
 
         Returns:
             A dictionary with "format" and "content" keys.
@@ -42,7 +44,6 @@ class MessageModel(ABC):
             The value stored under "content" is the actual encoded data.
 
         """
-        # by default, encode using JSON
         return {"format": format_name(type(self)),
                 "content": bytes(self),
                 }
@@ -110,27 +111,134 @@ class VOEvent(MessageModel):
     Description: dict = field(default_factory=dict)
     Reference: dict = field(default_factory=dict)
 
-    def __str__(self):
-        return json.dumps(asdict(self), indent=2)
+    _raw: str = ""
 
-    def __bytes__(self):
-        # TODO: this isn't really suitable, as the output should be the original XML format
-        # That requires some massaging of the data to restore information discarded by xmltodict.
-        return str(self).encode("utf-8")
+    @staticmethod
+    def dict_factory(input: list):
+        """Create a dictionary from a list of tuples, filtering out keys which begin with
+        underscores.
 
-    def serialize(self):
-        """Wrap the message with its format and content.
+        Args:
+            input: An existing dictionary.
 
         Returns:
-            A dictionary with "format" and "content" keys.
-            The value stored under "format" is the format label.
-            The value stored under "content" is the actual encoded data.
+            A copy of input without any keys beginning with underscores.
+        """
+        return {k: v for (k, v) in input if not k.startswith('_')}
+
+    @staticmethod
+    def is_attribute(key: str):
+        """Identify keys which are properly XML attributes, as opposed to sub-elements.
+        This works because in the VOEvent v2.0 schema there are no elements and attributes which
+        share names.
+
+        Args:
+            key: The key to check.
+
+        Returns:
+            True if the key corresponds to an attribute, False if it matches an element type.
+        """
+        # extracted from http://www.ivoa.net/xml/VOEvent/VOEvent-v2.0.xsd
+        known_attributes = {"cite", "coord_system_id", "dataType", "expires", "id", "importance",
+                            "ivorn", "meaning", "mimetype", "name", "probability", "relation",
+                            "role", "type", "ucd", "unit", "uri", "utype", "value", "version"}
+        return key in known_attributes
+
+    @classmethod
+    def label_attributes_list(cls, d: list, attr_prefix: str = "@"):
+        """Recursively add a prefix to dictionary keys so that xmltodict.unparse can restore
+        attributes correctly.
+
+        Args:
+            d: A list in which to patch attribute names.
+            attr_prefix: The prefix to add to keys which should be attributes.
+
+        Returns:
+            None; d is modified in-place.
+        """
+        for item in d:
+            if isinstance(item, dict):
+                cls.label_attributes_dict(item, attr_prefix=attr_prefix)
+            elif isinstance(item, list):
+                cls.label_attributes_list(item, attr_prefix=attr_prefix)
+
+    @classmethod
+    def label_attributes_dict(cls, d: dict, attr_prefix: str = "@"):
+        """Recursively add a prefix to dictionary keys so that xmltodict.unparse can restore
+        attributes correctly.
+
+        Args:
+            d: A dictionary in which to patch attribute names.
+            attr_prefix: The prefix to add to keys which should be attributes.
+
+        Returns:
+            None; d is modified in-place.
+        """
+        to_fix = set()
+        for k, v in d.items():
+            if isinstance(v, dict):
+                cls.label_attributes_dict(v, attr_prefix=attr_prefix)
+            elif isinstance(v, list):
+                cls.label_attributes_list(v, attr_prefix=attr_prefix)
+
+            if cls.is_attribute(k):
+                to_fix.add(k)
+        for k in to_fix:
+            d[attr_prefix + k] = d[k]
+            del d[k]
+
+    def __str__(self):
+        return json.dumps(asdict(self, dict_factory=self.dict_factory), indent=2)
+
+    def __bytes__(self):
+        return self._raw
+
+    @staticmethod
+    def ensure_bytes(data_source):
+        """Turn a string, a file-like object, or a generator into bytes. This is useful if the data
+        needs to be used more than once, e.g. parsing and being stored, when the data source may be
+        single-pass only.
+
+        Args:
+            data_source: A source of data, which may already be bytes, or a string, file-like
+                         object, or a generator.
+
+        Returns:
+            The bytes extracted or converted from data_source.
+        """
+        if isinstance(data_source, str):
+            return data_source.encode("utf-8")
+        elif hasattr(data_source, 'read'):
+            return data_source.read()
+        elif isgenerator(data_source):
+            input_data = BytesIO()
+            for chunk in data_source:
+                input_data.write(chunk)
+            return input_data.getvalue()
+        return data_source
+
+    @classmethod
+    def deserialize(cls, raw):
+        """Unwrap a message produced by serialize() (the "content" value).
+
+        Returns:
+            An instance of the model class.
 
         """
-        # by default, encode using JSON
-        return {"format": format_name(type(self)),
-                "content": json.dumps(asdict(self)).encode("utf-8"),
-                }
+        raw = cls.ensure_bytes(raw)
+        try:
+            return cls.load(raw)
+        except Exception as e:
+            try:  # old versions converted the XML to JSON, so see if we can undo that
+                result = cls(**json.loads(raw.decode("utf-8")))
+                rd = asdict(result, dict_factory=cls.dict_factory)
+                cls.label_attributes_dict(rd)
+                result._raw = xmltodict.unparse({"voe:VOEvent": rd}, attr_prefix="@",
+                                                short_empty_elements=True).encode("utf-8")
+                return result
+            except Exception:
+                # if something went wrong with the fall-back approach, report the original error
+                raise e
 
     @classmethod
     def load(cls, xml_input):
@@ -143,10 +251,14 @@ class VOEvent(MessageModel):
             The VOEvent.
 
         """
+        xml_input = cls.ensure_bytes(xml_input)
+
         vo = xmltodict.parse(xml_input, attr_prefix="")
 
         # enter root and remove XML-specific namespaces
-        return cls(**{k: v for k, v in vo["voe:VOEvent"].items() if ":" not in k})
+        data = {k: v for k, v in vo["voe:VOEvent"].items() if ":" not in k}
+        data["_raw"] = xml_input
+        return cls(**data)
 
     @classmethod
     def load_file(cls, filename):
