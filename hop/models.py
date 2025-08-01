@@ -99,8 +99,8 @@ class VOEvent(MessageModel):
     """
 
     ivorn: str
-    role: str = "observation"
-    version: str = "2.0"
+    role: str = field(default_factory=lambda: "observation")
+    version: str = field(default_factory=lambda: "2.0")
 
     Who: dict = field(default_factory=dict)
     What: dict = field(default_factory=dict)
@@ -111,7 +111,7 @@ class VOEvent(MessageModel):
     Description: dict = field(default_factory=dict)
     Reference: dict = field(default_factory=dict)
 
-    _raw: bytes = ""
+    _raw: bytes = field(default_factory=bytes)
 
     @staticmethod
     def dict_factory(input: list):
