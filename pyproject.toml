@@ -67,9 +67,8 @@ hop = "hop.__main__:main"
 [tool.setuptools_scm]
 write_to = "hop/_version.py"
 
-[tool.setuptools.packages.find]
-where = ["."]
-exclude = ["tests*"]
+[tool.setuptools]
+packages = ["hop"]
 
 [tool.flake8]
 max-line-length = 110
