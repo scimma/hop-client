@@ -35,6 +35,35 @@ def test_cli_hop_module(script_runner, auth_config, tmpdir):
         assert ret.stderr == ""
 
 
+def assert_called_with_nonexclusive(mock: MagicMock, *expected_args, **expected_kwargs):
+    """unittest.mock.Mock.assert_called_with requires that there be no arguments besides those
+    specified, which makes tests brittle. This work-around checks that the specified arguments were
+    present, but ignores additional arguments.
+
+    Args:
+        mock: the mock object to check
+        expected_args: required positional arguments
+        expected_kwargs: required keyword arguments
+    """
+    if not mock.called:
+        raise AssertionError(f"{mock} was not called")
+    actual_args = mock.call_args.args
+    if len(actual_args) < len(expected_args):
+        raise AssertionError(f"{mock} was called with too few positional arguments")
+    for i in range(0, len(expected_args)):
+        if actual_args[i] != expected_args[i]:
+            raise AssertionError(f"{mock} was called with unexpected positional argument {i}: "
+                                 f"Called with {actual_args[i]} instead of {expected_args[i]}")
+    actual_kwargs = mock.call_args.kwargs
+    for kw in expected_kwargs.keys():
+        if kw not in actual_kwargs:
+            raise AssertionError("f{mock} was not called with expected keyword argument {kw}")
+        if actual_kwargs[kw] != expected_kwargs[kw]:
+            raise AssertionError(f"{mock} was called with unexpected keyword argument {kw}: "
+                                 f"Called with {actual_kwargs[kw]} instead of "
+                                 f"{expected_kwargs[kw]}")
+
+
 @pytest.mark.parametrize("message_format", ["voevent", "circular", "blob"])
 def test_cli_publish(script_runner, message_format, message_parameters_dict):
     if sys.version_info < (3, 7, 4):
@@ -68,11 +97,11 @@ def test_cli_publish(script_runner, message_format, message_parameters_dict):
 
         # verify message was processed
         if message_format in ["voevent", "blob"]:
-            mock_file.assert_called_with(test_file, "rb")
+            assert_called_with_nonexclusive(mock_file, test_file, "rb")
         else:
-            mock_file.assert_called_with(test_file, "r")
+            assert_called_with_nonexclusive(mock_file, test_file, "r")
 
-        mock_stream.assert_called_with(broker_url, "w")
+        assert_called_with_nonexclusive(mock_stream, broker_url, "w")
 
     # test publishing from stdin
     with patch("hop.io.Stream.open", mock_open()) as mock_stream:
@@ -91,6 +120,7 @@ def test_cli_publish_blob_msgs(mock_broker, mock_producer, mock_consumer, mock_a
     args.url = "kafka://hostname:port/topic"
     args.format = io.Deserializer.BLOB.name
     args.test = False
+    args.timeout = 10.0
     start_at = io.StartPosition.EARLIEST
     read_url = "kafka://group@hostname:port/topic"
     fixed_uuid = uuid4()
@@ -134,6 +164,7 @@ def test_cli_publish_json_blob_msgs(mock_broker, mock_producer, mock_consumer, m
     args.url = "kafka://hostname:port/topic"
     args.format = io.Deserializer.JSON.name
     args.test = False
+    args.timeout = 10.0
     start_at = io.StartPosition.EARLIEST
     read_url = "kafka://group@hostname:port/topic"
     fixed_uuid = uuid4()
@@ -180,6 +211,7 @@ def test_cli_publish_bad_blob(mock_broker, mock_producer, mock_admin_client):
     args.url = "kafka://hostname:port/topic"
     args.format = io.Deserializer.JSON.name
     args.test = False
+    args.timeout = 10.0
 
     mock_adc_producer = mock_producer(mock_broker, "topic")
     msgs = ["not quoted", '{"unclosed:"brace"',

@@ -751,6 +751,8 @@ class Producer:
         if isinstance(broker_addresses, str):
             broker_addresses = [broker_addresses]
         self.producer_args["broker_urls"] = self.broker_addresses
+        self.produce_timeout = self.producer_args.get("produce_timeout",
+                                                      adc_producer.ProducerConfig.produce_timeout)
 
         if len(topics) == 1:
             self.default_topic = topics[0]
@@ -1092,12 +1094,20 @@ class Producer:
         """
         return self.pack(message, headers=headers, test=test, auth=self.auth)
 
-    def flush(self):
+    def flush(self, timeout: Optional[timedelta] = None):
         """Request that any messages locally queued for sending be sent immediately.
+
+        Args:
+            timeout: The length of time to wait for messages to send.
+                     Defaults to the produce_timeout.
+        Returns:
+            The number of messages still queued locally to be sent.
         """
+        if timeout is None:
+            timeout = self.produce_timeout
         still_queued = 0
         for p_record in self.producers.values():
-            still_queued += p_record.producer.flush()
+            still_queued += p_record.producer.flush(timeout)
         return still_queued
 
     def close(self):
@@ -1107,7 +1117,11 @@ class Producer:
         logger.info("closing connection")
         still_queued = 0
         for p_record in self.producers.values():
-            still_queued += p_record.producer.close()
+            still_queued += p_record.producer.close(self.produce_timeout)
+        # if the user requested never timing out, keep trying as long as there are still unsent
+        # messages
+        while still_queued > 0 and self.produce_timeout.total_seconds() == 0:
+            still_queued = self.flush(timedelta(seconds=1))
         self.producers = {}
         self.topics = {}
         return still_queued
