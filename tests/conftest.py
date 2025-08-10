@@ -395,62 +395,63 @@ def mock_broker(**kwargs):
     return MockBroker(**kwargs)
 
 
+class ProducerBrokerWrapper:
+    def __init__(self, broker, topic):
+        self.broker = broker
+        self.topic = topic
+        self._delay_sending = 0.0
+        self._delayed = []
+
+    def delay_sending(self, delay=1.0):
+        """Simulate messages taking time to send"""
+        self._delay_sending = delay
+
+    def write(self, msg, headers=[], delivery_callback=None, topic=None, key=None):
+        if topic is None:
+            if self.topic is not None:
+                topic = self.topic
+            else:
+                raise Exception("No topic specified for write")
+        if self._delay_sending > 0.0:
+            self._delayed.append((msg, headers, delivery_callback, topic, key))
+            return
+        self.broker.write(topic, msg, headers, delivery_callback=delivery_callback, key=key)
+
+    def send_delayed(self):
+        for msg, headers, delivery_callback, topic, key in self._delayed:
+            self.broker.write(topic, msg, headers, delivery_callback=delivery_callback,
+                              key=key)
+        self._delayed.clear()
+
+    def __len__(self):
+        return len(self._delayed)
+
+    def flush(self, timeout=None):
+        """Simulate time passing, possibly allowing delayed messages to send"""
+        if self._delay_sending > 0.0:
+            if timeout is None:
+                self._delay_sending = 0.0
+            else:
+                self._delay_sending -= timeout.total_seconds()
+                if self._delay_sending < 0.0:
+                    self._delay_sending = 0.0
+            if self._delay_sending == 0.0:
+                self.send_delayed()
+        return len(self._delayed)
+
+    def close(self, timeout: timedelta = timedelta(seconds=0)):
+        return self.flush(timeout)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        pass
+
+
 @pytest.fixture()
 def mock_producer():
     def _mock_producer(mock_broker, topic):
-        class ProducerBrokerWrapper:
-            def __init__(self, broker, topic):
-                self.broker = broker
-                self.topic = topic
-                self._delay_sending = 0.0
-                self._delayed = []
-
-            def delay_sending(self, delay=1.0):
-                """Simulate messages taking time to send"""
-                self._delay_sending = delay
-
-            def write(self, msg, headers=[], delivery_callback=None, topic=None, key=None):
-                if topic is None:
-                    if self.topic is not None:
-                        topic = self.topic
-                    else:
-                        raise Exception("No topic specified for write")
-                if self._delay_sending > 0.0:
-                    self._delayed.append((msg, headers, delivery_callback, topic, key))
-                    return
-                self.broker.write(topic, msg, headers, delivery_callback=delivery_callback, key=key)
-
-            def send_delayed(self):
-                for msg, headers, delivery_callback, topic, key in self._delayed:
-                    self.broker.write(topic, msg, headers, delivery_callback=delivery_callback,
-                                      key=key)
-                self._delayed.clear()
-
-            def __len__(self):
-                return len(self._delayed)
-
-            def flush(self, timeout = None):
-                """Simulate time passing, possibly allowing delayed messages to send"""
-                if self._delay_sending > 0.0:
-                    if timeout is None:
-                        self._delay_sending = 0.0
-                    else:
-                        self._delay_sending -= timeout.total_seconds()
-                        if self._delay_sending < 0.0:
-                            self._delay_sending = 0.0
-                    if self._delay_sending == 0.0:
-                        self.send_delayed()
-                return len(self._delayed)
-
-            def close(self, timeout: timedelta = timedelta(seconds=0)):
-                return self.flush(timeout)
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *exc):
-                pass
-
         producer = ProducerBrokerWrapper(mock_broker, topic)
         return producer
 

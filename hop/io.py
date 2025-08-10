@@ -1096,6 +1096,12 @@ class Producer:
 
     def flush(self, timeout: Optional[timedelta] = None):
         """Request that any messages locally queued for sending be sent immediately.
+
+        Args:
+            timeout: The length of time to wait for messages to send.
+                     Defaults to the produce_timeout.
+        Returns:
+            The number of messages still queued locally to be sent.
         """
         if timeout is None:
             timeout = self.produce_timeout
