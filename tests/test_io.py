@@ -1533,11 +1533,28 @@ def test_producer_context_normal_exit_unsent(mock_broker, mock_producer, mock_ad
             patch("hop.io.AdminClient", return_value=mock_admin_client(mb)):
         mp.delay_sending()
         with pytest.raises(Exception) as ex:
-            with io.Producer("kafka://example.com:9092", [topic], None) as s:
+            with io.Producer("kafka://example.com:9092", [topic], None,
+                             produce_timeout=timedelta(milliseconds=1)) as s:
                 s.write("abc")
                 s.write("def")
                 assert len(mp) == 2, "The two messages should be 'unsent'"
         assert "2 messages remain unsent, some data may have been lost" in str(ex)
+
+
+def test_producer_context_normal_exit_no_timeout(mock_broker, mock_producer, mock_admin_client):
+    topic = "some_topic"
+    mb = mock_broker
+    mp = mock_producer(mb, topic)
+    with patch("hop.io.adc_producer.Producer", side_effect=lambda c: mp), \
+            patch("hop.io.AdminClient", return_value=mock_admin_client(mb)):
+        mp.delay_sending()
+        with io.Producer("kafka://example.com:9092", [topic], None,
+                         produce_timeout=timedelta(seconds=0)) as s:
+            s.write("abc")
+            s.write("def")
+            assert len(mp) == 2, "The two messages should be 'unsent'"
+        # no exception should be raised, as the context manager should flush all messages
+        assert len(mp) == 0, "No messages should remain 'unsent'"
 
 
 @pytest.mark.parametrize("message", [

@@ -1,3 +1,4 @@
+from datetime import timedelta
 import logging
 import sys
 
@@ -28,6 +29,13 @@ def _add_parser_args(parser):
         action="store_true",
         help="Mark messages as test messages by adding a header with key '_test'."
     )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=10.0,
+        help="Time to wait for a message to be sent and acknowledged, in seconds."
+             "Zero for no timeout."
+    )
 
 
 def _main(args):
@@ -39,11 +47,11 @@ def _main(args):
     loader = io.Deserializer[args.format]
     stream = io.Stream(auth=(not args.no_auth))
 
-    with stream.open(args.url, "w") as s:
+    with stream.open(args.url, "w", produce_timeout=timedelta(seconds=args.timeout)) as s:
         logger.info("publishing messages to stream")
         for message_file in args.message:
             message = loader.load_file(message_file)
-            s.write(message)
+            s.write(message, test=args.test)
 
         if len(args.message) == 0:
             messages = sys.stdin.read().splitlines()
