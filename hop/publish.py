@@ -32,7 +32,7 @@ def _add_parser_args(parser):
     parser.add_argument(
         "--timeout",
         type=float,
-        default=10.0,
+        default=0.0,
         help="Time to wait for a message to be sent and acknowledged, in seconds."
              "Zero for no timeout."
     )
