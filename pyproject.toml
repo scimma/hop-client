@@ -27,7 +27,7 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "adc-streaming >= 2.5.0",
+    "adc-streaming >= 2.6.0",
     "bson",
     "fastavro >= 1.4.0",
     "pluggy >= 0.11",
