@@ -426,6 +426,9 @@ class ProducerBrokerWrapper:
     def __len__(self):
         return len(self._delayed)
 
+    def queued_message_count(self):
+        return len(self._delayed)
+
     def flush(self, timeout=None):
         """Simulate time passing, possibly allowing delayed messages to send"""
         if self._delay_sending > 0.0:
