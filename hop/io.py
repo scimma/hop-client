@@ -88,7 +88,9 @@ class Stream(object):
         # do not leak back into the cached data.
         return load_config()
 
-    def open(self, url, mode="r", group_id=None, ignoretest=True, **kwargs):
+    def open(self, url, mode="r", group_id=None, ignoretest=True,
+             produce_timeout=timedelta(seconds=0.0),
+             **kwargs):
         """Opens a connection to an event stream.
 
         Args:
@@ -98,6 +100,11 @@ class Stream(object):
                       Generated automatically if not specified.
             ignoretest: When True, read mode will silently discard
                         test messages.
+            produce_timeout: A limit on the time within which each
+                             published message must be sent. If zero,
+                             no limit is applied, and closing the
+                             producer will wait indefinitely for all
+                             queued messages to send.
 
         Returns:
             An open connection to the client, either a :class:`Producer` instance
@@ -136,7 +143,8 @@ class Stream(object):
                 topics = []
             if group_id is not None:
                 warnings.warn("group ID has no effect when opening a stream in write mode")
-            return Producer(broker_addresses, topics, auth=credential, **kwargs)
+            return Producer(broker_addresses, topics, auth=credential,
+                            produce_timeout=produce_timeout, **kwargs)
         elif mode == "r":
             if topics is None or len(topics) == 0:
                 raise ValueError("no topic(s) specified in kafka URL")
