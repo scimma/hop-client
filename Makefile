@@ -28,7 +28,7 @@ lint :
 
 .PHONY: format
 format :
-	autopep8 --recursive --in-place hop tests
+	autopep8 --recursive --in-place --max-line-length=100 hop tests
 
 .PHONY: doc
 doc :
