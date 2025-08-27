@@ -1122,7 +1122,10 @@ class Producer:
         """Wait for enqueued messages to be written and shut down.
 
         """
-        logger.info("closing connection")
+        if sum([r.producer.queued_message_count() for r in self.producers.values()]) > 0:
+            logger.info("closing connection after queued messages send")
+        else:
+            logger.info("closing connection")
         still_queued = 0
         for p_record in self.producers.values():
             still_queued += p_record.producer.close(self.produce_timeout)
