@@ -109,6 +109,19 @@ In fact, when opening a stream for writing, it is not necessary for the target U
 a topic at all; if it does not, the topic to which to publish must always be specified when
 calling :code:`write()`.
 
+Message Publication Timeout
+------------------------------
+
+The :code:`produce_timeout` argument to :code:`stream.open` corresponds to the librdkafka
+:code:`message.timeout.ms` parameter. This setting is useful for when messages must be delivered
+within a specified latency, and failure to do so should be treated as an error.
+
+For many uses, this is not necessary, and so the default value is zero, disabling the timeout
+mechanism. In particular, since the timeout counts time from when the message is queued to be
+published (with :code:`write` to when), messages can time out due to waiting for messages queued
+ahead of them to be delivered. This can most commonly become an issue when publishing significant
+numbers of relatively large messages, for which transmission is bandwidth limited.
+
 Committing Messages Manually
 ------------------------------
 
