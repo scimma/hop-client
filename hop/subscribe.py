@@ -38,6 +38,10 @@ def _add_parser_args(parser):
     parser.add_argument(
         "-t", "--test", help="Process test messages instead of ignoring them.", action="store_true",
     )
+    parser.add_argument(
+        "-D", "--delimiter", type=str, default="\\n",
+        help="Delimiter to separate messages on output. Default: \\n",
+    )
 
 
 def _main(args):
@@ -49,8 +53,16 @@ def _main(args):
     start_at = io.StartPosition[args.start_at]
     stream = io.Stream(auth=(not args.no_auth), start_at=start_at, until_eos=args.until_eos)
 
+    # Convert the user-specified delimiter string to bytes so we can use the unicode_escape
+    # codec to evaluate escape sequences, then convert back to bytes so all ouput can be done
+    # consistently in binary.
+    delim = args.delimiter.encode("utf-8").decode("unicode_escape").encode("utf-8")
+
     with stream.open(args.url, "r", group_id=args.group_id, ignoretest=(not args.test)) as s:
         for message in s:
-            sys.stdout.buffer.write(bytes(message))
+            raw = bytes(message)
+            sys.stdout.buffer.write(raw)
+            if not raw.endswith(delim):
+                sys.stdout.buffer.write(delim)
             if sys.stdout.buffer.isatty:
                 sys.stdout.buffer.flush()
