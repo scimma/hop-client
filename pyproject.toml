@@ -30,6 +30,7 @@ dependencies = [
     "adc-streaming >= 2.6.0",
     "bson",
     "fastavro >= 1.4.0",
+    "requests",
     "pluggy >= 0.11",
     "scramp",
     "toml >= 0.9.4",
