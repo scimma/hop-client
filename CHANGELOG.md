@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2025-09-25
+### Changed
+- Handling of high message volumes is improved:
+  The `produce_timeout` parameter provides control of how long the producer will spend trying to
+  send a message, and it default value of zero will wait as long as necessary (and as long as other
+  errors do not occur). This prevents messages failing to be sent  before the producer shuts down,
+  particularly when using `hop publish` from the command line.
+- The `hop subscribe` command line tool now supports printing a configurable delimiter between
+  received messages.
+- The VOEvent model is now transmitted through Kafka in its original format
+- Build system updated to use pyproject.toml
+
 ## [0.11.1] - 2025-05-14
 ### Changed
 - Disabling use of automatic large message offloading in the `hop.io.Producer` now completely avoids
