@@ -8,12 +8,11 @@ from pathlib import Path
 import time
 from unittest.mock import patch, MagicMock
 from uuid import uuid4
-import bson
 
 import pytest
 
 from hop.auth import Auth, AmbiguousCredentialError
-from hop import io
+from hop import bson, io
 from hop.models import (AvroBlob, Blob, ExternalMessage, GCNCircular, GCNTextNotice, JSONBlob,
                         VOEvent)
 from adc.errors import KafkaException

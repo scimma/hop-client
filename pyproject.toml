@@ -28,10 +28,10 @@ classifiers = [
 requires-python = ">=3.8"
 dependencies = [
     "adc-streaming >= 2.6.0",
-    "bson",
     "fastavro >= 1.4.0",
     "requests",
     "pluggy >= 0.11",
+    "python-dateutil>=2.4.0",
     "scramp",
     "toml >= 0.9.4",
     "xmltodict >= 0.9.0",
@@ -69,7 +69,10 @@ hop = "hop.__main__:main"
 write_to = "hop/_version.py"
 
 [tool.setuptools]
-packages = ["hop"]
+packages = ["hop", "hop.bson"]
+
+[tool.autopep8]
+exclude = "hop/bson/*"
 
 [tool.flake8]
 max-line-length = 110
@@ -77,6 +80,7 @@ max-doc-length = 110
 ignore = ["E203", "W503"]
 exclude = [
     "hop/_version.py",
+    "hop/bson/",
     "__pycache__",
     ".eggs/",
     ".git/",
@@ -97,9 +101,11 @@ log_cli_level = "INFO"
 source = ["hop"]
 omit = [
     "_version.py",
+    "hop/bson/",
 ]
 
 [tool.coverage.report]
 omit = [
     "_version.py",
+    "hop/bson/",
 ]
