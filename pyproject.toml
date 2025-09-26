@@ -101,9 +101,11 @@ log_cli_level = "INFO"
 source = ["hop"]
 omit = [
     "_version.py",
+    "hop/bson/",
 ]
 
 [tool.coverage.report]
 omit = [
     "_version.py",
+    "hop/bson/",
 ]
