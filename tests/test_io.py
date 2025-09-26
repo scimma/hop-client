@@ -8,7 +8,6 @@ from pathlib import Path
 import time
 from unittest.mock import patch, MagicMock
 from uuid import uuid4
-import bson
 
 import pytest
 
@@ -371,7 +370,7 @@ def test_consumer_fetch_external_no_auth():
     orig_data = b"datadatadata"
     orig_id = b'|\xdc\xfa\xa0v\x94Iu\x8c\xcd\xeaJ\x7f6\xf5r'
     orig_timestamp = 172000
-    payload = bson.dumps({"message": orig_data,
+    payload = io.bson.dumps({"message": orig_data,
                           "metadata": {"headers": [("_id", orig_id)],
                                        "timestamp": orig_timestamp}
                           })
@@ -453,7 +452,7 @@ def test_consumer_fetch_external_no_auth():
             == confluent_kafka.KafkaError._VALUE_DESERIALIZATION
 
     # Valid BSON but malformed message record, no error callback
-    response = MagicMock(status=200, read=FakeRead(bson.dumps({1: 2, 3: 4})))
+    response = MagicMock(status=200, read=FakeRead(io.bson.dumps({1: 2, 3: 4})))
     del response.stream
     with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
             patch("hop.io.consumer.Consumer", MagicMock()):
@@ -463,7 +462,7 @@ def test_consumer_fetch_external_no_auth():
         assert m.error().code() == confluent_kafka.KafkaError._VALUE_DESERIALIZATION
 
     # Valid BSON but malformed message record, with error callback
-    response = MagicMock(status=200, read=FakeRead(bson.dumps({1: 2, 3: 4})))
+    response = MagicMock(status=200, read=FakeRead(io.bson.dumps({1: 2, 3: 4})))
     del response.stream
     ecallback = MagicMock()
     with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
@@ -482,7 +481,7 @@ def test_consumer_fetch_external_with_auth():
     orig_data = b"datadatadata"
     orig_id = b'|\xdc\xfa\xa0v\x94Iu\x8c\xcd\xeaJ\x7f6\xf5r'
     orig_timestamp = 172000
-    payload = bson.dumps({"message": orig_data,
+    payload = io.bson.dumps({"message": orig_data,
                           "metadata": {"headers": [("_id", orig_id)],
                                        "timestamp": orig_timestamp}
                           })
@@ -939,7 +938,7 @@ def test_offload_message():
         assert result[2] is None
         assert len(conn.requests) > 0
         # the body that was sent should be valid BSON
-        payload = bson.loads(conn.requests[-1]["body"])
+        payload = io.bson.loads(conn.requests[-1]["body"])
         # we happen to have a tool, covered by other tests for verifying the structure of
         # offloaded message payloads
         print(payload)
@@ -1000,7 +999,7 @@ def test_offload_message():
         result = prod._offload_message(b"data", [("_id", fixed_uuid.bytes)], "topic", key="a_key")
         assert result[2] is None
         assert len(conn.requests) > 0
-        payload = bson.loads(conn.requests[-1]["body"])
+        payload = io.bson.loads(conn.requests[-1]["body"])
         assert check_outgoing_bson_message(payload) is None
         assert payload["key"] == "a_key"
 

@@ -13,7 +13,6 @@ from urllib.parse import urlparse
 import uuid
 import warnings
 
-import bson
 import confluent_kafka
 import pluggy
 import requests
@@ -22,6 +21,7 @@ from adc import consumer, errors, kafka
 from adc import producer as adc_producer
 from confluent_kafka.admin import AdminClient, ConfigEntry, ConfigResource, ResourceType
 
+from . import _bson as bson
 from .configure import get_config_path, load_config
 from .auth import Auth, AmbiguousCredentialError
 from .auth import load_auth
