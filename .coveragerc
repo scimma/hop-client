@@ -1,0 +1,2 @@
+[run]
+omit = hop/bson/*
