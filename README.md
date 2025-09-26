@@ -155,7 +155,7 @@ Assuming you've cloned the repository and are in the project's root directory, y
 install hop-client alongside all the required development dependencies by running:
 
 ```
-pip install .[dev,docs]
+pip install .[dev,docs,bson]
 ```
 
 ### Releases
