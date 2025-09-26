@@ -452,7 +452,7 @@ def test_consumer_fetch_external_no_auth():
             == confluent_kafka.KafkaError._VALUE_DESERIALIZATION
 
     # Valid BSON but malformed message record, no error callback
-    response = MagicMock(status=200, read=FakeRead(io.bson.dumps({1: 2, 3: 4})))
+    response = MagicMock(status=200, read=FakeRead(io.bson.dumps({"1": 2, "3": 4})))
     del response.stream
     with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
             patch("hop.io.consumer.Consumer", MagicMock()):
@@ -462,7 +462,7 @@ def test_consumer_fetch_external_no_auth():
         assert m.error().code() == confluent_kafka.KafkaError._VALUE_DESERIALIZATION
 
     # Valid BSON but malformed message record, with error callback
-    response = MagicMock(status=200, read=FakeRead(io.bson.dumps({1: 2, 3: 4})))
+    response = MagicMock(status=200, read=FakeRead(io.bson.dumps({"1": 2, "3": 4})))
     del response.stream
     ecallback = MagicMock()
     with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
