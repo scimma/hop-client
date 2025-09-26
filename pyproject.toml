@@ -71,12 +71,16 @@ write_to = "hop/_version.py"
 [tool.setuptools]
 packages = ["hop", "hop.bson"]
 
+[tool.autopep8]
+exclude = "hop/bson/*"
+
 [tool.flake8]
 max-line-length = 110
 max-doc-length = 110
 ignore = ["E203", "W503"]
 exclude = [
     "hop/_version.py",
+    "hop/bson/",
     "__pycache__",
     ".eggs/",
     ".git/",
