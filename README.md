@@ -10,6 +10,10 @@ Hop Client
 
 **hop-client** is a pub-sub client library for Multimessenger Astrophysics.
 
+Internally, this library contains its own copy of [bson](https://github.com/py-bson/bson)
+BSON codec library, used under a BSD License, which it turn includes the ObjectId
+implementation from the PyMongo project, licensed under the Version 2.0 Apache License.
+
 ## Installation
 
 You can install hop either via pip, conda, or from source.
