@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2025-10-02
+### Changed
+- Switch to using a vendored copy of the `bson` package to prevent a conflict with the `pymongo`
+  package.
+
 ## [0.12.0] - 2025-09-25
 ### Changed
 - Handling of high message volumes is improved:
