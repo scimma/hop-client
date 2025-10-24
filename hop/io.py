@@ -787,7 +787,10 @@ class Producer:
             # which may fail, and just return dummy data.
             return {topic: {"max.message.bytes": dummy_max} for topic in topics}
 
-        aclient = AdminClient(aconfig._to_confluent_kafka())
+        ac = aconfig._to_confluent_kafka()
+        ac["debug"] = "broker,topic,protocol"
+        print(ac)
+        aclient = AdminClient(ac)
         logger.debug(f"Fetching settings for topics: {topics}")
         query = [ConfigResource(restype=ResourceType.TOPIC, name=topic) for topic in topics]
         futures = aclient.describe_configs(query)
