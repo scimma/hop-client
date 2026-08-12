@@ -9,7 +9,7 @@ import random
 import string
 import time
 from typing import List, Optional, Tuple, Union
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 import uuid
 import warnings
 
@@ -116,6 +116,8 @@ class Stream(object):
 
         """
         username, broker_addresses, topics = kafka.parse_kafka_url(url)
+        if username:
+            username = unquote(username)
         if len(broker_addresses) > 1:
             raise ValueError("Multiple broker addresses are not supported")
         logger.debug("connecting to addresses=%s  username=%s  topics=%s",
@@ -1195,6 +1197,8 @@ def list_topics(url: str, auth: Union[bool, Auth] = True, timeout=-1.0):
         confluent_kafka.KafkaException: If connecting to the broker times out.
     """
     username, broker_addresses, query_topics = kafka.parse_kafka_url(url)
+    if username:
+        username = unquote(username)
     if len(broker_addresses) > 1:
         raise ValueError("Multiple broker addresses are not supported")
     user_auth = None
@@ -1212,6 +1216,10 @@ def list_topics(url: str, auth: Union[bool, Auth] = True, timeout=-1.0):
     if user_auth is not None:
         config.update(user_auth())
     consumer = confluent_kafka.Consumer(config)
+    # Work around a confluent kafka/librdkafka bug: If the mechanism is OAUTHBEARER and a token
+    # callback is being used, must invoke poll() at least once to obtain a token or calling
+    # list_topics() can block indefinitely
+    consumer.poll(0)
     valid_topics = {}
     if query_topics is not None:
         for topic in query_topics:

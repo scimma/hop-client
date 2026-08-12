@@ -91,6 +91,27 @@ def test_load_auth_oidc(auth_config_oidc, tmpdir):
         assert auth_data[0].token_endpoint == "https://example.com/oauth2/token"
 
 
+def test_load_auth_exttoken(auth_config_exttoken, tmpdir):
+    with temp_auth(tmpdir, auth_config_exttoken) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir):
+        auth_data = auth.load_auth()
+        assert len(auth_data) == 1
+        assert auth_data[0].username == "username"
+        assert auth_data[0].token_endpoint is None
+        assert auth_data[0].mechanism == "OAUTHBEARER"
+        auth_config = auth_data[0]()
+        print(auth_config)
+        assert auth_config["sasl.oauthbearer.method"] == "default"
+        assert auth_config["oauth_cb"] is not None
+        token_data = auth_config["oauth_cb"]("")
+        assert len(token_data) == 4
+        assert isinstance(token_data[0], str)
+        assert len(token_data[0]) > 0
+        assert isinstance(token_data[1], float)
+        assert token_data[2] == "user"
+        assert isinstance(token_data[3], dict)
+
+
 def test_load_auth_non_existent(auth_config, tmpdir):
     with temp_environ(XDG_CONFIG_HOME=str(tmpdir)), \
             pytest.raises(FileNotFoundError):

@@ -323,6 +323,15 @@ auth = [{
          }]
 """
 
+# Configuration structure for tokens fetched with some external tool
+AUTH_CONFIG_EXTTOKEN = """
+auth = [{
+         username="username",
+         password="",
+         token_command="echo 'eyJhbGciOiJSUzI1NiIsImtpZCI6IjMwZWEyMDc4LWQ4NWUtNDc3Mi04ZWYzLTc3NzhhZWZkNjgxMCIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyIiwiaWF0IjoxNzg2NTYxODY3LjQ2MDczNSwiZXhwIjoxNzg2NTYxOTI3LjQ2MDczNSwiaXNzIjoiaHR0cDovLzEyNy4wLjAuMTo4MDAwIn0.notarealsignature'"
+         }]
+"""
+
 
 class MockBroker:
     """Mock a Kafka broker.
@@ -572,6 +581,11 @@ def auth_config():
 @pytest.fixture(scope="session")
 def auth_config_oidc():
     return AUTH_CONFIG_OIDC
+
+
+@pytest.fixture(scope="session")
+def auth_config_exttoken():
+    return AUTH_CONFIG_EXTTOKEN
 
 
 @pytest.fixture(scope="session")
