@@ -260,10 +260,12 @@ def _interpret_auth_data(auth_data):
                 host = config["hostname"]
 
             token_endpoint = config.get("token_endpoint")
+            if "token_command" in config:
+                extra_kwargs["token_command"] = config["token_command"]
 
             if "mechanism" in config:
                 mechanism = config["mechanism"].replace("-", "_")
-            elif token_endpoint:
+            elif token_endpoint or "token_command" in extra_kwargs:
                 mechanism = "OAUTHBEARER"
             else:
                 mechanism = "SCRAM_SHA_512"
@@ -449,6 +451,7 @@ def read_new_credential(csv_file=None):
                 password = cred["password"]
                 hostname = cred["hostname"] if "hostname" in cred else ""
                 token_endpoint = cred.get("token_endpoint")
+                token_command = cred.get("token_command")
                 if "mechanism" in cred:
                     options["method"] = cred["mechanism"].replace("-", "_")
                 if "protocol" in cred:

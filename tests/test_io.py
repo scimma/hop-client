@@ -1117,7 +1117,7 @@ def test_stream_open(auth_config, mock_broker, mock_producer, mock_admin_client,
         stream.open("kafka://example.com/", "r")
     assert "no topic(s) specified in kafka URL" in err.value.args
 
-    # verify that URLs with too many hostnames
+    # verify that URLs with too many hostnames are rejected
     with pytest.raises(ValueError) as err:
         stream.open("kafka://example.com,example.net/topic", "r")
         assert "Multiple broker addresses are not supported" in err.value.args
@@ -1140,6 +1140,27 @@ def test_stream_open(auth_config, mock_broker, mock_producer, mock_admin_client,
         # opening a valid URL for writing should succeed
         producer = stream.open("kafka://example.com/topic", "w")
         producer.write("data")
+
+
+def test_stream_open_interesting_username(mock_broker, mock_producer, mock_admin_client, tmpdir):
+    auth_config = """auth = [{
+                     username="a@:b",
+                     password="password"
+                     }]"""
+    mb = mock_broker
+    def producer_factory(c):
+        return mock_producer(mb, c.topic)
+    # verify that complete URLs are accepted
+    with temp_auth(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir), \
+            patch("hop.io.adc_producer.Producer", side_effect=producer_factory), \
+            patch("adc.consumer.Consumer.subscribe", MagicMock()) as subscribe, \
+            patch("hop.io.AdminClient", return_value=mock_admin_client(mock_broker)):
+        stream = io.Stream()
+        # opening a valid URL for reading should succeed
+        consumer = stream.open("kafka://a%40%3Ab@example.com/topic", "r")
+        # an appropriate consumer group name should be derived from the username in the auth
+        print(consumer._consumer.conf.group_id)
+        assert consumer._consumer.conf.group_id.startswith("a@:b")
 
 
 def test_stream_open_ambiguous_creds():
@@ -1830,6 +1851,25 @@ def test_list_topics_auth(auth_config, tmpdir):
         assert "sasl.password" in cons_args[0]
         assert cons_args[0]["sasl.username"] == "user2"
         assert cons_args[0]["sasl.password"] == "pass2"
+
+    # when given a URL with an embedded username which contains special characters
+    # they should be correctly un-escaped for matching to the credential store
+    escaped_cred = """auth = [{
+                      username="a@:b",
+                      password="xyzzy"
+                      }]"""
+    with temp_auth(tmpdir, escaped_cred) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir), \
+            patch("confluent_kafka.Consumer", make_mock_listing_consumer([])) as Consumer:
+        listing = io.list_topics("kafka://a%40%3Ab@example.com", auth=True)
+
+        Consumer.assert_called_once()
+        cons_args = Consumer.call_args[0]
+        assert len(cons_args) == 1
+        assert "sasl.username" in cons_args[0]
+        assert "sasl.password" in cons_args[0]
+        assert cons_args[0]["sasl.username"] == "a@:b"
+        assert cons_args[0]["sasl.password"] == "xyzzy"
 
 
 def test_list_topics_timeout():
