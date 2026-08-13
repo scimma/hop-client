@@ -1148,6 +1148,7 @@ def test_stream_open_interesting_username(mock_broker, mock_producer, mock_admin
                      password="password"
                      }]"""
     mb = mock_broker
+
     def producer_factory(c):
         return mock_producer(mb, c.topic)
     # verify that complete URLs are accepted
