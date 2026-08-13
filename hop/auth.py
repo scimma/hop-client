@@ -52,7 +52,7 @@ class Auth(auth.SASLAuth):
 
     def __init__(self, user, password, host="", ssl=True, method=None,
                  token_endpoint=None, **kwargs):
-        if method is None and token_endpoint is None:
+        if method is None and token_endpoint is None and "token_command" not in kwargs:
             method = SASLMethod.SCRAM_SHA_512
         super().__init__(user, password, ssl=ssl, method=method,
                          token_endpoint=token_endpoint, **kwargs)
@@ -448,16 +448,19 @@ def read_new_credential(csv_file=None):
                 reader = csv.DictReader(f)
                 cred = next(reader)
                 username = cred["username"]
-                password = cred["password"]
-                hostname = cred["hostname"] if "hostname" in cred else ""
+                password = cred.get("password", "")
+                hostname = cred.get("hostname", "")
                 token_endpoint = cred.get("token_endpoint")
-                token_command = cred.get("token_command")
                 if "mechanism" in cred:
                     options["method"] = cred["mechanism"].replace("-", "_")
                 if "protocol" in cred:
                     options["ssl"] = cred["protocol"] != "SASL_PLAINTEXT"
                 if "ssl_ca_location" in cred:
                     options["ssl_ca_location"] = cred["ssl_ca_location"]
+                if "token_command" in cred:
+                    options["token_command"] = cred["token_command"]
+                if not password and not token_endpoint and "token_command" not in options:
+                    raise KeyError("One of password, token_endpoint, or token_command is required")
         else:
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), csv_file)
     return Auth(username, password, hostname, token_endpoint=token_endpoint, **options)

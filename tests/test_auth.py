@@ -546,6 +546,17 @@ def test_read_new_credential_csv(tmpdir):
     assert new_cred.password == "pass5"
     assert new_cred.ssl_ca_location == "foo/bar"
 
+    # read from a csv file with a token command
+    with open(csv_file, "w") as f:
+        f.write("username,password,token_command\n")
+        f.write("user6,,curl -X POST -u user6@example.com http://example.com/oauth2/token")
+    new_cred = auth.read_new_credential(csv_file)
+    assert new_cred.username == "user6"
+    assert new_cred.password is None
+    print(new_cred())
+    assert new_cred()["sasl.oauthbearer.method"] == "default"
+    assert new_cred.mechanism == "OAUTHBEARER"
+
 
 def test_read_new_credential_csv_malformed(tmpdir):
     csv_file = tmpdir + "/cred.csv"
