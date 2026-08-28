@@ -572,10 +572,17 @@ def test_read_new_credential_csv_malformed(tmpdir):
     with pytest.raises(KeyError):
         auth.read_new_credential(csv_file)
 
-    # no password => KeyError
+    # no password, token_endpoint, or token_command => KeyError
     with open(csv_file, "w") as f:
         f.write("username,hostname\n")
         f.write("user,example.com")
+    with pytest.raises(KeyError):
+        auth.read_new_credential(csv_file)
+
+    # token_endpoint but no password => KeyError
+    with open(csv_file, "w") as f:
+        f.write("username,hostname,token_endpoint\n")
+        f.write("user,example.com,example.net")
     with pytest.raises(KeyError):
         auth.read_new_credential(csv_file)
 
