@@ -460,7 +460,10 @@ def read_new_credential(csv_file=None):
                 if "token_command" in cred:
                     options["token_command"] = cred["token_command"]
                 if not password and not token_endpoint and "token_command" not in options:
-                    raise KeyError("One of password, token_endpoint, or token_command is required")
+                    raise KeyError("A password, a token_endpoint and password, or a token_command "
+                                   "is required")
+                if token_endpoint and not password:
+                    raise KeyError("A password is required with a token_endpoint")
         else:
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), csv_file)
     return Auth(username, password, hostname, token_endpoint=token_endpoint, **options)
