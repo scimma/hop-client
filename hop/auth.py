@@ -1,11 +1,13 @@
 import certifi
 from collections.abc import Mapping
 import csv
+import datetime
 import errno
 import getpass
 import logging
 import os
 import re
+import requests
 import stat
 import toml
 
@@ -107,6 +109,69 @@ class Auth(auth.SASLAuth):
             or None if OpenID Connect is not enabled
         """
         return self._config.get("sasl.oauthbearer.token.endpoint.url")
+
+    @property
+    def is_scram(self):
+        """Whether this credential uses SCRAM"""
+        return self._config["sasl.mechanism"].startswith("SCRAM-")
+
+    @property
+    def is_token(self):
+        """Whether this credential uses a bearer token"""
+        return self._method == SASLMethod.OAUTHBEARER
+
+    @property
+    def token(self):
+        """
+        If this credential is token-based, get the current access token for it.
+        It is an error to access this property for non-token credentials.
+
+        Under normal circumstances, tokens are handled by confluent_kafka, however, in some cases
+        a token may be required for authentication over other protocols, which is supported by
+        this simple implementation.
+        """
+        if hasattr(self, "_token_data") and hasattr(self, "_token_expiration") and \
+                self._token_expiration >= datetime.datetime.now(datetime.timezone.utc).timestamp():
+            return self._token_data
+        if not self.is_token:
+            raise ValueError("Cannot extract a token from a non-token credential")
+        config = self()
+        if config["sasl.oauthbearer.method"] == "default" and "oauth_cb" in config:
+            token_data, exp_time, _, _ = config["oauth_cb"](None)
+            self._token_data = token_data
+            self._token_expiration = exp_time
+        elif config["sasl.oauthbearer.method"] == "oidc" and \
+                "sasl.oauthbearer.token.endpoint.url" in config:
+            req_time = datetime.datetime.now(datetime.timezone.utc).timestamp()
+            result = requests.post(config["sasl.oauthbearer.token.endpoint.url"],
+                                   data="grant_type=client_credentials",
+                                   auth=(self.username, self.password),
+                                   headers={"Content-Type": "application/x-www-form-urlencoded"})
+            if not result.ok:
+                raise RuntimeError("Failed to fetch token from OIDC endpoint: "
+                                   f"({result.status_code}) {result.text}")
+            try:
+                result_data = result.json()
+            except requests.exceptions.JSONDecodeError:
+                raise RuntimeError("Failed to decode data from OIDC endpoint as JSON")
+            if not isinstance(result_data, dict) or "access_token" not in result_data or \
+                    not isinstance(result_data["access_token"], str) or \
+                    "token_type" not in result_data or \
+                    not isinstance(result_data["token_type"], str):
+                raise RuntimeError("Not able to process result from token endpoint")
+            token_type = result_data["token_type"]
+            if token_type.lower() != "bearer":
+                raise RuntimeError("Only bearer tokens are supported, "
+                                   f"got token type: {token_type}")
+            self._token_data = result_data["access_token"]
+            if "expires_in" in result_data:
+                exp_value = result_data["expires_in"]
+                if not isinstance(exp_value, int) and not isinstance(exp_value, float):
+                    raise RuntimeError("Unable to interpret token response 'expires_in' value")
+                self._token_expiration = req_time + exp_value
+            else:
+                self._token_expiration = req_time  # don't reuse tokens when expiration time unknown
+        return self._token_data
 
     def __eq__(self, other):
         return (self._username == other._username
