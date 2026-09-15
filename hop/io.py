@@ -404,6 +404,20 @@ def _http_error_to_kafka(status: int, msg: str = ""):
     return confluent_kafka.KafkaError(err_code, msg, fatal, retriable, txn_requires_abort)
 
 
+def _make_bearer_auth(token: str):
+    """Produce a callable object which can be passed to requests.request as the auth parameter,
+    implementing bearer token authentication with the specified token.
+
+    Args:
+        token: The bearer token to use for authentication
+    Return: A callable custom authentication object
+    """
+    def bearer_auth(req):
+        req.headers["authorization"] = "Bearer " + token
+        return req
+    return bearer_auth
+
+
 def _filter_valid_args(cls, kwargs: dict):
     """
     Extract from a dictionary the subset of its entries which are valid arguments to the
@@ -600,7 +614,10 @@ class Consumer:
             if trusted_offload_url is not None and \
                     parsed.scheme == trusted_offload_url.scheme and \
                     parsed.netloc == trusted_offload_url.netloc:
-                auth = http_scram.SCRAMAuth(self.auth, shortcut=True)
+                if self.auth.is_scram:
+                    auth = http_scram.SCRAMAuth(self.auth, shortcut=True)
+                elif self.auth.is_token:
+                    auth = _make_bearer_auth(self.auth.token)
                 logger.debug(" Will send auth info in HTTP request")
         resp = requests.get(url, auth=auth)
         if not resp.ok:
@@ -1033,11 +1050,14 @@ class Producer:
         if key is not None:
             data_raw["key"] = key
         data = bson.dumps(data_raw)
-        try:
+        if self.auth.is_scram:
             # We assume that no server will allow un-authenticated writes, so we use shortcut=True
             # to start attempting a SCRAM handshake as quickly as possible.
-            resp = requests.post(write_url, data=data,
-                                 auth=http_scram.SCRAMAuth(self.auth, shortcut=True))
+            auth = http_scram.SCRAMAuth(self.auth, shortcut=True)
+        elif self.auth.is_token:
+            auth = _make_bearer_auth(self.auth.token)
+        try:
+            resp = requests.post(write_url, data=data, auth=auth)
         except RuntimeError as ex:
             err = confluent_kafka.KafkaError(confluent_kafka.KafkaError.SASL_AUTHENTICATION_FAILED,
                                              "Failed to send large message to offload server at "

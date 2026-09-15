@@ -2,13 +2,17 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
+import base64
+import datetime
 from hop import auth
 from hop import configure
+import json
 import os
 import stat
 import toml
 
-from conftest import temp_environ, temp_auth
+from conftest import (temp_environ, temp_auth, PhonyConnection, PhonyResponse, mock_pool_manager,
+                      make_simple_jwt)
 
 
 def check_credential_file(config_path, cred):
@@ -65,6 +69,152 @@ def test_auth_ca_location():
     a = auth.Auth("foo", "bar", ssl_ca_location="foo/bar")
     assert a.ssl
     assert a.ssl_ca_location == "foo/bar"
+
+
+def test_auth_classification():
+    a = auth.Auth("foo", "bar", method=auth.SASLMethod.PLAIN)
+    assert not a.is_scram
+    assert not a.is_token
+
+    for meth in ["SCRAM-SHA-1", auth.SASLMethod.SCRAM_SHA_256, auth.SASLMethod.SCRAM_SHA_512]:
+        a = auth.Auth("foo", "bar", method=meth)
+        assert a.is_scram
+        assert not a.is_token
+
+    a = auth.Auth("foo", "bar", token_endpoint="https://www.example.com")
+    assert not a.is_scram
+    assert a.is_token
+
+    a = auth.Auth("foo", "bar", token_command="echo a-token")
+    assert not a.is_scram
+    assert a.is_token
+
+
+def test_auth_token_nontoken():
+    a = auth.Auth("foo", "bar", method=auth.SASLMethod.PLAIN)
+    with pytest.raises(ValueError) as err:
+        a.token
+    assert "Cannot extract a token from a non-token credential" in str(err)
+
+    a = auth.Auth("foo", "bar", method=auth.SASLMethod.SCRAM_SHA_512)
+    with pytest.raises(ValueError) as err:
+        a.token
+    assert "Cannot extract a token from a non-token credential" in str(err)
+
+
+def test_auth_token_ext_command():
+    validity = 60
+    raw_token = make_simple_jwt(validity=validity)["access_token"]
+    cred = auth.Auth("foo", "", token_command=f"echo '{raw_token}'")
+    # wrap the callback created by adc to be able to keep track of it being called
+    cred._config["oauth_cb"] = MagicMock(wraps=cred._config["oauth_cb"])
+    assert cred.token == raw_token
+    cred._config["oauth_cb"].assert_called_once()
+
+    # accessing the property again within a short period should reuse the cached value
+    cred._config["oauth_cb"].reset_mock()
+    assert cred.token == raw_token
+    cred._config["oauth_cb"].assert_not_called()
+
+    # fast-forward time to ensure that cached values are replaced after they expire
+    later = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=2 * validity)
+    fake_now = MagicMock(return_value=later)
+    dtc = MagicMock()
+    dtc.now = fake_now
+    cred._config["oauth_cb"].reset_mock()
+    with patch("datetime.datetime", dtc):
+        # the test token command is hard-wired to return the same value even though it is expired
+        assert cred.token == raw_token
+        cred._config["oauth_cb"].assert_called_once()
+
+
+def test_auth_token_oidc():
+    validity = 60
+    token_data = make_simple_jwt(validity=validity)
+    resp1 = PhonyResponse(status=200, payload=json.dumps(token_data).encode("utf-8"))
+    later = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=2 * validity)
+    token_data2 = make_simple_jwt(validity=validity, issue_timestamp=later.timestamp())
+    resp2 = PhonyResponse(status=200, payload=json.dumps(token_data2).encode("utf-8"))
+    conn = PhonyConnection([resp1, resp2])
+    with patch("requests.adapters.PoolManager", mock_pool_manager(conn)):
+        cred = auth.Auth("foo", "bar", token_endpoint="http://www.example.com")
+        assert cred.token == token_data["access_token"]
+        assert len(conn.requests) == 1
+        assert "body" in conn.requests[0]
+        assert conn.requests[0]["body"] == "grant_type=client_credentials"
+        assert "headers" in conn.requests[0]
+        assert "Content-Type" in conn.requests[0]["headers"]
+        assert conn.requests[0]["headers"]["Content-Type"] == "application/x-www-form-urlencoded"
+        assert "Authorization" in conn.requests[0]["headers"]
+        expected_auth = "Basic " \
+            + base64.b64encode((cred.username + ":" + cred.password).encode("utf-8"))\
+            .decode("utf-8")
+        assert conn.requests[0]["headers"]["Authorization"] == expected_auth
+
+        # accessing the property again within a short period should reuse the cached value
+        assert cred.token == token_data["access_token"]
+        assert len(conn.requests) == 1
+
+        fake_now = MagicMock(return_value=later)
+        dtc = MagicMock()
+        dtc.now = fake_now
+        with patch("datetime.datetime", dtc):
+            assert cred.token == token_data2["access_token"]
+            assert len(conn.requests) == 2
+
+
+def test_auth_token_oidc_invalid_responses():
+    fobidden = PhonyResponse(status=403, payload=b"Forbidden")
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([fobidden]))):
+        cred = auth.Auth("foo", "bar", token_endpoint="http://www.example.com")
+        with pytest.raises(RuntimeError) as err:
+            tok = cred.token
+        assert "Failed to fetch token from OIDC endpoint" in str(err)
+        assert "(403) Forbidden" in str(err)
+
+    not_json = PhonyResponse(status=200, payload=b"\x02Not JSON\x03")
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([not_json]))):
+        cred = auth.Auth("foo", "bar", token_endpoint="http://www.example.com")
+        with pytest.raises(RuntimeError) as err:
+            tok = cred.token
+        assert "Failed to decode data from OIDC endpoint as JSON" in str(err)
+
+    not_dict = PhonyResponse(status=200, payload=b"[1, 2, 3]")
+    no_token = PhonyResponse(status=200, payload=b'{"token_type": "missing"}')
+    bad_token = PhonyResponse(status=200, payload=b'{"access_token": 7, "token_type": "missing"}')
+    no_type = PhonyResponse(status=200, payload=b'{"access_token": "token"}')
+    bad_type = PhonyResponse(status=200, payload=b'{"access_token": "token", "token_type": 5}')
+    for resp in [not_dict, no_token, bad_token, no_type, bad_type]:
+        with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([resp]))):
+            cred = auth.Auth("foo", "bar", token_endpoint="http://www.example.com")
+            with pytest.raises(RuntimeError) as err:
+                tok = cred.token
+            assert "Not able to process result from token endpoint" in str(err)
+
+    wrong_type = PhonyResponse(status=200, payload=b'{"access_token": "tok", "token_type": "bad"}')
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([wrong_type]))):
+        cred = auth.Auth("foo", "bar", token_endpoint="http://www.example.com")
+        with pytest.raises(RuntimeError) as err:
+            tok = cred.token
+        assert "Only bearer tokens are supported" in str(err)
+
+    bad_exp = PhonyResponse(status=200, payload=b'{"access_token": "token", "token_type": "bearer",'
+                            b' "expires_in": "a year and a day"}')
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([bad_exp]))):
+        cred = auth.Auth("foo", "bar", token_endpoint="http://www.example.com")
+        with pytest.raises(RuntimeError) as err:
+            tok = cred.token
+        assert "Unable to interpret token response 'expires_in' value" in str(err)
+
+    no_exp = PhonyResponse(status=200, payload=b'{"access_token": "token", "token_type": "bearer"}')
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([no_exp]))):
+        cred = auth.Auth("foo", "bar", token_endpoint="http://www.example.com")
+        assert cred.token == "token"
+        # with no expiration time known, subsequent use must re-request,
+        # which is arranged to fail in this case
+        with pytest.raises(RuntimeError) as err:
+            tok = cred.token
+        assert "urlopen called too many times on PhonyConnection" in str(err)
 
 
 def test_load_auth_legacy(legacy_auth_config, tmpdir):

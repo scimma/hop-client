@@ -1,7 +1,9 @@
+import base64
 from collections import defaultdict
 from contextlib import contextmanager
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 import io
+import json
 import os
 import stat
 from unittest.mock import MagicMock
@@ -787,6 +789,38 @@ def temp_auth(tmpdir, data, perms=stat.S_IRUSR | stat.S_IWUSR):
         os.remove(config_path)
 
 
+class FakeRead:
+    """A mock object which acts like a file/buffer which can be read to obtain a predetermined
+    chunk of data. Suitable for acting as the read method of a response returned by PhonyConnection.
+    """
+
+    def __init__(self, data):
+        self.data = data
+        self.counter = 0
+
+    def __call__(self, *args):
+        self.counter += 1
+        if self.counter == 1:
+            return self.data
+        return None
+
+
+class PhonyResponse:
+    def __init__(self, status, payload, headers={}):
+        self.status = status
+        self.reason = None
+        self.headers = headers
+        self._payload = payload
+        self._read_calls = 0
+
+    def read(self, chunk_size):
+        # chunk_size is currently ignored; this may return more data than requested in some cases
+        self._read_calls += 1
+        if self._read_calls == 1:
+            return self._payload
+        return None
+
+
 class PhonyConnection:
     """A mock which pretends to be a urllib3.connection.HTTPConnection well enough to fool requests
     in simple situations, allowing testing HTTP connections without actually performing any network
@@ -816,3 +850,13 @@ def mock_pool_manager(conn: PhonyConnection):
     pm.connection_from_url = MagicMock(return_value=conn)
     pm.connection_from_host = MagicMock(return_value=conn)
     return MagicMock(return_value=pm)
+
+
+def make_simple_jwt(validity=60, issue_timestamp=None):
+    if issue_timestamp is None:
+        issue_timestamp = datetime.now(timezone.utc).timestamp()
+    header = {"alg": "none", "typ": "JWT"}
+    claims = {"sub": "user", "exp": issue_timestamp + validity}
+    token = base64.b64encode(json.dumps(header).encode("utf-8")).rstrip(b'=') + b'.' \
+        + base64.b64encode(json.dumps(claims).encode("utf-8")).rstrip(b'=') + b'.'
+    return {"access_token": token.decode("utf-8"), "token_type": "bearer", "expires_in": validity}
