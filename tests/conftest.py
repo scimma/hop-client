@@ -548,6 +548,9 @@ def mock_admin_client():
             def reset_query_counter(self):
                 self.describe_configs_queries = 0
 
+            def poll(self, timeout):
+                pass
+
         return MockAdminClient(mock_broker)
 
     return _mock_admin_client
