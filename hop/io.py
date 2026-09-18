@@ -822,6 +822,7 @@ class Producer:
             return {topic: {"max.message.bytes": dummy_max} for topic in topics}
 
         aclient = AdminClient(aconfig._to_confluent_kafka())
+        aclient.poll(0)  # avoid hanging on token fetching
         logger.debug(f"Fetching settings for topics: {topics}")
         query = [ConfigResource(restype=ResourceType.TOPIC, name=topic) for topic in topics]
         futures = aclient.describe_configs(query)
