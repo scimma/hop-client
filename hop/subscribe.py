@@ -1,3 +1,4 @@
+import json
 import logging
 import sys
 
@@ -60,7 +61,10 @@ def _main(args):
 
     with stream.open(args.url, "r", group_id=args.group_id, ignoretest=(not args.test)) as s:
         for message in s:
-            raw = bytes(message)
+            if args.json:
+                raw = json.dumps(message.content).encode("utf-8")
+            else:
+                raw = bytes(message)
             sys.stdout.buffer.write(raw)
             if not raw.endswith(delim):
                 sys.stdout.buffer.write(delim)
