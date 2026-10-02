@@ -1705,6 +1705,24 @@ def make_mock_listing_consumer(topics=[]):
     return MagicMock(return_value=consumer)
 
 
+def test_consumer_list_topics():
+    broker_url = "kafka://example.com:9092/foo"
+    stream = io.Stream(auth=False)
+    # when there are some topics, they are all listed
+    with patch("confluent_kafka.Consumer", make_mock_listing_consumer(["foo", "bar"])) as Consumer:
+        with stream.open(broker_url, "r") as s:
+            listing = s.list_topics()
+            assert len(listing) == 2
+            assert "foo" in listing
+            assert "bar" in listing
+            Consumer.assert_called_once()
+
+            # repeated listing should not create additional Consumer instances
+            for i in range(0, 5):
+                listing = s.list_topics()
+                Consumer.assert_called_once()
+
+
 def test_list_topics():
     # when there are some topics, they are all listed
     with patch("confluent_kafka.Consumer", make_mock_listing_consumer(["foo", "bar"])) as Consumer:
