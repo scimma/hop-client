@@ -696,6 +696,21 @@ class Consumer:
         else:
             return bool([v for k, v in h if k == "_test"])
 
+    def list_topics(self, timeout=-1.0):
+        """List the accessible topics on the Kafka broker(s) to which this consumer is connected.
+
+        Args:
+            timeout: A floating point value, indicating the maximum number of
+            seconds to wait to connect to or get a response from a broker, or
+            a negative value to indicate no limit.
+
+        Returns:
+            A dictionary mapping topic names to
+            :class:`confluent_kafka.admin.TopicMetadata` instances.
+        """
+        topic_data = self._consumer._consumer.list_topics(timeout=timeout).topics
+        return {t: d for t, d in topic_data.items() if d.error is None}
+
     def __iter__(self):
         yield from self.read()
 
