@@ -50,16 +50,21 @@ class Auth(auth.SASLAuth):
     token_endpoint : `str`, optional
         The OpenID Connect token endpoint URL.
         Required for OAUTHBEARER / OpenID Connect, otherwise ignored.
+    token_command : `str`, optional
+        The shell command used to obtain a bearer token.
+        Used for non-OIDC OAUTHBEARER.
     """
 
     def __init__(self, user, password, host="", ssl=True, method=None,
-                 token_endpoint=None, **kwargs):
-        if method is None and token_endpoint is None and "token_command" not in kwargs:
+                 token_endpoint=None, token_command=None, **kwargs):
+        if method is None and token_endpoint is None and token_command is None:
             method = SASLMethod.SCRAM_SHA_512
         super().__init__(user, password, ssl=ssl, method=method,
-                         token_endpoint=token_endpoint, **kwargs)
+                         token_endpoint=token_endpoint, token_command=token_command,
+                         **kwargs)
         self._username = user
         self._hostname = host
+        self._token_command = token_command
 
     @property
     def username(self):
@@ -109,6 +114,13 @@ class Auth(auth.SASLAuth):
             or None if OpenID Connect is not enabled
         """
         return self._config.get("sasl.oauthbearer.token.endpoint.url")
+
+    @property
+    def token_command(self):
+        """The shell command used to fetch a bearer token
+           or None if such a command is not used
+        """
+        return self._token_command
 
     @property
     def is_scram(self):
@@ -180,7 +192,8 @@ class Auth(auth.SASLAuth):
                 and self.mechanism == other.mechanism
                 and self.protocol == other.protocol
                 and self.ssl_ca_location == other.ssl_ca_location
-                and self.token_endpoint == other.token_endpoint)
+                and self.token_endpoint == other.token_endpoint
+                and self.token_command == other.token_command)
 
 
 class AmbiguousCredentialError(RuntimeError):
@@ -548,9 +561,11 @@ def write_auth_data(config_file, credentials):
     for cred in credentials:
         cred_dict = {"username": cred.username, "password": cred.password,
                      "protocol": cred.protocol, "mechanism": cred.mechanism,
-                     "token_endpoint": cred.token_endpoint}
+                     "token_endpoint": cred.token_endpoint, "token_command": cred.token_command}
         if len(cred.hostname) > 0:
             cred_dict["hostname"] = cred.hostname
+        if cred_dict["password"] is None:
+            cred_dict["password"] = ""
         # This is slightly subtle: certifi.where() is the default location to use for CA data if no
         # other is specified. It should always be available, because we specify certifi
         # (transitively) as a dependency. However, chances are significant that it may at any given
