@@ -813,6 +813,8 @@ def test_write_config_data(tmpdir):
                                      config_file)
     credential_write_read_round_trip(auth.Auth(username, password, ssl_ca_location="ca.cert"),
                                      config_file)
+    credential_write_read_round_trip(auth.Auth("foo", "bar", token_command="echo a-token"),
+                                     config_file)
 
 
 def test_list_credentials(tmpdir, capsys):
