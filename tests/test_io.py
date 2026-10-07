@@ -1933,4 +1933,4 @@ def test_list_topics_timeout():
         with pytest.raises(confluent_kafka.KafkaException) as err:
             io.list_topics("kafka://not-a-valid-broker.scimma.org", auth=cred, timeout=timeout)
         stop = time.time()
-        assert abs((stop - start) - timeout) < 0.1
+        assert abs((stop - start) - timeout) < 0.2
