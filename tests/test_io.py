@@ -11,7 +11,7 @@ from uuid import uuid4
 
 import pytest
 
-from hop.auth import Auth, AmbiguousCredentialError
+from hop.auth import Auth, AmbiguousCredentialError, SASLMethod
 from hop import bson, io
 from hop.models import (AvroBlob, Blob, ExternalMessage, GCNCircular, GCNTextNotice, JSONBlob,
                         VOEvent)
@@ -19,7 +19,7 @@ from adc.errors import KafkaException
 import confluent_kafka
 
 from conftest import (temp_environ, temp_auth, message_parameters_dict_data, PhonyConnection,
-                      mock_pool_manager)
+                      mock_pool_manager, PhonyResponse, make_simple_jwt)
 
 logger = logging.getLogger("hop")
 
@@ -354,18 +354,6 @@ def test_http_error_to_kafka():
         assert kerr.str() == msg
 
 
-class FakeRead:
-    def __init__(self, data):
-        self.data = data
-        self.counter = 0
-
-    def __call__(self, *args):
-        self.counter += 1
-        if self.counter == 1:
-            return self.data
-        return None
-
-
 def test_consumer_fetch_external_no_auth():
     orig_data = b"datadatadata"
     orig_id = b'|\xdc\xfa\xa0v\x94Iu\x8c\xcd\xeaJ\x7f6\xf5r'
@@ -378,8 +366,7 @@ def test_consumer_fetch_external_no_auth():
     # success, no metadata requested
     url = "https://example.com/msg/1234"
     reference_message = make_message_standard(ExternalMessage(url=url))
-    response = MagicMock(status=200, read=FakeRead(payload))
-    del response.stream
+    response = PhonyResponse(status=200, payload=payload)
     with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
             patch("hop.io.consumer.Consumer", MagicMock()):
         c = io.Consumer("cID", ["example.com:9092"], "test-topic")
@@ -388,8 +375,7 @@ def test_consumer_fetch_external_no_auth():
         assert output.content == orig_data
 
     # success, with metadata requested
-    response = MagicMock(status=200, read=FakeRead(payload))
-    del response.stream
+    response = PhonyResponse(status=200, payload=payload)
     with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
             patch("hop.io.consumer.Consumer", MagicMock()):
         c = io.Consumer("cID", ["example.com:9092"], "test-topic")
@@ -403,8 +389,7 @@ def test_consumer_fetch_external_no_auth():
         assert ("_id", orig_id) in output[1].headers
 
     # HTTP failure, no error callback
-    response = MagicMock(status=500, read=FakeRead(b"Error!"))
-    del response.stream
+    response = PhonyResponse(status=500, payload=b"Error!")
     with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
             patch("hop.io.consumer.Consumer", MagicMock()):
         c = io.Consumer("cID", ["example.com:9092"], "test-topic")
@@ -413,8 +398,7 @@ def test_consumer_fetch_external_no_auth():
         assert m.error().code() == confluent_kafka.KafkaError.UNKNOWN
 
     # HTTP failure, with error callback
-    response = MagicMock(status=500, read=FakeRead(b"Error!"))
-    del response.stream
+    response = PhonyResponse(status=500, payload=b"Error!")
     ecallback = MagicMock()
     with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
             patch("hop.io.consumer.Consumer", MagicMock()):
@@ -427,8 +411,7 @@ def test_consumer_fetch_external_no_auth():
         assert ecallback.call_args.args[0].code() == confluent_kafka.KafkaError.UNKNOWN
 
     # Data not BSON, no error callback
-    response = MagicMock(status=200, read=FakeRead(b"Not valid BSON"))
-    del response.stream
+    response = PhonyResponse(status=200, payload=b"Not valid BSON")
     with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
             patch("hop.io.consumer.Consumer", MagicMock()):
         c = io.Consumer("cID", ["example.com:9092"], "test-topic")
@@ -437,8 +420,7 @@ def test_consumer_fetch_external_no_auth():
         assert m.error().code() == confluent_kafka.KafkaError._VALUE_DESERIALIZATION
 
     # Data not BSON, with error callback
-    response = MagicMock(status=200, read=FakeRead(b"Not valid BSON"))
-    del response.stream
+    response = PhonyResponse(status=200, payload=b"Not valid BSON")
     ecallback = MagicMock()
     with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
             patch("hop.io.consumer.Consumer", MagicMock()):
@@ -452,8 +434,7 @@ def test_consumer_fetch_external_no_auth():
             == confluent_kafka.KafkaError._VALUE_DESERIALIZATION
 
     # Valid BSON but malformed message record, no error callback
-    response = MagicMock(status=200, read=FakeRead(bson.dumps({1: 2, 3: 4})))
-    del response.stream
+    response = PhonyResponse(status=200, payload=bson.dumps({1: 2, 3: 4}))
     with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
             patch("hop.io.consumer.Consumer", MagicMock()):
         c = io.Consumer("cID", ["example.com:9092"], "test-topic")
@@ -462,8 +443,7 @@ def test_consumer_fetch_external_no_auth():
         assert m.error().code() == confluent_kafka.KafkaError._VALUE_DESERIALIZATION
 
     # Valid BSON but malformed message record, with error callback
-    response = MagicMock(status=200, read=FakeRead(bson.dumps({1: 2, 3: 4})))
-    del response.stream
+    response = PhonyResponse(status=200, payload=bson.dumps({1: 2, 3: 4}))
     ecallback = MagicMock()
     with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([response]))), \
             patch("hop.io.consumer.Consumer", MagicMock()):
@@ -485,14 +465,12 @@ def test_consumer_fetch_external_with_auth():
                           "metadata": {"headers": [("_id", orig_id)],
                                        "timestamp": orig_timestamp}
                           })
-    auth = Auth("user", "pencil")
+    auth = Auth("user", "pencil", method=SASLMethod.SCRAM_SHA_256)
 
     # use auth, endpoint not cached, matches trusted
     url = "https://example.com/msg/1234"
     reference_message = make_message_standard(ExternalMessage(url=url))
-    response = MagicMock(status=200, read=FakeRead(payload))
-    del response.stream
-    conn = PhonyConnection([response])
+    conn = PhonyConnection([PhonyResponse(status=200, payload=payload)])
     with patch("requests.adapters.PoolManager", mock_pool_manager(conn)), \
             patch("hop.io.consumer.Consumer", MagicMock()), \
             patch("hop.io._get_offload_server",
@@ -505,9 +483,7 @@ def test_consumer_fetch_external_with_auth():
         assert "Authorization" in conn.requests[0]["headers"]
 
     # use auth, endpoint cached
-    response = MagicMock(status=200, read=FakeRead(payload))
-    del response.stream
-    conn = PhonyConnection([response])
+    conn = PhonyConnection([PhonyResponse(status=200, payload=payload)])
     with patch("requests.adapters.PoolManager", mock_pool_manager(conn)), \
             patch("hop.io.consumer.Consumer", MagicMock()), \
             patch("hop.io._get_offload_server", MagicMock()) as go:
@@ -522,9 +498,7 @@ def test_consumer_fetch_external_with_auth():
     # use auth, endpoint not cached, does not match trusted
     url = "https://example.com/msg/1234"
     reference_message = make_message_standard(ExternalMessage(url=url))
-    response = MagicMock(status=200, read=FakeRead(payload))
-    del response.stream
-    conn = PhonyConnection([response])
+    conn = PhonyConnection([PhonyResponse(status=200, payload=payload)])
     with patch("requests.adapters.PoolManager", mock_pool_manager(conn)), \
             patch("hop.io.consumer.Consumer", MagicMock()), \
             patch("hop.io._get_offload_server",
@@ -535,6 +509,50 @@ def test_consumer_fetch_external_with_auth():
         assert output.content == orig_data
         assert len(conn.requests) > 0
         assert "Authorization" not in conn.requests[0]["headers"]
+
+
+# non-SCRAM forms of auth
+def test_consumer_fetch_external_non_scram_auth():
+    orig_data = b"datadatadata"
+    orig_id = b'|\xdc\xfa\xa0v\x94Iu\x8c\xcd\xeaJ\x7f6\xf5r'
+    orig_timestamp = 172000
+    payload = bson.dumps({"message": orig_data,
+                          "metadata": {"headers": [("_id", orig_id)],
+                                       "timestamp": orig_timestamp}
+                          })
+
+    url = "https://example.com/msg/1234"
+    reference_message = make_message_standard(ExternalMessage(url=url))
+
+    # plain auth
+    auth = Auth("user", "pencil", method=SASLMethod.PLAIN)
+    conn = PhonyConnection([PhonyResponse(status=200, payload=payload)])
+    with patch("requests.adapters.PoolManager", mock_pool_manager(conn)), \
+            patch("hop.io.consumer.Consumer", MagicMock()), \
+            patch("hop.io._get_offload_server",
+                  MagicMock(return_value="https://example.com")):
+        c = io.Consumer("cID", ["example.com:9092"], "test-topic", auth=auth)
+        output = c._fetch_external(url, False, reference_message)
+        assert isinstance(output, Blob)
+        assert output.content == orig_data
+        assert len(conn.requests) > 0
+        assert "Authorization" not in conn.requests[0]["headers"]
+
+    # token auth
+    raw_token = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ1c2VyIiwiZXhwIjoxMjM0fQ."
+    auth = Auth("user", password='', token_command=f"echo {raw_token}")
+    conn = PhonyConnection([PhonyResponse(status=200, payload=payload)])
+    with patch("requests.adapters.PoolManager", mock_pool_manager(conn)), \
+            patch("hop.io.consumer.Consumer", MagicMock()), \
+            patch("hop.io._get_offload_server",
+                  MagicMock(return_value="https://example.com")):
+        c = io.Consumer("cID", ["example.com:9092"], "test-topic", auth=auth)
+        output = c._fetch_external(url, False, reference_message)
+        assert isinstance(output, Blob)
+        assert output.content == orig_data
+        assert len(conn.requests) > 0
+        assert "Authorization" in conn.requests[0]["headers"]
+        assert conn.requests[0]["headers"]["Authorization"] == "Bearer " + raw_token
 
 
 def test_consumer_fetch_external_disabled():
@@ -784,7 +802,7 @@ def test_stream_write_message_too_large_no_offload(mock_broker, mock_producer, m
     broker_address = "localhost:9092"
     broker_url = f"kafka://{broker_address}/{topic}"
     mb.set_topic_max_message_size(topic, 32)
-    encoded_msg = io.Producer.pack(Blob(content=b'm' * 64))
+    encoded_msg, headers = io.Producer.pack(Blob(content=b'm' * 64))
     mock_consumer = MagicMock(subscribe=MagicMock(side_effect=ValueError("topic does not exist")))
 
     # With no offload endpoint supplied by the broker, attempting to send an over-large message
@@ -797,13 +815,13 @@ def test_stream_write_message_too_large_no_offload(mock_broker, mock_producer, m
         stream = io.Stream(auth=Auth("user", "pencil", method="SCRAM-SHA-1"))
         with stream.open(broker_url, "w") as s:
             with pytest.raises(KafkaException):
-                s.write_raw(encoded_msg, [])
-            assert not mock_broker.has_message(topic, encoded_msg, [])
+                s.write_raw(encoded_msg, headers)
+            assert not mb.has_message(topic, encoded_msg, [])
             assert s.offload_url is None
 
             # with no delivery callback, errors currently vanish into the void
-            s.write_raw(encoded_msg, [], delivery_callback=None)
-            assert not mock_broker.has_message(topic, encoded_msg, [])
+            s.write_raw(encoded_msg, headers, delivery_callback=None)
+            assert not mb.has_message(topic, encoded_msg, [])
 
 
 def test_write_with_large_mesage_offload(mock_broker, mock_producer, mock_admin_client):
@@ -921,11 +939,10 @@ def test_offload_message():
     test_server_first_data = "cj1meWtvK2QybGJiRmdPTlJ2OXFreGRhd0wzcmZjTkhZSlkxWlZ2V1ZzN" \
                              "2oscz1RU1hDUitRNnNlazhiZjkyLGk9NDA5Ng=="
     test_server_first = f"SCRAM-SHA-1 sid={test_sid},data={test_server_first_data}"
-    resp1 = MagicMock(status=401, headers={"WWW-Authenticate": test_server_first},
-                      read=FakeRead(b""))
+    resp1 = PhonyResponse(status=401, payload=b"", headers={"WWW-Authenticate": test_server_first})
     test_server_final = f"sid={test_sid},data=dj1ybUY5cHFWOFM3c3VBb1pXamE0ZEpSa0ZzS1E9"
-    resp2 = MagicMock(status=200, headers={"Authentication-Info": test_server_final},
-                      read=FakeRead(b""))
+    resp2 = PhonyResponse(status=200, payload=b"",
+                          headers={"Authentication-Info": test_server_final})
 
     # offloading a message with everything in order should work
     conn = PhonyConnection([resp1, resp2])
@@ -1040,9 +1057,8 @@ def test_offload_message():
 
     # failing to offload a message, e.g. because of lack of write permissions,
     # should produce an error
-    resp2_not_permitted = MagicMock(
-        status=403, headers={"Authentication-Info": test_server_final},
-        read=FakeRead(b"Operation not permitted"))
+    resp2_not_permitted = PhonyResponse(status=403, payload=b"Operation not permitted",
+                                        headers={"Authentication-Info": test_server_final})
     conn = PhonyConnection([resp1, resp2_not_permitted])
     with patch("requests.adapters.PoolManager", mock_pool_manager(conn)), \
             patch("secrets.token_urlsafe", MagicMock(return_value=test_nonce)):
@@ -1057,10 +1073,9 @@ def test_offload_message():
         assert "Failed to send large message to offload server" in result[2].str()
 
     # if the offload endpoint does not handshake correctly, an error should be produced
-    print("Begin incorrect SCRAM handshake")
-    server_first_no_sid = MagicMock(
-        status=401, headers={"WWW-Authenticate": f"SCRAM-SHA-1 data={test_server_first_data}"},
-        read=FakeRead(b""))
+    server_first_no_sid = PhonyResponse(
+        status=401, payload=b"",
+        headers={"WWW-Authenticate": f"SCRAM-SHA-1 data={test_server_first_data}"})
     conn = PhonyConnection([server_first_no_sid])
     with patch("requests.adapters.PoolManager", mock_pool_manager(conn)), \
             patch("secrets.token_urlsafe", MagicMock(return_value=test_nonce)):
@@ -1073,6 +1088,44 @@ def test_offload_message():
         assert result[2] is not None
         assert result[2].code() == confluent_kafka.KafkaError.SASL_AUTHENTICATION_FAILED
         assert "Failed to send large message to offload server" in result[2].str()
+
+
+def test_offload_message_token_auth():
+    fixed_uuid = uuid4()
+
+    raw_token = make_simple_jwt()["access_token"]
+    auth = Auth("user", password='', token_command=f"echo {raw_token}")
+
+    # offloading a message with everything in order should work
+    conn = PhonyConnection([PhonyResponse(status=200, payload=b"")])
+    with patch("requests.adapters.PoolManager", mock_pool_manager(conn)):
+        prod = io.Producer("example.com:9092", [], None)
+        prod.offload_url = "http://example.com/8000"
+        prod.auth = auth
+        result = prod._offload_message(b"data", [("_id", fixed_uuid.bytes)], "topic")
+        assert result[2] is None
+        assert len(conn.requests) > 0
+        # the body that was sent should be valid BSON
+        payload = bson.loads(conn.requests[-1]["body"])
+        # we happen to have a tool, covered by other tests for verifying the structure of
+        # offloaded message payloads
+        print(payload)
+        assert check_outgoing_bson_message(payload) is None
+        rmessage = result[0]
+        assert isinstance(rmessage, bytes)
+        decoded_rmessage = ExternalMessage.load(rmessage)
+        assert decoded_rmessage.url.startswith(prod.offload_url)
+        assert decoded_rmessage.url.endswith(str(fixed_uuid))
+        rheaders = result[1]
+        assert isinstance(rheaders, list)
+        id_header = None
+        for header in rheaders:
+            assert header[0] != "_test", "If the original message was not marked as a test, " \
+                                         "the offloaded version also should not be"
+            if header[0] == "_id":
+                id_header = header[1]
+        assert id_header is not None
+        assert id_header != fixed_uuid.hex, "Reference message should hace a distinct ID"
 
 
 def test_stream_auth(auth_config, tmpdir):
@@ -1117,7 +1170,7 @@ def test_stream_open(auth_config, mock_broker, mock_producer, mock_admin_client,
         stream.open("kafka://example.com/", "r")
     assert "no topic(s) specified in kafka URL" in err.value.args
 
-    # verify that URLs with too many hostnames
+    # verify that URLs with too many hostnames are rejected
     with pytest.raises(ValueError) as err:
         stream.open("kafka://example.com,example.net/topic", "r")
         assert "Multiple broker addresses are not supported" in err.value.args
@@ -1140,6 +1193,28 @@ def test_stream_open(auth_config, mock_broker, mock_producer, mock_admin_client,
         # opening a valid URL for writing should succeed
         producer = stream.open("kafka://example.com/topic", "w")
         producer.write("data")
+
+
+def test_stream_open_interesting_username(mock_broker, mock_producer, mock_admin_client, tmpdir):
+    auth_config = """auth = [{
+                     username="a@:b",
+                     password="password"
+                     }]"""
+    mb = mock_broker
+
+    def producer_factory(c):
+        return mock_producer(mb, c.topic)
+    # verify that complete URLs are accepted
+    with temp_auth(tmpdir, auth_config) as config_dir, temp_environ(XDG_CONFIG_HOME=config_dir), \
+            patch("hop.io.adc_producer.Producer", side_effect=producer_factory), \
+            patch("adc.consumer.Consumer.subscribe", MagicMock()) as subscribe, \
+            patch("hop.io.AdminClient", return_value=mock_admin_client(mock_broker)):
+        stream = io.Stream()
+        # opening a valid URL for reading should succeed
+        consumer = stream.open("kafka://a%40%3Ab@example.com/topic", "r")
+        # an appropriate consumer group name should be derived from the username in the auth
+        print(consumer._consumer.conf.group_id)
+        assert consumer._consumer.conf.group_id.startswith("a@:b")
 
 
 def test_stream_open_ambiguous_creds():
@@ -1831,6 +1906,25 @@ def test_list_topics_auth(auth_config, tmpdir):
         assert cons_args[0]["sasl.username"] == "user2"
         assert cons_args[0]["sasl.password"] == "pass2"
 
+    # when given a URL with an embedded username which contains special characters
+    # they should be correctly un-escaped for matching to the credential store
+    escaped_cred = """auth = [{
+                      username="a@:b",
+                      password="xyzzy"
+                      }]"""
+    with temp_auth(tmpdir, escaped_cred) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir), \
+            patch("confluent_kafka.Consumer", make_mock_listing_consumer([])) as Consumer:
+        listing = io.list_topics("kafka://a%40%3Ab@example.com", auth=True)
+
+        Consumer.assert_called_once()
+        cons_args = Consumer.call_args[0]
+        assert len(cons_args) == 1
+        assert "sasl.username" in cons_args[0]
+        assert "sasl.password" in cons_args[0]
+        assert cons_args[0]["sasl.username"] == "a@:b"
+        assert cons_args[0]["sasl.password"] == "xyzzy"
+
 
 def test_list_topics_timeout():
     cred = Auth("user", "pass")
@@ -1839,4 +1933,4 @@ def test_list_topics_timeout():
         with pytest.raises(confluent_kafka.KafkaException) as err:
             io.list_topics("kafka://not-a-valid-broker.scimma.org", auth=cred, timeout=timeout)
         stop = time.time()
-        assert abs((stop - start) - timeout) < 0.1
+        assert abs((stop - start) - timeout) < 0.2

@@ -1,11 +1,13 @@
 import certifi
 from collections.abc import Mapping
 import csv
+import datetime
 import errno
 import getpass
 import logging
 import os
 import re
+import requests
 import stat
 import toml
 
@@ -48,16 +50,21 @@ class Auth(auth.SASLAuth):
     token_endpoint : `str`, optional
         The OpenID Connect token endpoint URL.
         Required for OAUTHBEARER / OpenID Connect, otherwise ignored.
+    token_command : `str`, optional
+        The shell command used to obtain a bearer token.
+        Used for non-OIDC OAUTHBEARER.
     """
 
     def __init__(self, user, password, host="", ssl=True, method=None,
-                 token_endpoint=None, **kwargs):
-        if method is None and token_endpoint is None:
+                 token_endpoint=None, token_command=None, **kwargs):
+        if method is None and token_endpoint is None and token_command is None:
             method = SASLMethod.SCRAM_SHA_512
         super().__init__(user, password, ssl=ssl, method=method,
-                         token_endpoint=token_endpoint, **kwargs)
+                         token_endpoint=token_endpoint, token_command=token_command,
+                         **kwargs)
         self._username = user
         self._hostname = host
+        self._token_command = token_command
 
     @property
     def username(self):
@@ -108,6 +115,76 @@ class Auth(auth.SASLAuth):
         """
         return self._config.get("sasl.oauthbearer.token.endpoint.url")
 
+    @property
+    def token_command(self):
+        """The shell command used to fetch a bearer token
+           or None if such a command is not used
+        """
+        return self._token_command
+
+    @property
+    def is_scram(self):
+        """Whether this credential uses SCRAM"""
+        return self._config["sasl.mechanism"].startswith("SCRAM-")
+
+    @property
+    def is_token(self):
+        """Whether this credential uses a bearer token"""
+        return self._method == SASLMethod.OAUTHBEARER
+
+    @property
+    def token(self):
+        """
+        If this credential is token-based, get the current access token for it.
+        It is an error to access this property for non-token credentials.
+
+        Under normal circumstances, tokens are handled by confluent_kafka, however, in some cases
+        a token may be required for authentication over other protocols, which is supported by
+        this simple implementation.
+        """
+        if hasattr(self, "_token_data") and hasattr(self, "_token_expiration") and \
+                self._token_expiration >= datetime.datetime.now(datetime.timezone.utc).timestamp():
+            return self._token_data
+        if not self.is_token:
+            raise ValueError("Cannot extract a token from a non-token credential")
+        config = self()
+        if config["sasl.oauthbearer.method"] == "default" and "oauth_cb" in config:
+            token_data, exp_time, _, _ = config["oauth_cb"](None)
+            self._token_data = token_data
+            self._token_expiration = exp_time
+        elif config["sasl.oauthbearer.method"] == "oidc" and \
+                "sasl.oauthbearer.token.endpoint.url" in config:
+            req_time = datetime.datetime.now(datetime.timezone.utc).timestamp()
+            result = requests.post(config["sasl.oauthbearer.token.endpoint.url"],
+                                   data="grant_type=client_credentials",
+                                   auth=(self.username, self.password),
+                                   headers={"Content-Type": "application/x-www-form-urlencoded"})
+            if not result.ok:
+                raise RuntimeError("Failed to fetch token from OIDC endpoint: "
+                                   f"({result.status_code}) {result.text}")
+            try:
+                result_data = result.json()
+            except requests.exceptions.JSONDecodeError:
+                raise RuntimeError("Failed to decode data from OIDC endpoint as JSON")
+            if not isinstance(result_data, dict) or "access_token" not in result_data or \
+                    not isinstance(result_data["access_token"], str) or \
+                    "token_type" not in result_data or \
+                    not isinstance(result_data["token_type"], str):
+                raise RuntimeError("Not able to process result from token endpoint")
+            token_type = result_data["token_type"]
+            if token_type.lower() != "bearer":
+                raise RuntimeError("Only bearer tokens are supported, "
+                                   f"got token type: {token_type}")
+            self._token_data = result_data["access_token"]
+            if "expires_in" in result_data:
+                exp_value = result_data["expires_in"]
+                if not isinstance(exp_value, int) and not isinstance(exp_value, float):
+                    raise RuntimeError("Unable to interpret token response 'expires_in' value")
+                self._token_expiration = req_time + exp_value
+            else:
+                self._token_expiration = req_time  # don't reuse tokens when expiration time unknown
+        return self._token_data
+
     def __eq__(self, other):
         return (self._username == other._username
                 and self.password == other.password
@@ -115,7 +192,8 @@ class Auth(auth.SASLAuth):
                 and self.mechanism == other.mechanism
                 and self.protocol == other.protocol
                 and self.ssl_ca_location == other.ssl_ca_location
-                and self.token_endpoint == other.token_endpoint)
+                and self.token_endpoint == other.token_endpoint
+                and self.token_command == other.token_command)
 
 
 class AmbiguousCredentialError(RuntimeError):
@@ -260,10 +338,12 @@ def _interpret_auth_data(auth_data):
                 host = config["hostname"]
 
             token_endpoint = config.get("token_endpoint")
+            if "token_command" in config:
+                extra_kwargs["token_command"] = config["token_command"]
 
             if "mechanism" in config:
                 mechanism = config["mechanism"].replace("-", "_")
-            elif token_endpoint:
+            elif token_endpoint or "token_command" in extra_kwargs:
                 mechanism = "OAUTHBEARER"
             else:
                 mechanism = "SCRAM_SHA_512"
@@ -446,8 +526,8 @@ def read_new_credential(csv_file=None):
                 reader = csv.DictReader(f)
                 cred = next(reader)
                 username = cred["username"]
-                password = cred["password"]
-                hostname = cred["hostname"] if "hostname" in cred else ""
+                password = cred.get("password", "")
+                hostname = cred.get("hostname", "")
                 token_endpoint = cred.get("token_endpoint")
                 if "mechanism" in cred:
                     options["method"] = cred["mechanism"].replace("-", "_")
@@ -455,6 +535,13 @@ def read_new_credential(csv_file=None):
                     options["ssl"] = cred["protocol"] != "SASL_PLAINTEXT"
                 if "ssl_ca_location" in cred:
                     options["ssl_ca_location"] = cred["ssl_ca_location"]
+                if "token_command" in cred:
+                    options["token_command"] = cred["token_command"]
+                if not password and not token_endpoint and "token_command" not in options:
+                    raise KeyError("A password, a token_endpoint and password, or a token_command "
+                                   "is required")
+                if token_endpoint and not password:
+                    raise KeyError("A password is required with a token_endpoint")
         else:
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), csv_file)
     return Auth(username, password, hostname, token_endpoint=token_endpoint, **options)
@@ -474,9 +561,11 @@ def write_auth_data(config_file, credentials):
     for cred in credentials:
         cred_dict = {"username": cred.username, "password": cred.password,
                      "protocol": cred.protocol, "mechanism": cred.mechanism,
-                     "token_endpoint": cred.token_endpoint}
+                     "token_endpoint": cred.token_endpoint, "token_command": cred.token_command}
         if len(cred.hostname) > 0:
             cred_dict["hostname"] = cred.hostname
+        if cred_dict["password"] is None:
+            cred_dict["password"] = ""
         # This is slightly subtle: certifi.where() is the default location to use for CA data if no
         # other is specified. It should always be available, because we specify certifi
         # (transitively) as a dependency. However, chances are significant that it may at any given

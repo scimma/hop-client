@@ -2,13 +2,17 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
+import base64
+import datetime
 from hop import auth
 from hop import configure
+import json
 import os
 import stat
 import toml
 
-from conftest import temp_environ, temp_auth
+from conftest import (temp_environ, temp_auth, PhonyConnection, PhonyResponse, mock_pool_manager,
+                      make_simple_jwt)
 
 
 def check_credential_file(config_path, cred):
@@ -67,6 +71,152 @@ def test_auth_ca_location():
     assert a.ssl_ca_location == "foo/bar"
 
 
+def test_auth_classification():
+    a = auth.Auth("foo", "bar", method=auth.SASLMethod.PLAIN)
+    assert not a.is_scram
+    assert not a.is_token
+
+    for meth in ["SCRAM-SHA-1", auth.SASLMethod.SCRAM_SHA_256, auth.SASLMethod.SCRAM_SHA_512]:
+        a = auth.Auth("foo", "bar", method=meth)
+        assert a.is_scram
+        assert not a.is_token
+
+    a = auth.Auth("foo", "bar", token_endpoint="https://www.example.com")
+    assert not a.is_scram
+    assert a.is_token
+
+    a = auth.Auth("foo", "bar", token_command="echo a-token")
+    assert not a.is_scram
+    assert a.is_token
+
+
+def test_auth_token_nontoken():
+    a = auth.Auth("foo", "bar", method=auth.SASLMethod.PLAIN)
+    with pytest.raises(ValueError) as err:
+        a.token
+    assert "Cannot extract a token from a non-token credential" in str(err)
+
+    a = auth.Auth("foo", "bar", method=auth.SASLMethod.SCRAM_SHA_512)
+    with pytest.raises(ValueError) as err:
+        a.token
+    assert "Cannot extract a token from a non-token credential" in str(err)
+
+
+def test_auth_token_ext_command():
+    validity = 60
+    raw_token = make_simple_jwt(validity=validity)["access_token"]
+    cred = auth.Auth("foo", "", token_command=f"echo '{raw_token}'")
+    # wrap the callback created by adc to be able to keep track of it being called
+    cred._config["oauth_cb"] = MagicMock(wraps=cred._config["oauth_cb"])
+    assert cred.token == raw_token
+    cred._config["oauth_cb"].assert_called_once()
+
+    # accessing the property again within a short period should reuse the cached value
+    cred._config["oauth_cb"].reset_mock()
+    assert cred.token == raw_token
+    cred._config["oauth_cb"].assert_not_called()
+
+    # fast-forward time to ensure that cached values are replaced after they expire
+    later = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=2 * validity)
+    fake_now = MagicMock(return_value=later)
+    dtc = MagicMock()
+    dtc.now = fake_now
+    cred._config["oauth_cb"].reset_mock()
+    with patch("datetime.datetime", dtc):
+        # the test token command is hard-wired to return the same value even though it is expired
+        assert cred.token == raw_token
+        cred._config["oauth_cb"].assert_called_once()
+
+
+def test_auth_token_oidc():
+    validity = 60
+    token_data = make_simple_jwt(validity=validity)
+    resp1 = PhonyResponse(status=200, payload=json.dumps(token_data).encode("utf-8"))
+    later = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=2 * validity)
+    token_data2 = make_simple_jwt(validity=validity, issue_timestamp=later.timestamp())
+    resp2 = PhonyResponse(status=200, payload=json.dumps(token_data2).encode("utf-8"))
+    conn = PhonyConnection([resp1, resp2])
+    with patch("requests.adapters.PoolManager", mock_pool_manager(conn)):
+        cred = auth.Auth("foo", "bar", token_endpoint="http://www.example.com")
+        assert cred.token == token_data["access_token"]
+        assert len(conn.requests) == 1
+        assert "body" in conn.requests[0]
+        assert conn.requests[0]["body"] == "grant_type=client_credentials"
+        assert "headers" in conn.requests[0]
+        assert "Content-Type" in conn.requests[0]["headers"]
+        assert conn.requests[0]["headers"]["Content-Type"] == "application/x-www-form-urlencoded"
+        assert "Authorization" in conn.requests[0]["headers"]
+        expected_auth = "Basic " \
+            + base64.b64encode((cred.username + ":" + cred.password).encode("utf-8"))\
+            .decode("utf-8")
+        assert conn.requests[0]["headers"]["Authorization"] == expected_auth
+
+        # accessing the property again within a short period should reuse the cached value
+        assert cred.token == token_data["access_token"]
+        assert len(conn.requests) == 1
+
+        fake_now = MagicMock(return_value=later)
+        dtc = MagicMock()
+        dtc.now = fake_now
+        with patch("datetime.datetime", dtc):
+            assert cred.token == token_data2["access_token"]
+            assert len(conn.requests) == 2
+
+
+def test_auth_token_oidc_invalid_responses():
+    fobidden = PhonyResponse(status=403, payload=b"Forbidden")
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([fobidden]))):
+        cred = auth.Auth("foo", "bar", token_endpoint="http://www.example.com")
+        with pytest.raises(RuntimeError) as err:
+            tok = cred.token
+        assert "Failed to fetch token from OIDC endpoint" in str(err)
+        assert "(403) Forbidden" in str(err)
+
+    not_json = PhonyResponse(status=200, payload=b"\x02Not JSON\x03")
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([not_json]))):
+        cred = auth.Auth("foo", "bar", token_endpoint="http://www.example.com")
+        with pytest.raises(RuntimeError) as err:
+            tok = cred.token
+        assert "Failed to decode data from OIDC endpoint as JSON" in str(err)
+
+    not_dict = PhonyResponse(status=200, payload=b"[1, 2, 3]")
+    no_token = PhonyResponse(status=200, payload=b'{"token_type": "missing"}')
+    bad_token = PhonyResponse(status=200, payload=b'{"access_token": 7, "token_type": "missing"}')
+    no_type = PhonyResponse(status=200, payload=b'{"access_token": "token"}')
+    bad_type = PhonyResponse(status=200, payload=b'{"access_token": "token", "token_type": 5}')
+    for resp in [not_dict, no_token, bad_token, no_type, bad_type]:
+        with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([resp]))):
+            cred = auth.Auth("foo", "bar", token_endpoint="http://www.example.com")
+            with pytest.raises(RuntimeError) as err:
+                tok = cred.token
+            assert "Not able to process result from token endpoint" in str(err)
+
+    wrong_type = PhonyResponse(status=200, payload=b'{"access_token": "tok", "token_type": "bad"}')
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([wrong_type]))):
+        cred = auth.Auth("foo", "bar", token_endpoint="http://www.example.com")
+        with pytest.raises(RuntimeError) as err:
+            tok = cred.token
+        assert "Only bearer tokens are supported" in str(err)
+
+    bad_exp = PhonyResponse(status=200, payload=b'{"access_token": "token", "token_type": "bearer",'
+                            b' "expires_in": "a year and a day"}')
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([bad_exp]))):
+        cred = auth.Auth("foo", "bar", token_endpoint="http://www.example.com")
+        with pytest.raises(RuntimeError) as err:
+            tok = cred.token
+        assert "Unable to interpret token response 'expires_in' value" in str(err)
+
+    no_exp = PhonyResponse(status=200, payload=b'{"access_token": "token", "token_type": "bearer"}')
+    with patch("requests.adapters.PoolManager", mock_pool_manager(PhonyConnection([no_exp]))):
+        cred = auth.Auth("foo", "bar", token_endpoint="http://www.example.com")
+        assert cred.token == "token"
+        # with no expiration time known, subsequent use must re-request,
+        # which is arranged to fail in this case
+        with pytest.raises(RuntimeError) as err:
+            tok = cred.token
+        assert "urlopen called too many times on PhonyConnection" in str(err)
+
+
 def test_load_auth_legacy(legacy_auth_config, tmpdir):
     with temp_auth(tmpdir, legacy_auth_config) as config_dir, \
             temp_environ(XDG_CONFIG_HOME=config_dir):
@@ -89,6 +239,27 @@ def test_load_auth_oidc(auth_config_oidc, tmpdir):
         assert len(auth_data) == 1
         assert auth_data[0].username == "username"
         assert auth_data[0].token_endpoint == "https://example.com/oauth2/token"
+
+
+def test_load_auth_exttoken(auth_config_exttoken, tmpdir):
+    with temp_auth(tmpdir, auth_config_exttoken) as config_dir, \
+            temp_environ(XDG_CONFIG_HOME=config_dir):
+        auth_data = auth.load_auth()
+        assert len(auth_data) == 1
+        assert auth_data[0].username == "username"
+        assert auth_data[0].token_endpoint is None
+        assert auth_data[0].mechanism == "OAUTHBEARER"
+        auth_config = auth_data[0]()
+        print(auth_config)
+        assert auth_config["sasl.oauthbearer.method"] == "default"
+        assert auth_config["oauth_cb"] is not None
+        token_data = auth_config["oauth_cb"]("")
+        assert len(token_data) == 4
+        assert isinstance(token_data[0], str)
+        assert len(token_data[0]) > 0
+        assert isinstance(token_data[1], float)
+        assert token_data[2] == "user"
+        assert isinstance(token_data[3], dict)
 
 
 def test_load_auth_non_existent(auth_config, tmpdir):
@@ -525,6 +696,17 @@ def test_read_new_credential_csv(tmpdir):
     assert new_cred.password == "pass5"
     assert new_cred.ssl_ca_location == "foo/bar"
 
+    # read from a csv file with a token command
+    with open(csv_file, "w") as f:
+        f.write("username,password,token_command\n")
+        f.write("user6,,curl -X POST -u user6@example.com http://example.com/oauth2/token")
+    new_cred = auth.read_new_credential(csv_file)
+    assert new_cred.username == "user6"
+    assert new_cred.password is None
+    print(new_cred())
+    assert new_cred()["sasl.oauthbearer.method"] == "default"
+    assert new_cred.mechanism == "OAUTHBEARER"
+
 
 def test_read_new_credential_csv_malformed(tmpdir):
     csv_file = tmpdir + "/cred.csv"
@@ -540,10 +722,17 @@ def test_read_new_credential_csv_malformed(tmpdir):
     with pytest.raises(KeyError):
         auth.read_new_credential(csv_file)
 
-    # no password => KeyError
+    # no password, token_endpoint, or token_command => KeyError
     with open(csv_file, "w") as f:
         f.write("username,hostname\n")
         f.write("user,example.com")
+    with pytest.raises(KeyError):
+        auth.read_new_credential(csv_file)
+
+    # token_endpoint but no password => KeyError
+    with open(csv_file, "w") as f:
+        f.write("username,hostname,token_endpoint\n")
+        f.write("user,example.com,example.net")
     with pytest.raises(KeyError):
         auth.read_new_credential(csv_file)
 
@@ -623,6 +812,8 @@ def test_write_config_data(tmpdir):
                                                method=auth.SASLMethod.SCRAM_SHA_256),
                                      config_file)
     credential_write_read_round_trip(auth.Auth(username, password, ssl_ca_location="ca.cert"),
+                                     config_file)
+    credential_write_read_round_trip(auth.Auth("foo", "bar", token_command="echo a-token"),
                                      config_file)
 
 

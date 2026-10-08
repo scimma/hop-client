@@ -9,7 +9,7 @@ import random
 import string
 import time
 from typing import List, Optional, Tuple, Union
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 import uuid
 import warnings
 
@@ -116,6 +116,8 @@ class Stream(object):
 
         """
         username, broker_addresses, topics = kafka.parse_kafka_url(url)
+        if username:
+            username = unquote(username)
         if len(broker_addresses) > 1:
             raise ValueError("Multiple broker addresses are not supported")
         logger.debug("connecting to addresses=%s  username=%s  topics=%s",
@@ -402,6 +404,20 @@ def _http_error_to_kafka(status: int, msg: str = ""):
     return confluent_kafka.KafkaError(err_code, msg, fatal, retriable, txn_requires_abort)
 
 
+def _make_bearer_auth(token: str):
+    """Produce a callable object which can be passed to requests.request as the auth parameter,
+    implementing bearer token authentication with the specified token.
+
+    Args:
+        token: The bearer token to use for authentication
+    Return: A callable custom authentication object
+    """
+    def bearer_auth(req):
+        req.headers["authorization"] = "Bearer " + token
+        return req
+    return bearer_auth
+
+
 def _filter_valid_args(cls, kwargs: dict):
     """
     Extract from a dictionary the subset of its entries which are valid arguments to the
@@ -598,7 +614,10 @@ class Consumer:
             if trusted_offload_url is not None and \
                     parsed.scheme == trusted_offload_url.scheme and \
                     parsed.netloc == trusted_offload_url.netloc:
-                auth = http_scram.SCRAMAuth(self.auth, shortcut=True)
+                if self.auth.is_scram:
+                    auth = http_scram.SCRAMAuth(self.auth, shortcut=True)
+                elif self.auth.is_token:
+                    auth = _make_bearer_auth(self.auth.token)
                 logger.debug(" Will send auth info in HTTP request")
         resp = requests.get(url, auth=auth)
         if not resp.ok:
@@ -803,6 +822,7 @@ class Producer:
             return {topic: {"max.message.bytes": dummy_max} for topic in topics}
 
         aclient = AdminClient(aconfig._to_confluent_kafka())
+        aclient.poll(0)  # avoid hanging on token fetching
         logger.debug(f"Fetching settings for topics: {topics}")
         query = [ConfigResource(restype=ResourceType.TOPIC, name=topic) for topic in topics]
         futures = aclient.describe_configs(query)
@@ -1031,11 +1051,14 @@ class Producer:
         if key is not None:
             data_raw["key"] = key
         data = bson.dumps(data_raw)
-        try:
+        if self.auth.is_scram:
             # We assume that no server will allow un-authenticated writes, so we use shortcut=True
             # to start attempting a SCRAM handshake as quickly as possible.
-            resp = requests.post(write_url, data=data,
-                                 auth=http_scram.SCRAMAuth(self.auth, shortcut=True))
+            auth = http_scram.SCRAMAuth(self.auth, shortcut=True)
+        elif self.auth.is_token:
+            auth = _make_bearer_auth(self.auth.token)
+        try:
+            resp = requests.post(write_url, data=data, auth=auth)
         except RuntimeError as ex:
             err = confluent_kafka.KafkaError(confluent_kafka.KafkaError.SASL_AUTHENTICATION_FAILED,
                                              "Failed to send large message to offload server at "
@@ -1195,6 +1218,8 @@ def list_topics(url: str, auth: Union[bool, Auth] = True, timeout=-1.0):
         confluent_kafka.KafkaException: If connecting to the broker times out.
     """
     username, broker_addresses, query_topics = kafka.parse_kafka_url(url)
+    if username:
+        username = unquote(username)
     if len(broker_addresses) > 1:
         raise ValueError("Multiple broker addresses are not supported")
     user_auth = None
@@ -1212,6 +1237,10 @@ def list_topics(url: str, auth: Union[bool, Auth] = True, timeout=-1.0):
     if user_auth is not None:
         config.update(user_auth())
     consumer = confluent_kafka.Consumer(config)
+    # Work around a confluent kafka/librdkafka bug: If the mechanism is OAUTHBEARER and a token
+    # callback is being used, must invoke poll() at least once to obtain a token or calling
+    # list_topics() can block indefinitely
+    consumer.poll(0)
     valid_topics = {}
     if query_topics is not None:
         for topic in query_topics:
