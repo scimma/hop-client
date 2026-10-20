@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-20
+### Changed
+- Authentication with using bearer tokens is expanded to include obtaining a token via a shell
+  command. This should enable various authentication flows, including some organizations' use of
+  SciTokens.
+
 ## [0.12.2] - 2026-10-02
 ### Added
 - Provide a method to list topics using an already connected `hop.io.Consumer` object
